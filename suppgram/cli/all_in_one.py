@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from importlib import import_module
 from typing import Optional, List
 
@@ -6,6 +7,7 @@ import click
 from click import UsageError
 
 from suppgram.application import Application
+from suppgram.entities import AgentIdentification
 from suppgram.interfaces import (
     PersistentStorage,
     PermissionChecker,
@@ -16,6 +18,12 @@ from suppgram.interfaces import (
 
 
 @click.command()
+@click.option(
+    "--loglevel",
+    type=click.Choice(logging.getLevelNamesMapping().keys()),
+    default="INFO",
+    help="Log level",
+)
 @click.option(
     "--sqlalchemy-url", default=None, help="URL for SQLAlchemy's `create_engine()`"
 )
@@ -46,6 +54,7 @@ from suppgram.interfaces import (
     help="ID of Telegram user who will be granted all permissions",
 )
 def run_all_in_one(
+    loglevel: str,
     sqlalchemy_url: Optional[str],
     texts: str,
     telegram_user_bot_token: Optional[str],
@@ -53,6 +62,8 @@ def run_all_in_one(
     telegram_agent_bot_token: List[str],
     telegram_owner_id: Optional[int],
 ):
+    logging.basicConfig(level=getattr(logging, loglevel))
+
     storage: PersistentStorage
     if sqlalchemy_url:
         from suppgram.storages.sqlalchemy import SQLAlchemyStorage
@@ -100,9 +111,9 @@ def run_all_in_one(
 
         telegram_storage: TelegramStorage
         if sqlalchemy_engine:
-            from suppgram.bridges.sqlalchemy_telegram import SQLAlchemyTelegramStorage
+            from suppgram.bridges.sqlalchemy_telegram import SQLAlchemyTelegramBridge
 
-            telegram_storage = SQLAlchemyTelegramStorage(sqlalchemy_engine)
+            telegram_storage = SQLAlchemyTelegramBridge(sqlalchemy_engine)
             asyncio.run(telegram_storage.initialize())
         else:
             raise UsageError(
@@ -127,14 +138,23 @@ def run_all_in_one(
             "no agent frontend specified. Use --telegram-agent-bot-token for Telegram frontend"
         )
 
+    async def _run():
+        await storage.initialize()
+        if telegram_owner_id:
+            await backend.create_agent(
+                AgentIdentification(telegram_user_id=telegram_owner_id)
+            )
+        await asyncio.gather(
+            user_frontend.initialize(),
+            manager_frontend.initialize(),
+            agent_frontend.initialize(),
+        )
+        await asyncio.gather(
+            user_frontend.start(), manager_frontend.start(), agent_frontend.start()
+        )
+
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(storage.initialize())
-    loop.run_until_complete(user_frontend.initialize())
-    loop.run_until_complete(manager_frontend.initialize())
-    loop.run_until_complete(agent_frontend.initialize())
-    loop.run_until_complete(user_frontend.start())
-    loop.run_until_complete(manager_frontend.start())
-    loop.run_until_complete(agent_frontend.start())
+    loop.run_until_complete(_run())
     loop.run_forever()
 
 

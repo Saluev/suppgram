@@ -2,8 +2,12 @@ from suppgram.entities import Conversation
 
 
 class Texts:
-    welcome_message: str
-    telegram_workplace_is_not_assigned: str
+    telegram_customer_start_message: str
+    telegram_manager_start_message: str
+    telegram_manager_permission_denied_message: str
+    telegram_agent_start_message: str
+    telegram_agent_permission_denied_message: str
+    telegram_workplace_is_not_assigned_message: str
     telegram_new_conversation_notification_placeholder: str
 
     def compose_telegram_new_conversation_notification(
@@ -11,4 +15,4 @@ class Texts:
     ) -> str:
         pass
 
-    telegram_assign_to_me_button: str
+    telegram_assign_to_me_button_text: str

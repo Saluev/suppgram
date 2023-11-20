@@ -1,6 +1,6 @@
 import abc
 from enum import Enum
-from typing import List, Tuple, Any
+from typing import List, Any
 
 from suppgram.entities import (
     UserIdentification,
@@ -13,6 +13,7 @@ from suppgram.entities import (
     NewConversationEvent,
     NewMessageForUserEvent,
     NewMessageForAgentEvent,
+    AgentIdentification,
 )
 from suppgram.observer import Observable
 
@@ -26,13 +27,21 @@ class PersistentStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def get_agent(self, identification: AgentIdentification) -> Agent:
+        pass
+
+    @abc.abstractmethod
+    async def create_agent(self, identification: AgentIdentification) -> Agent:
+        pass
+
+    @abc.abstractmethod
     async def get_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         pass
 
     @abc.abstractmethod
-    async def create_agent_and_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> Tuple[Agent, Workplace]:
+    async def get_or_create_workplace(
+        self, agent: Agent, identification: WorkplaceIdentification
+    ) -> Workplace:
         pass
 
     @abc.abstractmethod
@@ -53,7 +62,9 @@ class PersistentStorage(abc.ABC):
 
 
 class Permission(str, Enum):
-    pass
+    MANAGE = "manage"
+    SUPPORT = "support"
+    TELEGRAM_GROUP_ROLE_ADD = "telegram_group_role_add"
 
 
 class Decision(str, Enum):
@@ -78,6 +89,14 @@ class Application(abc.ABC):
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]
 
     @abc.abstractmethod
+    async def create_agent(self, identification: AgentIdentification):
+        pass
+
+    @abc.abstractmethod
+    async def identify_agent(self, identification: AgentIdentification):
+        pass
+
+    @abc.abstractmethod
     async def identify_user_conversation(
         self, identification: UserIdentification
     ) -> Conversation:
@@ -87,6 +106,10 @@ class Application(abc.ABC):
     async def identify_workplace(
         self, identification: WorkplaceIdentification
     ) -> Workplace:
+        pass
+
+    @abc.abstractmethod
+    def check_permission(self, agent: Agent, permission: Permission) -> Decision:
         pass
 
     @abc.abstractmethod

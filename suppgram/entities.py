@@ -14,20 +14,34 @@ class User(UserIdentification):
 
 
 @dataclass(frozen=True)
-class Agent:
-    id: Any
+class AgentIdentification:
     telegram_user_id: Optional[int]
+
+
+@dataclass(frozen=True)
+class Agent(AgentIdentification):
+    id: Any
 
 
 @dataclass(frozen=True)
 class WorkplaceIdentification:
     telegram_user_id: Optional[int]
     telegram_bot_id: Optional[int]
-    telegram_chat_id: Optional[int]
+
+    def to_agent_identification(self) -> AgentIdentification:
+        return AgentIdentification(telegram_user_id=self.telegram_user_id)
 
 
 @dataclass(frozen=True)
 class Workplace(WorkplaceIdentification):
+    """
+    Workplace is an abstraction over a way agent conveys their messages.
+    Examples of workplace include:
+      - private Telegram chat with one of the agent bots, identified by user ID and bot ID
+      - PubNub chat, identified by chat ID
+      - web interface session, identified by auth token
+    """
+
     agent: Agent
 
 

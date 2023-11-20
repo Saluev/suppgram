@@ -23,7 +23,7 @@ class TelegramUserFrontend(UserFrontend):
         self._telegram_bot: Bot = self._telegram_app.bot
         self._telegram_app.add_handlers(
             [
-                CommandHandler("start", self._handle_start),
+                CommandHandler("start", self._handle_start_command),
                 MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
             ]
         )
@@ -36,9 +36,11 @@ class TelegramUserFrontend(UserFrontend):
         await self._telegram_app.updater.start_polling()
         await self._telegram_app.start()
 
-    async def _handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _handle_start_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
         await context.bot.send_message(
-            update.effective_chat.id, self._texts.welcome_message
+            update.effective_chat.id, self._texts.telegram_customer_start_message
         )
 
     async def _handle_text_message(

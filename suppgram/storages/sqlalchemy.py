@@ -1,8 +1,18 @@
-from typing import List, Any, TypeVar, Type, Tuple
+from typing import (
+    List,
+    Any,
+    TypeVar,
+    Type,
+    Tuple,
+    Optional,
+    Mapping,
+    Iterable,
+    Collection,
+)
 
-from sqlalchemy import Integer, ForeignKey, Enum, String, and_, ColumnElement
+from sqlalchemy import Integer, ForeignKey, Enum, String, and_, ColumnElement, select
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import (
     declarative_base,
     Mapped,
@@ -19,8 +29,9 @@ from suppgram.entities import (
     MessageFrom,
     Message as ConversaionMessageInterface,
     Conversation as ConversationInterface,
+    AgentIdentification,
 )
-from suppgram.errors import ConversationNotFound
+from suppgram.errors import ConversationNotFound, WorkplaceNotFound, AgentNotFound
 from suppgram.interfaces import (
     PersistentStorage,
 )
@@ -40,9 +51,6 @@ class Agent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(Integer)
     workplaces: Mapped[List["Workplace"]] = relationship(back_populates="agent")
-    conversations: Mapped[List["Conversation"]] = relationship(
-        back_populates="assigned_agent"
-    )
 
 
 class Workplace(Base):
@@ -51,6 +59,9 @@ class Workplace(Base):
     agent_id: Mapped[int] = mapped_column(ForeignKey(Agent.id))
     agent: Mapped[Agent] = relationship(back_populates="workplaces")
     telegram_bot_id: Mapped[int] = mapped_column(Integer)
+    conversations: Mapped[List["Conversation"]] = relationship(
+        back_populates="assigned_workplace"
+    )
 
 
 class Conversation(Base):
@@ -82,11 +93,11 @@ class SQLAlchemyStorage(PersistentStorage):
     def __init__(
         self,
         engine: AsyncEngine,
-        user_model: Type = User,
-        agent_model: Type = Agent,
-        workplace_model: Type = Workplace,
-        conversation_model: Type = Conversation,
-        conversation_message_model: Type = ConversationMessage,
+        user_model: Any = User,
+        agent_model: Any = Agent,
+        workplace_model: Any = Workplace,
+        conversation_model: Any = Conversation,
+        conversation_message_model: Any = ConversationMessage,
     ):
         self._engine = engine
         self._session = async_sessionmaker(bind=engine)
@@ -116,45 +127,102 @@ class SQLAlchemyStorage(PersistentStorage):
         self, identification: UserIdentification
     ) -> UserInterface:
         async with self._session() as session, session.begin():
-            user = await (
-                session.query(User)
-                .filter(self._make_user_filter(identification))
-                .first()
-            )
-            if user is None:
-                user = self._make_model(identification, User)
+            row = (
+                await session.execute(
+                    select(self._user_model).filter(
+                        self._make_user_filter(identification)
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                user = self._make_model(identification, self._user_model)
                 session.add(user)
                 await session.flush()
                 await session.refresh(user)
+            else:
+                (user,) = row
             return self._convert_user(user)
 
-    def _convert_user(self, user: User) -> UserInterface:
-        return UserInterface(telegram_user_id=user.telegram_user_id, id=user.id)
+    async def get_agent(self, identification: AgentIdentification) -> AgentInterface:
+        async with self._session() as session:
+            row = (
+                await session.execute(
+                    select(self._agent_model).filter(
+                        self._make_agent_filter(identification)
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                raise AgentNotFound(identification)
+            (agent,) = row
+            return self._convert_agent(agent)
+
+    async def create_agent(self, identification: AgentIdentification) -> AgentInterface:
+        async with self._session() as session, session.begin():
+            agent = self._make_model(
+                identification,
+                self._agent_model,
+            )
+            session.add(agent)
+            await session.flush()
+            await session.refresh(agent)
+            return self._convert_agent(agent)
 
     async def get_workplace(
         self, identification: WorkplaceIdentification
     ) -> WorkplaceInterface:
-        raise NotImplementedError
+        async with self._session() as session:
+            row = (
+                await session.execute(
+                    select(self._workplace_model).filter(
+                        self._make_workplace_filter(identification)
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                raise WorkplaceNotFound(identification)
+            (workplace,) = row
+            return workplace
 
-    async def create_agent_and_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> Tuple[AgentInterface, WorkplaceInterface]:
-        raise NotImplementedError
+    async def get_or_create_workplace(
+        self, agent: AgentInterface, identification: WorkplaceIdentification
+    ) -> WorkplaceInterface:
+        async with self._session() as session, session.begin():
+            row = (
+                await session.execute(
+                    select(self._workplace_model, self._agent_model).filter(
+                        self._make_workplace_filter(identification)
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                workplace = self._make_model(
+                    identification,
+                    self._workplace_model,
+                    exclude_fields=("telegram_user_id",),
+                    agent_id=agent.id,
+                )
+                session.add(workplace)
+                await session.flush()
+                await session.refresh(workplace)
+            else:
+                workplace, _ = row
+            return self._convert_workplace(agent, workplace)
 
     async def get_or_start_conversation(
         self, user: User, starting_state_id: str, closed_state_ids: List[str]
     ) -> ConversationInterface:
         async with self._session() as session, session.begin():
             conv = await (
-                session.query(Conversation)
+                session.query(self._conversation_model)
                 .filter(
-                    (Conversation.user_id == user.id)
-                    & (~Conversation.state_id.in_(closed_state_ids))
+                    (self._conversation_model.user_id == user.id)
+                    & (~self._conversation_model.state_id.in_(closed_state_ids))
                 )
                 .first()
             )
             if conv is None:
-                conv = Conversation(
+                conv = self._conversation_model(
                     user_id=user.id,
                     state_id=starting_state_id,
                 )
@@ -173,10 +241,17 @@ class SQLAlchemyStorage(PersistentStorage):
         try:
             async with self._session() as session, session.begin():
                 conv, _, _ = await (
-                    session.query(Conversation, Workplace, Agent)
+                    session.query(
+                        self._conversation_model,
+                        self._workplace_model,
+                        self._agent_model,
+                    )
                     .filter(
                         self._make_workplace_filter(identification)
-                        & (Conversation.assigned_workplace_id == Workplace.id)
+                        & (
+                            self._conversation_model.assigned_workplace_id
+                            == Workplace.id
+                        )
                     )
                     .one()
                 )
@@ -189,26 +264,54 @@ class SQLAlchemyStorage(PersistentStorage):
     ):
         async with self._session() as session, session.begin():
             session.add(
-                ConversationMessage(
+                self._conversation_message_model(
                     conversation_id=conversation.id,
                     from_=message.from_,
                     text=message.text,
                 )
             )
 
+    def _convert_user(self, user: User) -> UserInterface:
+        return UserInterface(telegram_user_id=user.telegram_user_id, id=user.id)
+
+    def _convert_agent(self, agent: Agent) -> AgentInterface:
+        return AgentInterface(telegram_user_id=agent.telegram_user_id, id=agent.id)
+
+    def _convert_workplace(
+        self, agent: AgentInterface, workplace: Workplace
+    ) -> WorkplaceInterface:
+        return WorkplaceInterface(
+            telegram_user_id=agent.telegram_user_id,
+            telegram_bot_id=workplace.telegram_bot_id,
+            agent=agent,
+        )
+
     def _make_user_filter(self, identification: UserIdentification) -> ColumnElement:
-        return self._make_filter(identification, User)
+        return self._make_filter(identification, self._user_model)
+
+    def _make_agent_filter(self, identification: AgentIdentification) -> ColumnElement:
+        return self._make_filter(identification, self._agent_model)
 
     def _make_workplace_filter(
         self, identification: WorkplaceIdentification
     ) -> ColumnElement:
         # TODO more generic
-        return (Workplace.telegram_bot_id == identification.telegram_bot_id) & (
-            Agent.telegram_user_id == identification.telegram_user_id
+        return (
+            (self._workplace_model.telegram_bot_id == identification.telegram_bot_id)
+            & (self._workplace_model.agent_id == self._agent_model.id)
+            & (self._agent_model.telegram_user_id == identification.telegram_user_id)
         )
 
-    def _make_model(self, dc: Any, model: Type[T]) -> T:
-        return model(**dc.__dict__)
+    def _make_model(
+        self,
+        dc: Any,
+        model: Type[T],
+        exclude_fields: Collection[str] = (),
+        **kwargs: Mapping[str, Any]
+    ) -> T:
+        params = {**dc.__dict__, **kwargs}
+        params = {k: v for k, v in params.items() if k not in exclude_fields}
+        return model(**params)
 
     def _make_filter(self, dc: Any, model: Type[T]) -> ColumnElement:
         return and_(

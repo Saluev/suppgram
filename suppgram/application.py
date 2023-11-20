@@ -1,12 +1,5 @@
 from typing import List, Iterable, Any
 
-from suppgram.errors import AgentNotFound, PermissionDenied
-from suppgram.interfaces import (
-    PersistentStorage,
-    Application as ApplicationInterface,
-    PermissionChecker,
-    Decision,
-)
 from suppgram.entities import (
     UserIdentification,
     Agent,
@@ -17,6 +10,14 @@ from suppgram.entities import (
     NewConversationEvent,
     NewMessageForUserEvent,
     NewMessageForAgentEvent,
+    AgentIdentification,
+)
+from suppgram.interfaces import (
+    PersistentStorage,
+    Application as ApplicationInterface,
+    PermissionChecker,
+    Decision,
+    Permission,
 )
 from suppgram.observer import Observable
 from suppgram.texts.en import EnglishTexts
@@ -38,6 +39,12 @@ class Application(ApplicationInterface):
         self.on_new_message_for_user = Observable[NewMessageForUserEvent]()
         self.on_new_message_for_agent = Observable[NewMessageForAgentEvent]()
 
+    async def create_agent(self, identification: AgentIdentification):
+        await self._storage.create_agent(identification)
+
+    async def identify_agent(self, identification: AgentIdentification):
+        return await self._storage.get_agent(identification)
+
     async def identify_user_conversation(
         self, identification: UserIdentification
     ) -> Conversation:
@@ -50,19 +57,13 @@ class Application(ApplicationInterface):
     async def identify_workplace(
         self, identification: WorkplaceIdentification
     ) -> Workplace:
-        try:
-            return await self._storage.get_workplace(identification)
-        except AgentNotFound as exc:
-            if not self._can_create_agent(identification):
-                raise PermissionDenied() from exc  # TODO details
-            _, workplace = await self._storage.create_agent_and_workplace(
-                identification
-            )
-            return workplace
+        agent = await self._storage.get_agent(identification.to_agent_identification())
+        workplace = await self._storage.get_or_create_workplace(agent, identification)
+        return workplace
 
-    def _can_create_agent(self, identification: WorkplaceIdentification) -> bool:
+    def check_permission(self, agent: Agent, permission: Permission) -> bool:
         return self._sum_decisions(
-            checker.can_create_agent(identification)
+            checker.check_permission(agent, permission)
             for checker in self._permission_checkers
         )
 
