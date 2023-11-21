@@ -52,3 +52,9 @@ async def test_get_agent_conversation(storage):
             telegram_user_id=1, telegram_bot_id=2, telegram_chat_id=1
         )
     )
+
+
+@pytest.mark.asyncio
+async def test_get_or_start_conversation(storage):
+    user = await storage.get_or_create_user(UserIdentification(telegram_user_id=100500))
+    await storage.get_or_start_conversation(user, "foo", ["bar"])

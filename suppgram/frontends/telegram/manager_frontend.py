@@ -1,4 +1,3 @@
-import asyncio
 import json
 from enum import Enum
 
@@ -28,7 +27,6 @@ from suppgram.interfaces import (
     Application,
     ManagerFrontend,
     Permission,
-    Decision,
 )
 from suppgram.texts.interface import Texts
 
@@ -47,7 +45,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         self._telegram_app = ApplicationBuilder().token(token).build()
         self._telegram_bot: Bot = self._telegram_app.bot
 
-        backend.on_new_conversation.add_handler(self._handle_new_conversation)
+        backend.on_new_conversation.add_handler(self._handle_new_conversation_event)
         self._telegram_app.add_handlers(
             [
                 CallbackQueryHandler(self._handle_callback_query),
@@ -69,7 +67,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         await self._telegram_app.updater.start_polling()
         await self._telegram_app.start()
 
-    async def _handle_new_conversation(self, event: NewConversationEvent):
+    async def _handle_new_conversation_event(self, event: NewConversationEvent):
         conversation = event.conversation
         groups = await self._storage.get_groups_by_role(
             TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
@@ -98,10 +96,12 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
         assign_to_me_button = InlineKeyboardButton(
             self._texts.telegram_assign_to_me_button_text,
-            callback_data={
-                "action": CallbackActionKind.ASSIGN_TO_ME,
-                "conversation_id": conversation.id,
-            },
+            callback_data=json.dumps(
+                {
+                    "action": CallbackActionKind.ASSIGN_TO_ME,
+                    "conversation_id": conversation.id,
+                }
+            ),
         )
         await self._telegram_bot.edit_message_reply_markup(
             group.telegram_chat_id,

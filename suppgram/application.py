@@ -12,12 +12,15 @@ from suppgram.entities import (
     NewMessageForAgentEvent,
     AgentIdentification,
 )
+from suppgram.errors import PermissionDenied
+from suppgram.helpers import flat_gather
 from suppgram.interfaces import (
     PersistentStorage,
     Application as ApplicationInterface,
     PermissionChecker,
     Decision,
     Permission,
+    WorkplaceManager,
 )
 from suppgram.observer import Observable
 from suppgram.texts.en import EnglishTexts
@@ -29,10 +32,12 @@ class Application(ApplicationInterface):
         self,
         storage: PersistentStorage,
         permission_checkers: List[PermissionChecker],
+        workplace_managers: List[WorkplaceManager],
         texts: Texts = EnglishTexts(),
     ):
         self._storage = storage
         self._permission_checkers = permission_checkers
+        self._workplace_managers = workplace_managers
         self._texts = texts
 
         self.on_new_conversation = Observable[NewConversationEvent]()
@@ -50,7 +55,7 @@ class Application(ApplicationInterface):
     ) -> Conversation:
         user = await self._storage.get_or_create_user(identification)
         conversation = await self._storage.get_or_start_conversation(
-            user, "foo", ["closed"]
+            user, "open", ["closed"]
         )
         return conversation
 
@@ -86,7 +91,8 @@ class Application(ApplicationInterface):
         self, conversation: Conversation, message: Message
     ):
         await self._storage.save_message(conversation, message)
-        if not conversation.messages:
+        conversation.messages.append(message)
+        if len(conversation.messages) == 1:
             await self.on_new_conversation.trigger(NewConversationEvent(conversation))
         if conversation.assigned_agent and conversation.assigned_workplace:
             await self.on_new_message_for_agent.trigger(
@@ -108,4 +114,61 @@ class Application(ApplicationInterface):
     async def assign_agent(
         self, assigner: Agent, assignee: Agent, conversation_id: Any
     ):
-        raise NotImplementedError
+        permission = (
+            Permission.ASSIGN_TO_SELF
+            if assigner == assignee
+            else Permission.ASSIGN_TO_OTHERS
+        )
+        if not self.check_permission(assigner, permission):
+            raise PermissionDenied("not allowed to assign conversation to this agent")
+
+        workplace = await self._choose_workplace(assignee)
+        await self._storage.assign_workplace(conversation_id, workplace)
+        conversation = await self._storage.get_agent_conversation(workplace)
+        await self.on_new_message_for_agent.trigger_batch(
+            [
+                NewMessageForAgentEvent(
+                    agent=assignee, workplace=workplace, message=message
+                )
+                for message in conversation.messages
+            ]
+        )
+
+    async def _choose_workplace(self, agent: Agent) -> Workplace:
+        existing_workplaces = await self._storage.get_agent_workplaces(agent)
+        extra_workplaces = await self._create_all_missing_workplaces(
+            agent, existing_workplaces
+        )
+        all_workplaces = existing_workplaces + extra_workplaces
+        available_workplaces = await self._filter_all_available_workplaces(
+            all_workplaces
+        )
+        return available_workplaces[0]  # TODO handle index out of range
+
+    async def _create_all_missing_workplaces(
+        self, agent: Agent, existing_workplaces: List[Workplace]
+    ) -> List[Workplace]:
+        extra_workplaces: List[Workplace] = []
+        for manager in self._workplace_managers:
+            missing_workplace_identifications = manager.create_missing_workplaces(
+                agent, existing_workplaces
+            )
+            extra_workplaces.extend(
+                await flat_gather(
+                    self._storage.get_or_create_workplace(  # TODO session/batch
+                        agent, workplace_identification
+                    )
+                    for workplace_identification in missing_workplace_identifications
+                )
+            )
+        return extra_workplaces
+
+    async def _filter_all_available_workplaces(
+        self, all_workplaces: List[Workplace]
+    ) -> List[Workplace]:
+        available_workplaces: List[Workplace] = []
+        for manager in self._workplace_managers:
+            available_workplaces.extend(
+                manager.filter_available_workplaces(all_workplaces)
+            )
+        return available_workplaces

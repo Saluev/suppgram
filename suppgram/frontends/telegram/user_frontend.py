@@ -11,7 +11,12 @@ from suppgram.interfaces import (
     UserFrontend,
     Application,
 )
-from suppgram.entities import UserIdentification, MessageFrom, Message
+from suppgram.entities import (
+    UserIdentification,
+    MessageFrom,
+    Message,
+    NewMessageForUserEvent,
+)
 from suppgram.texts.interface import Texts
 
 
@@ -26,6 +31,9 @@ class TelegramUserFrontend(UserFrontend):
                 CommandHandler("start", self._handle_start_command),
                 MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
             ]
+        )
+        self._backend.on_new_message_for_user.add_handler(
+            self._handle_new_message_for_user_event
         )
 
     async def initialize(self):
@@ -51,4 +59,9 @@ class TelegramUserFrontend(UserFrontend):
         )
         await self._backend.process_message_from_user(
             conversation, Message(from_=MessageFrom.USER, text=update.message.text)
+        )
+
+    async def _handle_new_message_for_user_event(self, event: NewMessageForUserEvent):
+        await self._telegram_bot.send_message(
+            chat_id=event.user.telegram_user_id, text=event.message.text
         )

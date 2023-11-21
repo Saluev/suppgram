@@ -39,6 +39,10 @@ class PersistentStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def get_agent_workplaces(self, agent: Agent) -> List[Workplace]:
+        pass
+
+    @abc.abstractmethod
     async def get_or_create_workplace(
         self, agent: Agent, identification: WorkplaceIdentification
     ) -> Workplace:
@@ -48,6 +52,10 @@ class PersistentStorage(abc.ABC):
     async def get_or_start_conversation(
         self, user: User, starting_state_id: str, closed_state_ids: List[str]
     ) -> Conversation:
+        pass
+
+    @abc.abstractmethod
+    async def assign_workplace(self, conversation_id: Any, workplace: Workplace):
         pass
 
     @abc.abstractmethod
@@ -65,6 +73,8 @@ class Permission(str, Enum):
     MANAGE = "manage"
     SUPPORT = "support"
     TELEGRAM_GROUP_ROLE_ADD = "telegram_group_role_add"
+    ASSIGN_TO_SELF = "assign_to_self"
+    ASSIGN_TO_OTHERS = "assign_to_others"
 
 
 class Decision(str, Enum):
@@ -135,6 +145,22 @@ class Application(abc.ABC):
         self, assigner: Agent, assignee: Agent, conversation_id: Any
     ):
         pass
+
+
+class WorkplaceManager(abc.ABC):
+    async def initialize(self):
+        pass
+
+    @abc.abstractmethod
+    def create_missing_workplaces(
+        self, agent: Agent, existing_workplaces: List[Workplace]
+    ) -> List[WorkplaceIdentification]:
+        pass
+
+    def filter_available_workplaces(
+        self, workplaces: List[Workplace]
+    ) -> List[Workplace]:
+        return workplaces
 
 
 class UserFrontend(abc.ABC):

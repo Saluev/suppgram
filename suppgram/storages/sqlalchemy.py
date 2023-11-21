@@ -10,7 +10,16 @@ from typing import (
     Collection,
 )
 
-from sqlalchemy import Integer, ForeignKey, Enum, String, and_, ColumnElement, select
+from sqlalchemy import (
+    Integer,
+    ForeignKey,
+    Enum,
+    String,
+    and_,
+    ColumnElement,
+    select,
+    update,
+)
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import (
@@ -18,6 +27,8 @@ from sqlalchemy.orm import (
     Mapped,
     mapped_column,
     relationship,
+    joinedload,
+    selectinload,
 )
 
 from suppgram.entities import (
@@ -31,7 +42,12 @@ from suppgram.entities import (
     Conversation as ConversationInterface,
     AgentIdentification,
 )
-from suppgram.errors import ConversationNotFound, WorkplaceNotFound, AgentNotFound
+from suppgram.errors import (
+    ConversationNotFound,
+    WorkplaceNotFound,
+    AgentNotFound,
+    WorkplaceAlreadyAssigned,
+)
 from suppgram.interfaces import (
     PersistentStorage,
 )
@@ -69,8 +85,10 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
     user: Mapped[User] = relationship(back_populates="conversations")
-    assigned_workplace_id: Mapped[int] = mapped_column(ForeignKey(Workplace.id))
-    assigned_workplace: Mapped[Workplace] = relationship()
+    assigned_workplace_id: Mapped[int] = mapped_column(
+        ForeignKey(Workplace.id), nullable=True
+    )
+    assigned_workplace: Mapped[Workplace] = relationship(back_populates="conversations")
     state_id: Mapped[str] = mapped_column(String, nullable=False)
     messages: Mapped[List["ConversationMessage"]] = relationship(
         back_populates="conversation"
@@ -184,6 +202,23 @@ class SQLAlchemyStorage(PersistentStorage):
             (workplace,) = row
             return workplace
 
+    async def get_agent_workplaces(self, agent: Agent) -> List[Workplace]:
+        async with self._session() as session:
+            workplaces = (
+                (
+                    await session.execute(
+                        select(self._workplace_model).filter(
+                            self._workplace_model.agent_id == agent.id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return [
+                self._convert_workplace(agent, workplace) for workplace in workplaces
+            ]
+
     async def get_or_create_workplace(
         self, agent: AgentInterface, identification: WorkplaceIdentification
     ) -> WorkplaceInterface:
@@ -213,13 +248,25 @@ class SQLAlchemyStorage(PersistentStorage):
         self, user: User, starting_state_id: str, closed_state_ids: List[str]
     ) -> ConversationInterface:
         async with self._session() as session, session.begin():
-            conv = await (
-                session.query(self._conversation_model)
-                .filter(
-                    (self._conversation_model.user_id == user.id)
-                    & (~self._conversation_model.state_id.in_(closed_state_ids))
+            conv = (
+                (
+                    await session.execute(
+                        select(self._conversation_model)
+                        .options(
+                            joinedload(self._conversation_model.user),
+                            joinedload(
+                                self._conversation_model.assigned_workplace
+                            ).joinedload(self._workplace_model.agent),
+                            selectinload(self._conversation_model.messages),
+                        )
+                        .filter(
+                            (self._conversation_model.user_id == user.id)
+                            & (~self._conversation_model.state_id.in_(closed_state_ids))
+                        )
+                    )
                 )
-                .first()
+                .scalars()
+                .one_or_none()
             )
             if conv is None:
                 conv = self._conversation_model(
@@ -229,33 +276,75 @@ class SQLAlchemyStorage(PersistentStorage):
                 session.add(conv)
                 await session.flush()
                 await session.refresh(conv)
+                assigned_agent = None
+                assigned_workplace = None
+                messages = []
+            else:
+                assigned_agent = (
+                    self._convert_agent(conv.assigned_workplace.agent)
+                    if conv.assigned_workplace
+                    else None
+                )
+                assigned_workplace = (
+                    self._convert_workplace(assigned_agent, conv.assigned_workplace)
+                    if conv.assigned_workplace
+                    else None
+                )
+                messages = [self._convert_message(msg) for msg in conv.messages]
             return ConversationInterface(
                 id=conv.id,
                 state_id=conv.state_id,
-                user=self._convert_user(conv.user),
+                user=user,
+                assigned_agent=assigned_agent,
+                assigned_workplace=assigned_workplace,
+                messages=messages,
             )
+
+    async def assign_workplace(
+        self, conversation_id: Any, workplace: WorkplaceInterface
+    ):
+        async with self._session() as session, session.begin():
+            result = await session.execute(
+                update(self._conversation_model)
+                .filter(self._conversation_model.assigned_workplace_id == None)
+                .values(assigned_workplace_id=workplace.id)
+            )
+            if result.rowcount == 0:
+                raise WorkplaceAlreadyAssigned()
 
     async def get_agent_conversation(
         self, identification: WorkplaceIdentification
-    ) -> Conversation:
+    ) -> ConversationInterface:
         try:
             async with self._session() as session, session.begin():
-                conv, _, _ = await (
-                    session.query(
-                        self._conversation_model,
-                        self._workplace_model,
-                        self._agent_model,
-                    )
-                    .filter(
-                        self._make_workplace_filter(identification)
-                        & (
-                            self._conversation_model.assigned_workplace_id
-                            == Workplace.id
+                conv = (
+                    (
+                        await session.execute(
+                            select(
+                                self._conversation_model,
+                                self._workplace_model,
+                                self._agent_model,
+                            )
+                            .filter(
+                                self._make_workplace_filter(identification)
+                                & (
+                                    self._conversation_model.assigned_workplace_id
+                                    == Workplace.id
+                                )
+                            )
+                            .options(
+                                joinedload(self._conversation_model.user),
+                                selectinload(self._conversation_model.messages),
+                                joinedload(
+                                    self._conversation_model.assigned_workplace
+                                ).joinedload(self._workplace_model.agent),
+                            )
                         )
                     )
+                    .scalars()
                     .one()
                 )
-                return conv
+                return self._convert_conversation(conv)
         except NoResultFound as exc:
             raise ConversationNotFound() from exc
 
@@ -281,9 +370,33 @@ class SQLAlchemyStorage(PersistentStorage):
         self, agent: AgentInterface, workplace: Workplace
     ) -> WorkplaceInterface:
         return WorkplaceInterface(
+            id=workplace.id,
             telegram_user_id=agent.telegram_user_id,
             telegram_bot_id=workplace.telegram_bot_id,
             agent=agent,
+        )
+
+    def _convert_message(
+        self, message: ConversationMessage
+    ) -> ConversaionMessageInterface:
+        return ConversaionMessageInterface(from_=message.from_, text=message.text)
+
+    def _convert_conversation(
+        self,
+        conversation: Conversation,
+    ) -> ConversationInterface:
+        agent = self._convert_agent(conversation.assigned_workplace.agent)
+        return ConversationInterface(
+            id=conversation.id,
+            state_id=conversation.state_id,
+            user=self._convert_user(conversation.user),
+            assigned_agent=agent,
+            assigned_workplace=self._convert_workplace(
+                agent, conversation.assigned_workplace
+            ),
+            messages=[
+                self._convert_message(message) for message in conversation.messages
+            ],
         )
 
     def _make_user_filter(self, identification: UserIdentification) -> ColumnElement:

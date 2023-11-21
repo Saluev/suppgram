@@ -19,6 +19,10 @@ class WorkplaceNotFound(Exception):
         self.identification = identification
 
 
+class WorkplaceAlreadyAssigned(Exception):
+    pass
+
+
 class ConversationNotFound(Exception):
     pass
 

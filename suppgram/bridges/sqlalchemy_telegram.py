@@ -2,7 +2,7 @@ from typing import Optional, Any, List, Iterable
 
 from sqlalchemy import Integer, ForeignKey, Enum, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 
 from suppgram.frontends.telegram.interfaces import (
     TelegramStorage,
@@ -67,11 +67,11 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             groups: Iterable[TelegramGroup] = (
                 await session.execute(
                     select(self._group_model).filter(
-                        self._group_model.roles.op("&")(role)
+                        self._group_model.roles.bitwise_and(role.value) != 0
                     )
                 )
             ).all()
-        return [self._convert_group(group) for group in groups]
+        return [self._convert_group(group) for group, in groups]
 
     async def upsert_group(self, telegram_chat_id: int):
         async with self._session() as session, session.begin():
@@ -87,12 +87,12 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
 
     def _convert_group(self, group: TelegramGroup) -> TelegramGroupInterface:
         roles: List[TelegramGroupRole] = []
-        role, encoded_roles = TelegramGroupRole(1), group.roles
+        role, encoded_roles = 1, group.roles
         while encoded_roles:
             if role & encoded_roles:
-                roles.append(role)
+                roles.append(TelegramGroupRole(role))
                 encoded_roles ^= role
-            role = TelegramGroupRole(role << 1)
+            role = role << 1
         return TelegramGroupInterface(
             telegram_chat_id=group.telegram_chat_id, roles=frozenset(roles)
         )
@@ -122,9 +122,17 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             query = query & (self._message_model.conversation_id == conversation_id)
         async with self._session() as session:
             msgs: Iterable[TelegramMessage] = (
-                await session.execute(select(self._message_model).filter(query))
-            ).all()
-        return [self._convert_message(msg) for msg in msgs]
+                (
+                    await session.execute(
+                        select(self._message_model)
+                        .filter(query)
+                        .options(joinedload(self._message_model.group))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return [self._convert_message(msg) for msg in msgs]
 
     def _convert_message(self, msg: TelegramMessage) -> TelegramMessageInterface:
         return TelegramMessageInterface(

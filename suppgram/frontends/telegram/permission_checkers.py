@@ -14,4 +14,6 @@ class TelegramOwnerIDPermissionChecker(PermissionChecker):
     def check_permission(self, agent: Agent, permission: Permission) -> Decision:
         if agent.telegram_user_id == self._owner_telegram_user_id:
             return Decision.ALLOWED
+        if permission == Permission.ASSIGN_TO_SELF:  # TODO move to separate checker
+            return Decision.ALLOWED
         return Decision.UNDECIDED

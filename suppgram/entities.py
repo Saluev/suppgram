@@ -39,9 +39,10 @@ class Workplace(WorkplaceIdentification):
     Examples of workplace include:
       - private Telegram chat with one of the agent bots, identified by user ID and bot ID
       - PubNub chat, identified by chat ID
-      - web interface session, identified by auth token
+      - web interface session, identified by active websocket identifier
     """
 
+    id: Any
     agent: Agent
 
 

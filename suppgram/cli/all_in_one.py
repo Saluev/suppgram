@@ -8,12 +8,15 @@ from click import UsageError
 
 from suppgram.application import Application
 from suppgram.entities import AgentIdentification
+from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
 from suppgram.interfaces import (
     PersistentStorage,
     PermissionChecker,
     UserFrontend,
     ManagerFrontend,
     AgentFrontend,
+    WorkplaceManager,
 )
 
 
@@ -77,6 +80,16 @@ def run_all_in_one(
             "no storage specified. Use --sqlalchemy-url for SQLAlchemy storage"
         )
 
+    telegram_app_manager = TelegramAppManager(
+        tokens=list(
+            filter(
+                None,
+                [telegram_user_bot_token, telegram_manager_bot_token]
+                + list(telegram_agent_bot_token),
+            )
+        )
+    )
+
     texts_module_name, texts_class_name = texts.rsplit(".", 1)
     texts_class = getattr(import_module(texts_module_name), texts_class_name)
     texts = texts_class()
@@ -90,8 +103,17 @@ def run_all_in_one(
         permission_checkers.append(TelegramOwnerIDPermissionChecker(telegram_owner_id))
     # TODO chat-based permission checker
 
+    workplace_managers: List[WorkplaceManager] = []
+    if telegram_agent_bot_token:
+        workplace_managers.append(
+            TelegramWorkplaceManager(telegram_agent_bot_token, telegram_app_manager)
+        )
+
     backend = Application(
-        storage=storage, permission_checkers=permission_checkers, texts=texts
+        storage=storage,
+        permission_checkers=permission_checkers,
+        workplace_managers=workplace_managers,
+        texts=texts,
     )
 
     user_frontend: UserFrontend
@@ -132,7 +154,9 @@ def run_all_in_one(
     if telegram_agent_bot_token:
         from suppgram.frontends.telegram.agent_frontend import TelegramAgentFrontend
 
-        agent_frontend = TelegramAgentFrontend(telegram_agent_bot_token, backend, texts)
+        agent_frontend = TelegramAgentFrontend(
+            telegram_agent_bot_token, telegram_app_manager, backend, texts
+        )
     else:
         raise UsageError(
             "no agent frontend specified. Use --telegram-agent-bot-token for Telegram frontend"

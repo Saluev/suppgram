@@ -1,35 +1,45 @@
-import asyncio
-from typing import List
+from itertools import groupby
+from typing import List, Iterable
 
-from telegram import User, Update
+from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder,
     MessageHandler,
     ContextTypes,
     CommandHandler,
 )
 from telegram.ext.filters import TEXT, ChatType
 
+from suppgram.entities import (
+    WorkplaceIdentification,
+    MessageFrom,
+    Message,
+    NewMessageForAgentEvent,
+)
 from suppgram.errors import ConversationNotFound, AgentNotFound
+from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.identification import make_agent_identification
 from suppgram.helpers import flat_gather
 from suppgram.interfaces import (
     AgentFrontend,
     Application,
     Permission,
-    Decision,
 )
-from suppgram.entities import WorkplaceIdentification, MessageFrom, Message
 from suppgram.texts.interface import Texts
 
 
 class TelegramAgentFrontend(AgentFrontend):
-    def __init__(self, tokens: List[str], backend: Application, texts: Texts):
+    def __init__(
+        self,
+        tokens: List[str],
+        app_manager: TelegramAppManager,
+        backend: Application,
+        texts: Texts,
+    ):
         self._backend = backend
         self._texts = texts
         self._telegram_apps = []
         for token in tokens:
-            app = ApplicationBuilder().token(token).build()
+            app = app_manager.get_app(token)
             app.add_handlers(
                 [
                     CommandHandler(
@@ -39,6 +49,9 @@ class TelegramAgentFrontend(AgentFrontend):
                 ]
             )
             self._telegram_apps.append(app)
+        self._backend.on_new_message_for_agent.add_batch_handler(
+            self._handle_new_message_for_agent_events
+        )
 
     async def initialize(self):
         await super().initialize()
@@ -83,3 +96,26 @@ class TelegramAgentFrontend(AgentFrontend):
         await self._backend.process_message_from_agent(
             conversation, Message(from_=MessageFrom.AGENT, text=update.message.text)
         )
+
+    async def _handle_new_message_for_agent_events(
+        self, events: List[NewMessageForAgentEvent]
+    ):
+        for _, batch in groupby(
+            events, lambda event: (event.agent.id, event.workplace.id)
+        ):
+            batch = list(batch)
+            app = next(
+                app
+                for app in self._telegram_apps
+                if app.bot.id == batch[0].workplace.telegram_bot_id
+            )
+            texts = self._group_messages(event.message for event in batch)
+            for text in texts:
+                await app.bot.send_message(
+                    chat_id=batch[0].agent.telegram_user_id, text=text
+                )
+
+    def _group_messages(self, messages: Iterable[Message]) -> List[str]:
+        # TODO actual grouping to reduce number of messages
+        # TODO differentiation of previous agents' messages
+        return [message.text for message in messages]
