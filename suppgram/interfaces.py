@@ -16,6 +16,8 @@ from suppgram.entities import (
     AgentIdentification,
     NewUnassignedMessageFromUserEvent,
     AgentDiff,
+    ConversationAssignmentEvent,
+    ConversationState,
 )
 from suppgram.observer import Observable
 
@@ -59,7 +61,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def assign_workplace(self, conversation_id: Any, workplace: Workplace):
+    async def assign_workplace(
+        self, conversation_id: Any, workplace: Workplace, new_state: ConversationState
+    ):
         pass
 
     @abc.abstractmethod
@@ -99,6 +103,7 @@ class PermissionChecker(abc.ABC):
 
 class Application(abc.ABC):
     on_new_conversation: Observable[NewConversationEvent]
+    on_conversation_assignment: Observable[ConversationAssignmentEvent]
     on_new_message_for_user: Observable[NewMessageForUserEvent]
     on_new_unassigned_message_from_user = Observable[NewUnassignedMessageFromUserEvent]
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]

@@ -13,6 +13,8 @@ from suppgram.entities import (
     AgentIdentification,
     NewUnassignedMessageFromUserEvent,
     AgentDiff,
+    ConversationAssignmentEvent,
+    ConversationState,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
@@ -43,6 +45,7 @@ class Application(ApplicationInterface):
         self._texts = texts
 
         self.on_new_conversation = Observable[NewConversationEvent]()
+        self.on_conversation_assignment = Observable[ConversationAssignmentEvent]()
         self.on_new_message_for_user = Observable[NewMessageForUserEvent]()
         self.on_new_unassigned_message_from_user = Observable[
             NewUnassignedMessageFromUserEvent
@@ -135,8 +138,13 @@ class Application(ApplicationInterface):
             raise PermissionDenied("not allowed to assign conversation to this agent")
 
         workplace = await self._choose_workplace(assignee)
-        await self._storage.assign_workplace(conversation_id, workplace)
+        await self._storage.assign_workplace(
+            conversation_id, workplace, ConversationState.ASSIGNED
+        )
         conversation = await self._storage.get_agent_conversation(workplace)
+        await self.on_conversation_assignment.trigger(
+            ConversationAssignmentEvent(conversation=conversation)
+        )
         await self.on_new_message_for_agent.trigger_batch(
             [
                 NewMessageForAgentEvent(

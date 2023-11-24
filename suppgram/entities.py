@@ -90,6 +90,11 @@ class NewConversationEvent:
 
 
 @dataclass(frozen=True)
+class ConversationAssignmentEvent:
+    conversation: Conversation
+
+
+@dataclass(frozen=True)
 class NewMessageForUserEvent:
     user: User
     message: Message

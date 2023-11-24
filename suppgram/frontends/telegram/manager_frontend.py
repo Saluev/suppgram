@@ -16,7 +16,7 @@ from suppgram.entities import (
     Conversation,
     NewUnassignedMessageFromUserEvent,
     AgentDiff,
-    Agent,
+    ConversationAssignmentEvent,
 )
 from suppgram.errors import AgentNotFound
 from suppgram.frontends.telegram.identification import (
@@ -57,6 +57,9 @@ class TelegramManagerFrontend(ManagerFrontend):
         backend.on_new_unassigned_message_from_user.add_handler(
             self._handle_new_unassigned_message_from_user_event
         )
+        backend.on_conversation_assignment.add_handler(
+            self._handle_conversation_assignment_event
+        )
         self._telegram_app.add_handlers(
             [
                 CallbackQueryHandler(self._handle_callback_query),
@@ -90,6 +93,16 @@ class TelegramManagerFrontend(ManagerFrontend):
             for group in groups
         )
 
+    async def _handle_new_unassigned_message_from_user_event(
+        self, event: NewUnassignedMessageFromUserEvent
+    ):
+        await self._create_or_update_new_conversation_notifications(event.conversation)
+
+    async def _handle_conversation_assignment_event(
+        self, event: ConversationAssignmentEvent
+    ):
+        await self._create_or_update_new_conversation_notifications(event.conversation)
+
     async def _send_new_conversation_notification(
         self, group: TelegramGroup, conversation: Conversation
     ):
@@ -100,21 +113,6 @@ class TelegramManagerFrontend(ManagerFrontend):
             conversation_id=conversation.id,
         )
         await self._update_new_conversation_notification(message, conversation)
-
-    async def _handle_new_unassigned_message_from_user_event(
-        self, event: NewUnassignedMessageFromUserEvent
-    ):
-        messages = await self._storage.get_messages(
-            TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
-            conversation_id=event.conversation.id,
-        )
-        if messages:
-            await flat_gather(
-                self._update_new_conversation_notification(message, event.conversation)
-                for message in messages
-            )
-        else:
-            await self._send_new_conversation_notifications(event.conversation)
 
     async def _send_placeholder_message(
         self,
@@ -130,6 +128,22 @@ class TelegramManagerFrontend(ManagerFrontend):
             kind,
             conversation_id=conversation_id,
         )
+
+    async def _create_or_update_new_conversation_notifications(
+        self, conversation: Conversation
+    ):
+        messages = await self._storage.get_messages(
+            TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
+            conversation_id=conversation.id,
+        )
+        if messages:
+            await flat_gather(
+                self._update_new_conversation_notification(message, conversation)
+                for message in messages
+            )
+        else:
+            # TODO create messages in all groups
+            await self._send_new_conversation_notifications(conversation)
 
     async def _update_new_conversation_notification(
         self, message: TelegramMessage, conversation: Conversation

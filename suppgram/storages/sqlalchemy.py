@@ -331,13 +331,16 @@ class SQLAlchemyStorage(Storage):
             )
 
     async def assign_workplace(
-        self, conversation_id: Any, workplace: WorkplaceInterface
+        self,
+        conversation_id: Any,
+        workplace: WorkplaceInterface,
+        new_state: ConversationState,
     ):
         async with self._session() as session, session.begin():
             result = await session.execute(
                 update(self._conversation_model)
                 .filter(self._conversation_model.assigned_workplace_id == None)
-                .values(assigned_workplace_id=workplace.id)
+                .values(assigned_workplace_id=workplace.id, state=new_state)
             )
             if result.rowcount == 0:
                 raise WorkplaceAlreadyAssigned()
@@ -394,7 +397,13 @@ class SQLAlchemyStorage(Storage):
         return UserInterface(telegram_user_id=user.telegram_user_id, id=user.id)
 
     def _convert_agent(self, agent: Agent) -> AgentInterface:
-        return AgentInterface(telegram_user_id=agent.telegram_user_id, id=agent.id)
+        return AgentInterface(
+            telegram_user_id=agent.telegram_user_id,
+            id=agent.id,
+            telegram_first_name=agent.telegram_first_name,
+            telegram_last_name=agent.telegram_last_name,
+            telegram_username=agent.telegram_username,
+        )
 
     def _convert_workplace(
         self, agent: AgentInterface, workplace: Workplace
