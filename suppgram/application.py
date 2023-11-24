@@ -11,11 +11,13 @@ from suppgram.entities import (
     NewMessageForUserEvent,
     NewMessageForAgentEvent,
     AgentIdentification,
+    NewUnassignedMessageFromUserEvent,
+    AgentDiff,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
 from suppgram.interfaces import (
-    PersistentStorage,
+    Storage,
     Application as ApplicationInterface,
     PermissionChecker,
     Decision,
@@ -30,7 +32,7 @@ from suppgram.texts.interface import Texts
 class Application(ApplicationInterface):
     def __init__(
         self,
-        storage: PersistentStorage,
+        storage: Storage,
         permission_checkers: List[PermissionChecker],
         workplace_managers: List[WorkplaceManager],
         texts: Texts = EnglishTexts(),
@@ -42,21 +44,25 @@ class Application(ApplicationInterface):
 
         self.on_new_conversation = Observable[NewConversationEvent]()
         self.on_new_message_for_user = Observable[NewMessageForUserEvent]()
+        self.on_new_unassigned_message_from_user = Observable[
+            NewUnassignedMessageFromUserEvent
+        ]()
         self.on_new_message_for_agent = Observable[NewMessageForAgentEvent]()
 
-    async def create_agent(self, identification: AgentIdentification):
-        await self._storage.create_agent(identification)
+    async def create_agent(self, identification: AgentIdentification) -> Agent:
+        return await self._storage.create_agent(identification)
 
-    async def identify_agent(self, identification: AgentIdentification):
+    async def identify_agent(self, identification: AgentIdentification) -> Agent:
         return await self._storage.get_agent(identification)
+
+    async def update_agent(self, diff: AgentDiff):
+        return await self._storage.update_agent(diff)
 
     async def identify_user_conversation(
         self, identification: UserIdentification
     ) -> Conversation:
         user = await self._storage.get_or_create_user(identification)
-        conversation = await self._storage.get_or_start_conversation(
-            user, "open", ["closed"]
-        )
+        conversation = await self._storage.get_or_start_conversation(user)
         return conversation
 
     async def identify_workplace(
@@ -100,6 +106,12 @@ class Application(ApplicationInterface):
                     agent=conversation.assigned_agent,
                     workplace=conversation.assigned_workplace,
                     message=message,
+                )
+            )
+        else:
+            await self.on_new_unassigned_message_from_user.trigger(
+                NewUnassignedMessageFromUserEvent(
+                    message=message, conversation=conversation
                 )
             )
 

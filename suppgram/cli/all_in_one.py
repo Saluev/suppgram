@@ -11,19 +11,20 @@ from suppgram.entities import AgentIdentification
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
 from suppgram.interfaces import (
-    PersistentStorage,
+    Storage,
     PermissionChecker,
     UserFrontend,
     ManagerFrontend,
     AgentFrontend,
     WorkplaceManager,
 )
+from suppgram.texts.interface import Texts
 
 
 @click.command()
 @click.option(
     "--loglevel",
-    type=click.Choice(logging.getLevelNamesMapping().keys()),
+    type=click.Choice(list(logging.getLevelNamesMapping().keys())),
     default="INFO",
     help="Log level",
 )
@@ -67,7 +68,7 @@ def run_all_in_one(
 ):
     logging.basicConfig(level=getattr(logging, loglevel))
 
-    storage: PersistentStorage
+    storage: Storage
     if sqlalchemy_url:
         from suppgram.storages.sqlalchemy import SQLAlchemyStorage
 
@@ -92,7 +93,7 @@ def run_all_in_one(
 
     texts_module_name, texts_class_name = texts.rsplit(".", 1)
     texts_class = getattr(import_module(texts_module_name), texts_class_name)
-    texts = texts_class()
+    texts_obj: Texts = texts_class()
 
     permission_checkers: List[PermissionChecker] = []
     if telegram_owner_id:
@@ -113,14 +114,16 @@ def run_all_in_one(
         storage=storage,
         permission_checkers=permission_checkers,
         workplace_managers=workplace_managers,
-        texts=texts,
+        texts=texts_obj,
     )
 
     user_frontend: UserFrontend
     if telegram_user_bot_token:
         from suppgram.frontends.telegram.user_frontend import TelegramUserFrontend
 
-        user_frontend = TelegramUserFrontend(telegram_user_bot_token, backend, texts)
+        user_frontend = TelegramUserFrontend(
+            telegram_user_bot_token, backend, texts_obj
+        )
     else:
         raise UsageError(
             "no user frontend specified. Use --telegram-user-bot-token for Telegram frontend"
@@ -143,7 +146,7 @@ def run_all_in_one(
             )
 
         manager_frontend = TelegramManagerFrontend(
-            telegram_manager_bot_token, backend, telegram_storage, texts
+            telegram_manager_bot_token, backend, telegram_storage, texts_obj
         )
     else:
         raise UsageError(
@@ -155,7 +158,7 @@ def run_all_in_one(
         from suppgram.frontends.telegram.agent_frontend import TelegramAgentFrontend
 
         agent_frontend = TelegramAgentFrontend(
-            telegram_agent_bot_token, telegram_app_manager, backend, texts
+            telegram_agent_bot_token, telegram_app_manager, backend, texts_obj
         )
     else:
         raise UsageError(

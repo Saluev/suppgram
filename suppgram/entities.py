@@ -21,6 +21,17 @@ class AgentIdentification:
 @dataclass(frozen=True)
 class Agent(AgentIdentification):
     id: Any
+    telegram_first_name: Optional[str] = None
+    telegram_last_name: Optional[str] = None
+    telegram_username: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class AgentDiff:
+    id: Any
+    telegram_first_name: Optional[str] = None
+    telegram_last_name: Optional[str] = None
+    telegram_username: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -57,10 +68,16 @@ class Message:
     text: Optional[str]
 
 
+class ConversationState(str, Enum):
+    NEW = "new"
+    ASSIGNED = "assigned"
+    CLOSED = "closed"
+
+
 @dataclass(frozen=True)
 class Conversation:
     id: Any
-    state_id: str
+    state: str
     user: User
     assigned_agent: Optional[Agent] = None
     assigned_workplace: Optional[Workplace] = None
@@ -76,6 +93,12 @@ class NewConversationEvent:
 class NewMessageForUserEvent:
     user: User
     message: Message
+
+
+@dataclass(frozen=True)
+class NewUnassignedMessageFromUserEvent:
+    message: Message
+    conversation: Conversation
 
 
 @dataclass(frozen=True)

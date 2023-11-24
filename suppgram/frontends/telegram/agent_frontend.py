@@ -88,7 +88,7 @@ class TelegramAgentFrontend(AgentFrontend):
                 )
             )
         except ConversationNotFound:
-            context.bot.send_message(
+            await context.bot.send_message(
                 update.effective_chat.id,
                 self._texts.telegram_workplace_is_not_assigned_message,
             )
@@ -100,10 +100,10 @@ class TelegramAgentFrontend(AgentFrontend):
     async def _handle_new_message_for_agent_events(
         self, events: List[NewMessageForAgentEvent]
     ):
-        for _, batch in groupby(
+        for _, batch_iter in groupby(
             events, lambda event: (event.agent.id, event.workplace.id)
         ):
-            batch = list(batch)
+            batch = list(batch_iter)
             app = next(
                 app
                 for app in self._telegram_apps
@@ -118,4 +118,4 @@ class TelegramAgentFrontend(AgentFrontend):
     def _group_messages(self, messages: Iterable[Message]) -> List[str]:
         # TODO actual grouping to reduce number of messages
         # TODO differentiation of previous agents' messages
-        return [message.text for message in messages]
+        return [message.text for message in messages if message.text]

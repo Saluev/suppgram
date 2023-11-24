@@ -23,8 +23,15 @@ class EnglishTexts(Texts):
     def compose_telegram_new_conversation_notification(
         self, conversation: Conversation
     ) -> str:
-        lines = ["New conversation!", ""]
+        lines = [f"Conversation in status {conversation.state.upper()}", ""]
         lines.extend(self._format_message(message) for message in conversation.messages)
+        if agent := conversation.assigned_agent:
+            agent_ref = (
+                f"@{agent.telegram_username}"
+                if agent.telegram_username
+                else f"agent #{agent.id}"
+            )
+            lines.extend(["", f"Assigned to {agent_ref}"])
         return "\n".join(lines)
 
     def _format_message(self, message: Message) -> str:

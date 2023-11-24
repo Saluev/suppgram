@@ -1,6 +1,7 @@
 import asyncio
 import os
 from tempfile import TemporaryDirectory
+from typing import Generator
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -11,7 +12,7 @@ from suppgram.entities import (
     AgentIdentification,
 )
 from suppgram.interfaces import (
-    PersistentStorage,
+    Storage,
 )
 from suppgram.storages.sqlalchemy import SQLAlchemyStorage
 
@@ -19,14 +20,14 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.fixture
-def sqlite_engine() -> AsyncEngine:
+def sqlite_engine() -> Generator[AsyncEngine, None, None]:
     with TemporaryDirectory() as dir:
         filename = os.path.join(dir, "test.db")
         yield create_async_engine(f"sqlite+aiosqlite:///{filename}", echo=True)
 
 
 @pytest.fixture
-def storage(sqlite_engine) -> PersistentStorage:
+def storage(sqlite_engine) -> Storage:
     storage = SQLAlchemyStorage(sqlite_engine)
     asyncio.run(storage.initialize())
     return storage

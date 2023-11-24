@@ -13,6 +13,6 @@ class Texts:
     def compose_telegram_new_conversation_notification(
         self, conversation: Conversation
     ) -> str:
-        pass
+        raise NotImplementedError
 
     telegram_assign_to_me_button_text: str

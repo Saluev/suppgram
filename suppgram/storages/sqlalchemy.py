@@ -3,10 +3,8 @@ from typing import (
     Any,
     TypeVar,
     Type,
-    Tuple,
     Optional,
     Mapping,
-    Iterable,
     Collection,
 )
 
@@ -21,7 +19,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import (
     declarative_base,
     Mapped,
@@ -41,6 +39,8 @@ from suppgram.entities import (
     Message as ConversaionMessageInterface,
     Conversation as ConversationInterface,
     AgentIdentification,
+    ConversationState,
+    AgentDiff,
 )
 from suppgram.errors import (
     ConversationNotFound,
@@ -49,7 +49,7 @@ from suppgram.errors import (
     WorkplaceAlreadyAssigned,
 )
 from suppgram.interfaces import (
-    PersistentStorage,
+    Storage,
 )
 
 Base = declarative_base()
@@ -66,6 +66,9 @@ class Agent(Base):
     __tablename__ = "suppgram_agents"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(Integer)
+    telegram_first_name: Mapped[str] = mapped_column(String, nullable=True)
+    telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
+    telegram_username: Mapped[str] = mapped_column(String, nullable=True)
     workplaces: Mapped[List["Workplace"]] = relationship(back_populates="agent")
 
 
@@ -89,7 +92,9 @@ class Conversation(Base):
         ForeignKey(Workplace.id), nullable=True
     )
     assigned_workplace: Mapped[Workplace] = relationship(back_populates="conversations")
-    state_id: Mapped[str] = mapped_column(String, nullable=False)
+    state: Mapped[ConversationState] = mapped_column(
+        Enum(ConversationState), nullable=False
+    )
     messages: Mapped[List["ConversationMessage"]] = relationship(
         back_populates="conversation"
     )
@@ -107,7 +112,7 @@ class ConversationMessage(Base):
 T = TypeVar("T", bound=Base)
 
 
-class SQLAlchemyStorage(PersistentStorage):
+class SQLAlchemyStorage(Storage):
     def __init__(
         self,
         engine: AsyncEngine,
@@ -163,16 +168,19 @@ class SQLAlchemyStorage(PersistentStorage):
 
     async def get_agent(self, identification: AgentIdentification) -> AgentInterface:
         async with self._session() as session:
-            row = (
-                await session.execute(
-                    select(self._agent_model).filter(
-                        self._make_agent_filter(identification)
+            agent = (
+                (
+                    await session.execute(
+                        select(self._agent_model).filter(
+                            self._make_agent_filter(identification)
+                        )
                     )
                 )
-            ).one_or_none()
-            if row is None:
+                .scalars()
+                .one_or_none()
+            )
+            if agent is None:
                 raise AgentNotFound(identification)
-            (agent,) = row
             return self._convert_agent(agent)
 
     async def create_agent(self, identification: AgentIdentification) -> AgentInterface:
@@ -185,6 +193,22 @@ class SQLAlchemyStorage(PersistentStorage):
             await session.flush()
             await session.refresh(agent)
             return self._convert_agent(agent)
+
+    async def update_agent(self, diff: AgentDiff):
+        async with self._session() as session, session.begin():
+            agent = (
+                (
+                    await session.execute(
+                        select(self._agent_model).filter(
+                            self._agent_model.id == diff.id
+                        )
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            self._update_model(agent, diff)
+            session.add(agent)
 
     async def get_workplace(
         self, identification: WorkplaceIdentification
@@ -202,7 +226,9 @@ class SQLAlchemyStorage(PersistentStorage):
             (workplace,) = row
             return workplace
 
-    async def get_agent_workplaces(self, agent: Agent) -> List[Workplace]:
+    async def get_agent_workplaces(
+        self, agent: AgentInterface
+    ) -> List[WorkplaceInterface]:
         async with self._session() as session:
             workplaces = (
                 (
@@ -245,10 +271,10 @@ class SQLAlchemyStorage(PersistentStorage):
             return self._convert_workplace(agent, workplace)
 
     async def get_or_start_conversation(
-        self, user: User, starting_state_id: str, closed_state_ids: List[str]
+        self, user: UserInterface
     ) -> ConversationInterface:
         async with self._session() as session, session.begin():
-            conv = (
+            conv: Optional[Conversation] = (
                 (
                     await session.execute(
                         select(self._conversation_model)
@@ -261,7 +287,11 @@ class SQLAlchemyStorage(PersistentStorage):
                         )
                         .filter(
                             (self._conversation_model.user_id == user.id)
-                            & (~self._conversation_model.state_id.in_(closed_state_ids))
+                            & (
+                                ~self._conversation_model.state.in_(
+                                    [ConversationState.CLOSED]
+                                )
+                            )
                         )
                     )
                 )
@@ -271,7 +301,7 @@ class SQLAlchemyStorage(PersistentStorage):
             if conv is None:
                 conv = self._conversation_model(
                     user_id=user.id,
-                    state_id=starting_state_id,
+                    state=ConversationState.NEW,
                 )
                 session.add(conv)
                 await session.flush()
@@ -293,7 +323,7 @@ class SQLAlchemyStorage(PersistentStorage):
                 messages = [self._convert_message(msg) for msg in conv.messages]
             return ConversationInterface(
                 id=conv.id,
-                state_id=conv.state_id,
+                state=conv.state,
                 user=user,
                 assigned_agent=assigned_agent,
                 assigned_workplace=assigned_workplace,
@@ -388,7 +418,7 @@ class SQLAlchemyStorage(PersistentStorage):
         agent = self._convert_agent(conversation.assigned_workplace.agent)
         return ConversationInterface(
             id=conversation.id,
-            state_id=conversation.state_id,
+            state=conversation.state,
             user=self._convert_user(conversation.user),
             assigned_agent=agent,
             assigned_workplace=self._convert_workplace(
@@ -425,6 +455,11 @@ class SQLAlchemyStorage(PersistentStorage):
         params = {**dc.__dict__, **kwargs}
         params = {k: v for k, v in params.items() if k not in exclude_fields}
         return model(**params)
+
+    def _update_model(self, model_instance: Any, diff_dc: Any):
+        for k, v in diff_dc.__dict__.items():
+            if v is not None:
+                setattr(model_instance, k, v)
 
     def _make_filter(self, dc: Any, model: Type[T]) -> ColumnElement:
         return and_(

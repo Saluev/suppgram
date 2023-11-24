@@ -7,6 +7,8 @@ from typing import FrozenSet, Any, Optional, List
 class TelegramGroupRole(int, Enum):
     # Group for notifications on new unassigned conversations.
     NEW_CONVERSATION_NOTIFICATIONS = 1
+    # Group all members of which are agents.
+    AGENTS = 2
 
 
 @dataclass
@@ -32,6 +34,10 @@ class TelegramStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def get_group(self, telegram_chat_id: int) -> TelegramGroup:
+        pass
+
+    @abc.abstractmethod
     async def upsert_group(self, telegram_chat_id: int):
         pass
 
@@ -50,7 +56,7 @@ class TelegramStorage(abc.ABC):
         telegram_message_id: int,
         kind: TelegramMessageKind,
         conversation_id: Optional[Any] = None,
-    ):
+    ) -> TelegramMessage:
         pass
 
     @abc.abstractmethod

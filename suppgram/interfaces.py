@@ -14,11 +14,13 @@ from suppgram.entities import (
     NewMessageForUserEvent,
     NewMessageForAgentEvent,
     AgentIdentification,
+    NewUnassignedMessageFromUserEvent,
+    AgentDiff,
 )
 from suppgram.observer import Observable
 
 
-class PersistentStorage(abc.ABC):
+class Storage(abc.ABC):
     async def initialize(self):
         pass
 
@@ -32,6 +34,10 @@ class PersistentStorage(abc.ABC):
 
     @abc.abstractmethod
     async def create_agent(self, identification: AgentIdentification) -> Agent:
+        pass
+
+    @abc.abstractmethod
+    async def update_agent(self, diff: AgentDiff):
         pass
 
     @abc.abstractmethod
@@ -49,9 +55,7 @@ class PersistentStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_or_start_conversation(
-        self, user: User, starting_state_id: str, closed_state_ids: List[str]
-    ) -> Conversation:
+    async def get_or_start_conversation(self, user: User) -> Conversation:
         pass
 
     @abc.abstractmethod
@@ -96,14 +100,19 @@ class PermissionChecker(abc.ABC):
 class Application(abc.ABC):
     on_new_conversation: Observable[NewConversationEvent]
     on_new_message_for_user: Observable[NewMessageForUserEvent]
+    on_new_unassigned_message_from_user = Observable[NewUnassignedMessageFromUserEvent]
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]
 
     @abc.abstractmethod
-    async def create_agent(self, identification: AgentIdentification):
+    async def create_agent(self, identification: AgentIdentification) -> Agent:
         pass
 
     @abc.abstractmethod
-    async def identify_agent(self, identification: AgentIdentification):
+    async def identify_agent(self, identification: AgentIdentification) -> Agent:
+        pass
+
+    @abc.abstractmethod
+    async def update_agent(self, diff: AgentDiff):
         pass
 
     @abc.abstractmethod
@@ -119,7 +128,7 @@ class Application(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def check_permission(self, agent: Agent, permission: Permission) -> Decision:
+    def check_permission(self, agent: Agent, permission: Permission) -> bool:
         pass
 
     @abc.abstractmethod

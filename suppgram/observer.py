@@ -19,7 +19,7 @@ class Observable(Generic[T]):
 
     def add_batch_handler(
         self, handler: Callable[[List[T]], Awaitable[None]]
-    ) -> Callable[[T], Awaitable[None]]:
+    ) -> Callable[[List[T]], Awaitable[None]]:
         self._batch_handlers.append(handler)
         return handler  # return value can be used for decorator chaining
 

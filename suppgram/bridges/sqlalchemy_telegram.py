@@ -65,13 +65,32 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
     ) -> List[TelegramGroupInterface]:
         async with self._session() as session:
             groups: Iterable[TelegramGroup] = (
-                await session.execute(
-                    select(self._group_model).filter(
-                        self._group_model.roles.bitwise_and(role.value) != 0
+                (
+                    await session.execute(
+                        select(self._group_model).filter(
+                            self._group_model.roles.bitwise_and(role.value) != 0
+                        )
                     )
                 )
-            ).all()
-        return [self._convert_group(group) for group, in groups]
+                .scalars()
+                .all()
+            )
+        return [self._convert_group(group) for group in groups]
+
+    async def get_group(self, telegram_chat_id: int) -> TelegramGroupInterface:
+        async with self._session() as session:
+            group = (
+                (
+                    await session.execute(
+                        select(self._group_model).filter(
+                            self._group_model.telegram_chat_id == telegram_chat_id
+                        )
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            return self._convert_group(group)
 
     async def upsert_group(self, telegram_chat_id: int):
         async with self._session() as session, session.begin():
@@ -113,6 +132,12 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
                     conversation_id=conversation_id,
                 )
             )
+        return TelegramMessageInterface(
+            group=group,
+            telegram_message_id=telegram_message_id,
+            kind=kind,
+            conversation_id=conversation_id,
+        )
 
     async def get_messages(
         self, kind: TelegramMessageKind, conversation_id: Optional[Any] = None
