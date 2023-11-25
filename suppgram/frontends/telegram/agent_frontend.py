@@ -11,7 +11,7 @@ from telegram.ext.filters import TEXT, ChatType
 
 from suppgram.entities import (
     WorkplaceIdentification,
-    MessageFrom,
+    MessageKind,
     Message,
     NewMessageForAgentEvent,
 )
@@ -21,9 +21,9 @@ from suppgram.frontends.telegram.identification import make_agent_identification
 from suppgram.helpers import flat_gather
 from suppgram.interfaces import (
     AgentFrontend,
-    Application,
     Permission,
 )
+from suppgram.backend import Backend
 from suppgram.texts.interface import Texts
 
 
@@ -32,7 +32,7 @@ class TelegramAgentFrontend(AgentFrontend):
         self,
         tokens: List[str],
         app_manager: TelegramAppManager,
-        backend: Application,
+        backend: Backend,
         texts: Texts,
     ):
         self._backend = backend
@@ -94,7 +94,12 @@ class TelegramAgentFrontend(AgentFrontend):
             )
             return
         await self._backend.process_message_from_agent(
-            conversation, Message(from_=MessageFrom.AGENT, text=update.message.text)
+            conversation,
+            Message(
+                kind=MessageKind.FROM_AGENT,
+                time_utc=update.message.date,  # TODO utc?
+                text=update.message.text,
+            ),
         )
 
     async def _handle_new_message_for_agent_events(

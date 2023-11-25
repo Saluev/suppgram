@@ -1,4 +1,4 @@
-from suppgram.entities import Conversation, Message, MessageFrom
+from suppgram.entities import Conversation, Message, MessageKind
 from suppgram.texts.interface import Texts
 
 
@@ -18,12 +18,15 @@ class EnglishTexts(Texts):
         "This chat is not assigned to any ongoing "
         "conversation with a customer right now."
     )
+    telegram_send_new_conversations_command_description = (
+        "Send notifications about new conversations to this group."
+    )
     telegram_new_conversation_notification_placeholder = "New conversation!"
 
     def compose_telegram_new_conversation_notification(
         self, conversation: Conversation
     ) -> str:
-        lines = [f"Conversation in status {conversation.state.upper()}", ""]
+        lines = [f"Conversation in status #{conversation.state.upper()}", ""]
         lines.extend(self._format_message(message) for message in conversation.messages)
         if agent := conversation.assigned_agent:
             agent_ref = (
@@ -36,9 +39,9 @@ class EnglishTexts(Texts):
 
     def _format_message(self, message: Message) -> str:
         from_ = {
-            MessageFrom.USER: "Customer",
-            MessageFrom.AGENT: "Agent",
-        }[message.from_]
+            MessageKind.FROM_USER: "Customer",
+            MessageKind.FROM_AGENT: "Agent",
+        }[message.kind]
         return f"{from_}: {message.text}"
 
     telegram_assign_to_me_button_text = "Assign to me"

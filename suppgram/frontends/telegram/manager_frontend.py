@@ -2,7 +2,7 @@ import json
 from enum import Enum
 from typing import Optional, Any
 
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, Update
+from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, Update, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -12,11 +12,10 @@ from telegram.ext import (
 from telegram.ext.filters import ChatType
 
 from suppgram.entities import (
-    NewConversationEvent,
     Conversation,
     NewUnassignedMessageFromUserEvent,
     AgentDiff,
-    ConversationAssignmentEvent,
+    ConversationEvent,
 )
 from suppgram.errors import AgentNotFound
 from suppgram.frontends.telegram.identification import (
@@ -32,10 +31,10 @@ from suppgram.frontends.telegram.interfaces import (
 )
 from suppgram.helpers import flat_gather
 from suppgram.interfaces import (
-    Application,
     ManagerFrontend,
     Permission,
 )
+from suppgram.backend import Backend
 from suppgram.texts.interface import Texts
 
 
@@ -44,8 +43,10 @@ class CallbackActionKind(str, Enum):
 
 
 class TelegramManagerFrontend(ManagerFrontend):
+    _SEND_NEW_CONVERSTIONS_COMMAND = "send_new_conversations"
+
     def __init__(
-        self, token: str, backend: Application, storage: TelegramStorage, texts: Texts
+        self, token: str, backend: Backend, storage: TelegramStorage, texts: Texts
     ):
         self._backend = backend
         self._storage = storage
@@ -67,7 +68,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                     "start", self._handle_start_command, filters=ChatType.PRIVATE
                 ),
                 CommandHandler(
-                    "send_new_conversations",
+                    self._SEND_NEW_CONVERSTIONS_COMMAND,
                     self._handle_send_new_conversations_command,
                 ),
             ]
@@ -76,12 +77,20 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def initialize(self):
         await super().initialize()
         await self._telegram_app.initialize()
+        await self._telegram_bot.set_my_commands(
+            [
+                BotCommand(
+                    self._SEND_NEW_CONVERSTIONS_COMMAND,
+                    self._texts.telegram_send_new_conversations_command_description,
+                )
+            ]
+        )
 
     async def start(self):
         await self._telegram_app.updater.start_polling()
         await self._telegram_app.start()
 
-    async def _handle_new_conversation_event(self, event: NewConversationEvent):
+    async def _handle_new_conversation_event(self, event: ConversationEvent):
         await self._send_new_conversation_notifications(event.conversation)
 
     async def _send_new_conversation_notifications(self, conversation: Conversation):
@@ -96,12 +105,10 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _handle_new_unassigned_message_from_user_event(
         self, event: NewUnassignedMessageFromUserEvent
     ):
-        await self._create_or_update_new_conversation_notifications(event.conversation)
+        await self._send_or_edit_new_conversation_notifications(event.conversation)
 
-    async def _handle_conversation_assignment_event(
-        self, event: ConversationAssignmentEvent
-    ):
-        await self._create_or_update_new_conversation_notifications(event.conversation)
+    async def _handle_conversation_assignment_event(self, event: ConversationEvent):
+        await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _send_new_conversation_notification(
         self, group: TelegramGroup, conversation: Conversation
@@ -129,7 +136,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             conversation_id=conversation_id,
         )
 
-    async def _create_or_update_new_conversation_notifications(
+    async def _send_or_edit_new_conversation_notifications(
         self, conversation: Conversation
     ):
         messages = await self._storage.get_messages(
@@ -222,12 +229,12 @@ class TelegramManagerFrontend(ManagerFrontend):
                 return
             agent = await self._backend.create_agent(identification)
         await self._backend.update_agent(
+            agent.identification,
             AgentDiff(
-                id=agent.id,
                 telegram_first_name=update.effective_user.first_name,
                 telegram_last_name=update.effective_user.last_name,
                 telegram_username=update.effective_user.username,
-            )
+            ),
         )
 
     async def _handle_send_new_conversations_command(

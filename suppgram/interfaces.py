@@ -1,80 +1,12 @@
 import abc
 from enum import Enum
-from typing import List, Any
+from typing import List
 
 from suppgram.entities import (
-    UserIdentification,
-    User,
     Agent,
     WorkplaceIdentification,
     Workplace,
-    Message,
-    Conversation,
-    NewConversationEvent,
-    NewMessageForUserEvent,
-    NewMessageForAgentEvent,
-    AgentIdentification,
-    NewUnassignedMessageFromUserEvent,
-    AgentDiff,
-    ConversationAssignmentEvent,
-    ConversationState,
 )
-from suppgram.observer import Observable
-
-
-class Storage(abc.ABC):
-    async def initialize(self):
-        pass
-
-    @abc.abstractmethod
-    async def get_or_create_user(self, identification: UserIdentification) -> User:
-        pass
-
-    @abc.abstractmethod
-    async def get_agent(self, identification: AgentIdentification) -> Agent:
-        pass
-
-    @abc.abstractmethod
-    async def create_agent(self, identification: AgentIdentification) -> Agent:
-        pass
-
-    @abc.abstractmethod
-    async def update_agent(self, diff: AgentDiff):
-        pass
-
-    @abc.abstractmethod
-    async def get_workplace(self, identification: WorkplaceIdentification) -> Workplace:
-        pass
-
-    @abc.abstractmethod
-    async def get_agent_workplaces(self, agent: Agent) -> List[Workplace]:
-        pass
-
-    @abc.abstractmethod
-    async def get_or_create_workplace(
-        self, agent: Agent, identification: WorkplaceIdentification
-    ) -> Workplace:
-        pass
-
-    @abc.abstractmethod
-    async def get_or_start_conversation(self, user: User) -> Conversation:
-        pass
-
-    @abc.abstractmethod
-    async def assign_workplace(
-        self, conversation_id: Any, workplace: Workplace, new_state: ConversationState
-    ):
-        pass
-
-    @abc.abstractmethod
-    async def get_agent_conversation(
-        self, identification: WorkplaceIdentification
-    ) -> Conversation:
-        pass
-
-    @abc.abstractmethod
-    async def save_message(self, conversation: Conversation, message: Message):
-        pass
 
 
 class Permission(str, Enum):
@@ -98,66 +30,6 @@ class PermissionChecker(abc.ABC):
 
     @abc.abstractmethod
     def check_permission(self, agent: Agent, permission: Permission) -> Decision:
-        pass
-
-
-class Application(abc.ABC):
-    on_new_conversation: Observable[NewConversationEvent]
-    on_conversation_assignment: Observable[ConversationAssignmentEvent]
-    on_new_message_for_user: Observable[NewMessageForUserEvent]
-    on_new_unassigned_message_from_user = Observable[NewUnassignedMessageFromUserEvent]
-    on_new_message_for_agent: Observable[NewMessageForAgentEvent]
-
-    @abc.abstractmethod
-    async def create_agent(self, identification: AgentIdentification) -> Agent:
-        pass
-
-    @abc.abstractmethod
-    async def identify_agent(self, identification: AgentIdentification) -> Agent:
-        pass
-
-    @abc.abstractmethod
-    async def update_agent(self, diff: AgentDiff):
-        pass
-
-    @abc.abstractmethod
-    async def identify_user_conversation(
-        self, identification: UserIdentification
-    ) -> Conversation:
-        pass
-
-    @abc.abstractmethod
-    async def identify_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> Workplace:
-        pass
-
-    @abc.abstractmethod
-    def check_permission(self, agent: Agent, permission: Permission) -> bool:
-        pass
-
-    @abc.abstractmethod
-    async def identify_agent_conversation(
-        self, identification: WorkplaceIdentification
-    ) -> Conversation:
-        pass
-
-    @abc.abstractmethod
-    async def process_message_from_user(
-        self, conversation: Conversation, message: Message
-    ):
-        pass
-
-    @abc.abstractmethod
-    async def process_message_from_agent(
-        self, conversation: Conversation, message: Message
-    ):
-        pass
-
-    @abc.abstractmethod
-    async def assign_agent(
-        self, assigner: Agent, assignee: Agent, conversation_id: Any
-    ):
         pass
 
 

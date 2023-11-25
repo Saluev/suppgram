@@ -1,37 +1,38 @@
 from typing import List, Iterable, Any
 
 from suppgram.entities import (
-    UserIdentification,
+    ConversationEvent,
+    NewMessageForUserEvent,
+    NewUnassignedMessageFromUserEvent,
+    NewMessageForAgentEvent,
+    AgentIdentification,
     Agent,
+    AgentDiff,
+    UserIdentification,
+    Conversation,
     WorkplaceIdentification,
     Workplace,
     Message,
-    Conversation,
-    NewConversationEvent,
-    NewMessageForUserEvent,
-    NewMessageForAgentEvent,
-    AgentIdentification,
-    NewUnassignedMessageFromUserEvent,
-    AgentDiff,
-    ConversationAssignmentEvent,
     ConversationState,
+    ConversationDiff,
+    SetNone,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
 from suppgram.interfaces import (
-    Storage,
-    Application as ApplicationInterface,
     PermissionChecker,
-    Decision,
-    Permission,
     WorkplaceManager,
+    Permission,
+    Decision,
 )
+from suppgram.backend import Backend as BackendInterface
 from suppgram.observer import Observable
+from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTexts
 from suppgram.texts.interface import Texts
 
 
-class Application(ApplicationInterface):
+class DefaultBackend(BackendInterface):
     def __init__(
         self,
         storage: Storage,
@@ -44,8 +45,9 @@ class Application(ApplicationInterface):
         self._workplace_managers = workplace_managers
         self._texts = texts
 
-        self.on_new_conversation = Observable[NewConversationEvent]()
-        self.on_conversation_assignment = Observable[ConversationAssignmentEvent]()
+        self.on_new_conversation = Observable[ConversationEvent]()
+        self.on_conversation_assignment = Observable[ConversationEvent]()
+        self.on_conversation_resolution = Observable[ConversationEvent]()
         self.on_new_message_for_user = Observable[NewMessageForUserEvent]()
         self.on_new_unassigned_message_from_user = Observable[
             NewUnassignedMessageFromUserEvent
@@ -58,14 +60,14 @@ class Application(ApplicationInterface):
     async def identify_agent(self, identification: AgentIdentification) -> Agent:
         return await self._storage.get_agent(identification)
 
-    async def update_agent(self, diff: AgentDiff):
-        return await self._storage.update_agent(diff)
+    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
+        return await self._storage.update_agent(identification, diff)
 
     async def identify_user_conversation(
         self, identification: UserIdentification
     ) -> Conversation:
         user = await self._storage.get_or_create_user(identification)
-        conversation = await self._storage.get_or_start_conversation(user)
+        conversation = await self._storage.get_or_create_conversation(user)
         return conversation
 
     async def identify_workplace(
@@ -102,7 +104,7 @@ class Application(ApplicationInterface):
         await self._storage.save_message(conversation, message)
         conversation.messages.append(message)
         if len(conversation.messages) == 1:
-            await self.on_new_conversation.trigger(NewConversationEvent(conversation))
+            await self.on_new_conversation.trigger(ConversationEvent(conversation))
         if conversation.assigned_agent and conversation.assigned_workplace:
             await self.on_new_message_for_agent.trigger(
                 NewMessageForAgentEvent(
@@ -138,12 +140,16 @@ class Application(ApplicationInterface):
             raise PermissionDenied("not allowed to assign conversation to this agent")
 
         workplace = await self._choose_workplace(assignee)
-        await self._storage.assign_workplace(
-            conversation_id, workplace, ConversationState.ASSIGNED
+        await self._storage.update_conversation(
+            conversation_id,
+            ConversationDiff(
+                state=ConversationState.ASSIGNED, assigned_workplace=workplace
+            ),
+            unassigned_only=True,
         )
         conversation = await self._storage.get_agent_conversation(workplace)
         await self.on_conversation_assignment.trigger(
-            ConversationAssignmentEvent(conversation=conversation)
+            ConversationEvent(conversation=conversation)
         )
         await self.on_new_message_for_agent.trigger_batch(
             [
@@ -152,6 +158,21 @@ class Application(ApplicationInterface):
                 )
                 for message in conversation.messages
             ]
+        )
+
+    async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
+        if resolver != conversation.assigned_agent:
+            raise PermissionDenied(
+                "not allowed to resolve conversations of other agents"
+            )
+        await self._storage.update_conversation(
+            conversation.id,
+            ConversationDiff(
+                state=ConversationState.RESOLVED, assigned_workplace=SetNone
+            ),
+        )
+        await self.on_conversation_resolution.trigger(
+            ConversationEvent(conversation=conversation)
         )
 
     async def _choose_workplace(self, agent: Agent) -> Workplace:

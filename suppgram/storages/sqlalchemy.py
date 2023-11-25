@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import (
     List,
     Any,
@@ -6,6 +7,7 @@ from typing import (
     Optional,
     Mapping,
     Collection,
+    MutableMapping,
 )
 
 from sqlalchemy import (
@@ -17,6 +19,8 @@ from sqlalchemy import (
     ColumnElement,
     select,
     update,
+    Update,
+    DateTime,
 )
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
@@ -35,12 +39,14 @@ from suppgram.entities import (
     Agent as AgentInterface,
     WorkplaceIdentification,
     Workplace as WorkplaceInterface,
-    MessageFrom,
+    MessageKind,
     Message as ConversaionMessageInterface,
     Conversation as ConversationInterface,
     AgentIdentification,
     ConversationState,
     AgentDiff,
+    ConversationDiff,
+    SetNone,
 )
 from suppgram.errors import (
     ConversationNotFound,
@@ -48,11 +54,51 @@ from suppgram.errors import (
     AgentNotFound,
     WorkplaceAlreadyAssigned,
 )
-from suppgram.interfaces import (
-    Storage,
-)
+from suppgram.storage import Storage
 
 Base = declarative_base()
+
+
+# class UserBase:
+#     id: Mapped[int]
+#     telegram_user_id: Mapped[int]
+#     conversations: Mapped[List["Conversation"]]
+#
+#
+# class AgentBase:
+#     id: Mapped[int]
+#     telegram_user_id: Mapped[int]
+#     telegram_first_name: Mapped[str]
+#     telegram_last_name: Mapped[str]
+#     telegram_username: Mapped[str]
+#     workplaces: Mapped[List["Workplace"]]
+#
+#
+# class WorkplaceBase:
+#     id: Mapped[int]
+#     agent_id: Mapped[int]
+#     agent: Mapped[AgentBase]
+#     telegram_bot_id: Mapped[int]
+#     conversations: Mapped[List["Conversation"]]
+#
+#
+# class ConversationBase:
+#     id: Mapped[int]
+#     user_id: Mapped[int]
+#     user: Mapped[UserBase]
+#     assigned_workplace_id: Mapped[int]
+#     assigned_workplace: Mapped[WorkplaceBase]
+#     state: Mapped[ConversationState]
+#     messages: Mapped[List["ConversationMessageBase"]]
+#
+#
+# class ConversationMessageBase:
+#     id: Mapped[int]
+#     conversation_id: Mapped[int]
+#     conversation: Mapped[ConversationBase]
+#     kind: Mapped[MessageKind]
+#     time_utc: Mapped[datetime]
+#     text: Mapped[str]
 
 
 class User(Base):
@@ -105,7 +151,8 @@ class ConversationMessage(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     conversation_id: Mapped[int] = mapped_column(ForeignKey(Conversation.id))
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
-    from_: Mapped[MessageFrom] = mapped_column(Enum(MessageFrom), nullable=False)
+    kind: Mapped[MessageKind] = mapped_column(Enum(MessageKind), nullable=False)
+    time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     text: Mapped[str] = mapped_column(String, nullable=False)
 
 
@@ -194,14 +241,14 @@ class SQLAlchemyStorage(Storage):
             await session.refresh(agent)
             return self._convert_agent(agent)
 
-    async def update_agent(self, diff: AgentDiff):
+    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
         async with self._session() as session, session.begin():
             agent = (
                 (
                     await session.execute(
-                        select(self._agent_model).filter(
-                            self._agent_model.id == diff.id
-                        )
+                        select(self._agent_model)
+                        .filter(self._make_agent_filter(identification))
+                        .with_for_update()
                     )
                 )
                 .scalars()
@@ -270,7 +317,7 @@ class SQLAlchemyStorage(Storage):
                 workplace, _ = row
             return self._convert_workplace(agent, workplace)
 
-    async def get_or_start_conversation(
+    async def get_or_create_conversation(
         self, user: UserInterface
     ) -> ConversationInterface:
         async with self._session() as session, session.begin():
@@ -289,7 +336,7 @@ class SQLAlchemyStorage(Storage):
                             (self._conversation_model.user_id == user.id)
                             & (
                                 ~self._conversation_model.state.in_(
-                                    [ConversationState.CLOSED]
+                                    [ConversationState.RESOLVED]
                                 )
                             )
                         )
@@ -330,19 +377,37 @@ class SQLAlchemyStorage(Storage):
                 messages=messages,
             )
 
-    async def assign_workplace(
-        self,
-        conversation_id: Any,
-        workplace: WorkplaceInterface,
-        new_state: ConversationState,
+    async def update_conversation(
+        self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
         async with self._session() as session, session.begin():
+            conv = (
+                (
+                    await session.execute(
+                        select(self._conversation_model).filter(
+                            self._conversation_model.id == id
+                        )
+                    )
+                )
+                .scalars()
+                .one_or_none()
+            )
+            if conv is None:
+                raise ConversationNotFound()
+
+            filter_ = self._conversation_model.id == id
+            if unassigned_only:
+                filter_ = filter_ & (
+                    self._conversation_model.assigned_workplace_id == None
+                )
+
             result = await session.execute(
                 update(self._conversation_model)
-                .filter(self._conversation_model.assigned_workplace_id == None)
-                .values(assigned_workplace_id=workplace.id, state=new_state)
+                .filter(filter_)
+                .values(**self._make_update_values(diff))
             )
-            if result.rowcount == 0:
+
+            if unassigned_only and result.rowcount == 0:
                 raise WorkplaceAlreadyAssigned()
 
     async def get_agent_conversation(
@@ -388,7 +453,8 @@ class SQLAlchemyStorage(Storage):
             session.add(
                 self._conversation_message_model(
                     conversation_id=conversation.id,
-                    from_=message.from_,
+                    kind=message.kind,
+                    time_utc=message.time_utc,
                     text=message.text,
                 )
             )
@@ -418,7 +484,7 @@ class SQLAlchemyStorage(Storage):
     def _convert_message(
         self, message: ConversationMessage
     ) -> ConversaionMessageInterface:
-        return ConversaionMessageInterface(from_=message.from_, text=message.text)
+        return ConversaionMessageInterface(kind=message.kind, text=message.text)
 
     def _convert_conversation(
         self,
@@ -459,7 +525,7 @@ class SQLAlchemyStorage(Storage):
         dc: Any,
         model: Type[T],
         exclude_fields: Collection[str] = (),
-        **kwargs: Mapping[str, Any]
+        **kwargs: Mapping[str, Any],
     ) -> T:
         params = {**dc.__dict__, **kwargs}
         params = {k: v for k, v in params.items() if k not in exclude_fields}
@@ -467,8 +533,27 @@ class SQLAlchemyStorage(Storage):
 
     def _update_model(self, model_instance: Any, diff_dc: Any):
         for k, v in diff_dc.__dict__.items():
-            if v is not None:
-                setattr(model_instance, k, v)
+            if v is None:
+                continue
+            # TODO other entities
+            if isinstance(v, WorkplaceInterface):
+                k = f"{k}_id"
+                v = v.id
+            setattr(model_instance, k, v)
+
+    def _make_update_values(self, diff_dc: Any) -> Mapping[str, Any]:
+        result: MutableMapping[str, Any] = {}
+        for k, v in diff_dc.__dict__.items():
+            if v is None:
+                continue
+            # TODO other entities
+            if isinstance(v, WorkplaceInterface):
+                k = f"{k}_id"
+                v = v.id
+            if v is SetNone:
+                v = None
+            result[k] = v
+        return result
 
     def _make_filter(self, dc: Any, model: Type[T]) -> ColumnElement:
         return and_(

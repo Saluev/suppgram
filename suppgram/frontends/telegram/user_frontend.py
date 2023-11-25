@@ -7,21 +7,21 @@ from telegram.ext import (
 )
 from telegram.ext.filters import TEXT, ChatType
 
-from suppgram.interfaces import (
-    UserFrontend,
-    Application,
-)
 from suppgram.entities import (
     UserIdentification,
-    MessageFrom,
+    MessageKind,
     Message,
     NewMessageForUserEvent,
 )
+from suppgram.interfaces import (
+    UserFrontend,
+)
+from suppgram.backend import Backend
 from suppgram.texts.interface import Texts
 
 
 class TelegramUserFrontend(UserFrontend):
-    def __init__(self, token: str, backend: Application, texts: Texts):
+    def __init__(self, token: str, backend: Backend, texts: Texts):
         self._backend = backend
         self._texts = texts
         self._telegram_app = ApplicationBuilder().token(token).build()
@@ -58,7 +58,12 @@ class TelegramUserFrontend(UserFrontend):
             UserIdentification(telegram_user_id=update.effective_user.id)
         )
         await self._backend.process_message_from_user(
-            conversation, Message(from_=MessageFrom.USER, text=update.message.text)
+            conversation,
+            Message(
+                kind=MessageKind.FROM_USER,
+                time_utc=update.message.date,  # TODO utc?
+                text=update.message.text,
+            ),
         )
 
     async def _handle_new_message_for_user_event(self, event: NewMessageForUserEvent):

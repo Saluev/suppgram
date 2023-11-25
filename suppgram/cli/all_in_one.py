@@ -6,18 +6,18 @@ from typing import Optional, List
 import click
 from click import UsageError
 
-from suppgram.application import Application
+from suppgram.backends.default import DefaultBackend
 from suppgram.entities import AgentIdentification
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
 from suppgram.interfaces import (
-    Storage,
     PermissionChecker,
     UserFrontend,
     ManagerFrontend,
     AgentFrontend,
     WorkplaceManager,
 )
+from suppgram.storage import Storage
 from suppgram.texts.interface import Texts
 
 
@@ -110,7 +110,7 @@ def run_all_in_one(
             TelegramWorkplaceManager(telegram_agent_bot_token, telegram_app_manager)
         )
 
-    backend = Application(
+    backend = DefaultBackend(
         storage=storage,
         permission_checkers=permission_checkers,
         workplace_managers=workplace_managers,

@@ -11,9 +11,7 @@ from suppgram.entities import (
     WorkplaceIdentification,
     AgentIdentification,
 )
-from suppgram.interfaces import (
-    Storage,
-)
+from suppgram.storage import Storage
 from suppgram.storages.sqlalchemy import SQLAlchemyStorage
 
 pytest_plugins = ("pytest_asyncio",)
@@ -58,4 +56,4 @@ async def test_get_agent_conversation(storage):
 @pytest.mark.asyncio
 async def test_get_or_start_conversation(storage):
     user = await storage.get_or_create_user(UserIdentification(telegram_user_id=100500))
-    await storage.get_or_start_conversation(user, "foo", ["bar"])
+    await storage.get_or_create_conversation(user, "foo", ["bar"])

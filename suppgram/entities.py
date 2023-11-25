@@ -1,6 +1,14 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Optional, Any, List
+
+
+class _SetNone:
+    pass
+
+
+SetNone = _SetNone()
 
 
 @dataclass(frozen=True)
@@ -15,20 +23,25 @@ class User(UserIdentification):
 
 @dataclass(frozen=True)
 class AgentIdentification:
-    telegram_user_id: Optional[int]
+    id: Optional[Any] = None
+    telegram_user_id: Optional[int] = None
 
 
 @dataclass(frozen=True)
-class Agent(AgentIdentification):
+class Agent:
     id: Any
+    telegram_user_id: Optional[int] = None
     telegram_first_name: Optional[str] = None
     telegram_last_name: Optional[str] = None
     telegram_username: Optional[str] = None
 
+    @property
+    def identification(self) -> AgentIdentification:
+        return AgentIdentification(id=self.id)
+
 
 @dataclass(frozen=True)
 class AgentDiff:
-    id: Any
     telegram_first_name: Optional[str] = None
     telegram_last_name: Optional[str] = None
     telegram_username: Optional[str] = None
@@ -57,21 +70,22 @@ class Workplace(WorkplaceIdentification):
     agent: Agent
 
 
-class MessageFrom(str, Enum):
-    USER = "user"
-    AGENT = "agent"
+class MessageKind(str, Enum):
+    FROM_USER = "user"
+    FROM_AGENT = "agent"
 
 
 @dataclass(frozen=True)
 class Message:
-    from_: MessageFrom
+    kind: MessageKind
+    time_utc: datetime
     text: Optional[str]
 
 
 class ConversationState(str, Enum):
     NEW = "new"
     ASSIGNED = "assigned"
-    CLOSED = "closed"
+    RESOLVED = "resolved"
 
 
 @dataclass(frozen=True)
@@ -85,12 +99,13 @@ class Conversation:
 
 
 @dataclass(frozen=True)
-class NewConversationEvent:
-    conversation: Conversation
+class ConversationDiff:
+    state: Optional[str] = None
+    assigned_workplace: Optional[Workplace] | SetNone = None
 
 
 @dataclass(frozen=True)
-class ConversationAssignmentEvent:
+class ConversationEvent:
     conversation: Conversation
 
 
