@@ -6,9 +6,16 @@ class EnglishTexts(Texts):
     telegram_customer_start_message = (
         "Welcome to support service! Please describe your problem."
     )
+    telegram_customer_conversation_resolved_message = (
+        "Conversation was marked as resolved. "
+        "You can always start a new conversation by writing to this chat!"
+    )
     telegram_manager_start_message = "Welcome to the support admin bot!"
     telegram_manager_permission_denied_message = (
         "You don't have permission to access manager functionality."
+    )
+    telegram_send_new_conversations_command_description = (
+        "Send notifications about new conversations to this group."
     )
     telegram_agent_start_message = "Welcome to the support agent bot!"
     telegram_agent_permission_denied_message = (
@@ -18,8 +25,12 @@ class EnglishTexts(Texts):
         "This chat is not assigned to any ongoing "
         "conversation with a customer right now."
     )
-    telegram_send_new_conversations_command_description = (
-        "Send notifications about new conversations to this group."
+    telegram_resolve_command_description = (
+        "Mark conversation resolved and stop messaging with the customer."
+    )
+    telegram_agent_conversation_resolved_message = (
+        "Conversation was marked as resolved. "
+        "This chat is no longer assigned to a customer."
     )
     telegram_new_conversation_notification_placeholder = "New conversation!"
 

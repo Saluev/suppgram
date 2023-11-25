@@ -71,15 +71,16 @@ class Workplace(WorkplaceIdentification):
 
 
 class MessageKind(str, Enum):
-    FROM_USER = "user"
-    FROM_AGENT = "agent"
+    FROM_USER = "from_user"
+    FROM_AGENT = "from_agent"
+    RESOLVED = "resolved"
 
 
 @dataclass(frozen=True)
 class Message:
     kind: MessageKind
     time_utc: datetime
-    text: Optional[str]
+    text: Optional[str] = None
 
 
 class ConversationState(str, Enum):
@@ -101,7 +102,7 @@ class Conversation:
 @dataclass(frozen=True)
 class ConversationDiff:
     state: Optional[str] = None
-    assigned_workplace: Optional[Workplace] | SetNone = None
+    assigned_workplace_id: Optional[Any] | SetNone = None
 
 
 @dataclass(frozen=True)

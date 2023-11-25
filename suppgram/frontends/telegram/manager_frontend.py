@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, Any
 
 from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, Update, BotCommand
+from telegram.error import BadRequest
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -11,13 +12,18 @@ from telegram.ext import (
 )
 from telegram.ext.filters import ChatType
 
+from suppgram.backend import Backend
 from suppgram.entities import (
     Conversation,
     NewUnassignedMessageFromUserEvent,
     AgentDiff,
     ConversationEvent,
+    ConversationState,
 )
 from suppgram.errors import AgentNotFound
+from suppgram.frontend import (
+    ManagerFrontend,
+)
 from suppgram.frontends.telegram.identification import (
     make_workplace_identification,
     make_agent_identification,
@@ -30,11 +36,7 @@ from suppgram.frontends.telegram.interfaces import (
     TelegramMessage,
 )
 from suppgram.helpers import flat_gather
-from suppgram.interfaces import (
-    ManagerFrontend,
-    Permission,
-)
-from suppgram.backend import Backend
+from suppgram.permissions import Permission
 from suppgram.texts.interface import Texts
 
 
@@ -43,7 +45,7 @@ class CallbackActionKind(str, Enum):
 
 
 class TelegramManagerFrontend(ManagerFrontend):
-    _SEND_NEW_CONVERSTIONS_COMMAND = "send_new_conversations"
+    _SEND_NEW_CONVERSATIONS_COMMAND = "send_new_conversations"
 
     def __init__(
         self, token: str, backend: Backend, storage: TelegramStorage, texts: Texts
@@ -61,6 +63,9 @@ class TelegramManagerFrontend(ManagerFrontend):
         backend.on_conversation_assignment.add_handler(
             self._handle_conversation_assignment_event
         )
+        backend.on_conversation_resolution.add_handler(
+            self._handle_conversation_assignment_event
+        )
         self._telegram_app.add_handlers(
             [
                 CallbackQueryHandler(self._handle_callback_query),
@@ -68,8 +73,9 @@ class TelegramManagerFrontend(ManagerFrontend):
                     "start", self._handle_start_command, filters=ChatType.PRIVATE
                 ),
                 CommandHandler(
-                    self._SEND_NEW_CONVERSTIONS_COMMAND,
+                    self._SEND_NEW_CONVERSATIONS_COMMAND,
                     self._handle_send_new_conversations_command,
+                    filters=ChatType.GROUP,
                 ),
             ]
         )
@@ -80,7 +86,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         await self._telegram_bot.set_my_commands(
             [
                 BotCommand(
-                    self._SEND_NEW_CONVERSTIONS_COMMAND,
+                    self._SEND_NEW_CONVERSATIONS_COMMAND,
                     self._texts.telegram_send_new_conversations_command_description,
                 )
             ]
@@ -105,9 +111,15 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _handle_new_unassigned_message_from_user_event(
         self, event: NewUnassignedMessageFromUserEvent
     ):
+        if len(event.conversation.messages) == 1:
+            # Already handled in `_handle_new_conversation_event()`.
+            return
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _handle_conversation_assignment_event(self, event: ConversationEvent):
+        await self._send_or_edit_new_conversation_notifications(event.conversation)
+
+    async def _handle_conversation_resolution_event(self, event: ConversationEvent):
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _send_new_conversation_notification(
@@ -156,9 +168,13 @@ class TelegramManagerFrontend(ManagerFrontend):
         self, message: TelegramMessage, conversation: Conversation
     ):
         text = self._texts.compose_telegram_new_conversation_notification(conversation)
-        await self._telegram_bot.edit_message_text(
-            text, message.group.telegram_chat_id, message.telegram_message_id
-        )
+        try:
+            await self._telegram_bot.edit_message_text(
+                text, message.group.telegram_chat_id, message.telegram_message_id
+            )
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                raise
         assign_to_me_button = InlineKeyboardButton(
             self._texts.telegram_assign_to_me_button_text,
             callback_data=json.dumps(
@@ -168,11 +184,17 @@ class TelegramManagerFrontend(ManagerFrontend):
                 }
             ),
         )
-        await self._telegram_bot.edit_message_reply_markup(
-            message.group.telegram_chat_id,
-            message.telegram_message_id,
-            reply_markup=InlineKeyboardMarkup([[assign_to_me_button]]),
-        )
+        try:
+            await self._telegram_bot.edit_message_reply_markup(
+                message.group.telegram_chat_id,
+                message.telegram_message_id,
+                reply_markup=InlineKeyboardMarkup([[assign_to_me_button]])
+                if conversation.state == ConversationState.NEW
+                else None,
+            )
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                raise
 
     async def _handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -206,16 +228,6 @@ class TelegramManagerFrontend(ManagerFrontend):
                 workplace.agent,
                 conversation_id,
             )
-            messages = await self._storage.get_messages(
-                kind=TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
-                conversation_id=conversation_id,
-            )
-            for message in messages:
-                await self._telegram_bot.edit_message_reply_markup(
-                    message.group.telegram_chat_id,
-                    message.telegram_message_id,
-                    reply_markup=None,
-                )
         else:
             ...  # TODO logging
 

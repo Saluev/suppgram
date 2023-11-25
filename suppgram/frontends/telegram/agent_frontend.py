@@ -1,7 +1,7 @@
 from itertools import groupby
 from typing import List, Iterable
 
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import (
     MessageHandler,
     ContextTypes,
@@ -9,6 +9,7 @@ from telegram.ext import (
 )
 from telegram.ext.filters import TEXT, ChatType
 
+from suppgram.backend import Backend
 from suppgram.entities import (
     WorkplaceIdentification,
     MessageKind,
@@ -16,18 +17,22 @@ from suppgram.entities import (
     NewMessageForAgentEvent,
 )
 from suppgram.errors import ConversationNotFound, AgentNotFound
-from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.identification import make_agent_identification
-from suppgram.helpers import flat_gather
-from suppgram.interfaces import (
+from suppgram.frontend import (
     AgentFrontend,
-    Permission,
 )
-from suppgram.backend import Backend
+from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.identification import (
+    make_agent_identification,
+    make_workplace_identification,
+)
+from suppgram.helpers import flat_gather
+from suppgram.permissions import Permission
 from suppgram.texts.interface import Texts
 
 
 class TelegramAgentFrontend(AgentFrontend):
+    _RESOLVE_COMMAND = "resolve"
+
     def __init__(
         self,
         tokens: List[str],
@@ -45,6 +50,11 @@ class TelegramAgentFrontend(AgentFrontend):
                     CommandHandler(
                         "start", self._handle_start_command, filters=ChatType.PRIVATE
                     ),
+                    CommandHandler(
+                        self._RESOLVE_COMMAND,
+                        self._handle_resolve_command,
+                        filters=ChatType.PRIVATE,
+                    ),
                     MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
                 ]
             )
@@ -56,6 +66,17 @@ class TelegramAgentFrontend(AgentFrontend):
     async def initialize(self):
         await super().initialize()
         await flat_gather(app.initialize() for app in self._telegram_apps)
+        await flat_gather(
+            app.bot.set_my_commands(
+                [
+                    BotCommand(
+                        self._RESOLVE_COMMAND,
+                        self._texts.telegram_resolve_command_description,
+                    )
+                ]
+            )
+            for app in self._telegram_apps
+        )
 
     async def start(self):
         await flat_gather(app.updater.start_polling() for app in self._telegram_apps)
@@ -77,6 +98,29 @@ class TelegramAgentFrontend(AgentFrontend):
                 answer = self._texts.telegram_agent_permission_denied_message
         await context.bot.send_message(update.effective_chat.id, answer)
 
+    async def _handle_resolve_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        try:
+            agent = await self._backend.identify_agent(
+                make_agent_identification(update)
+            )
+        except AgentNotFound:
+            answer = self._texts.telegram_manager_permission_denied_message
+            await context.bot.send_message(update.effective_chat.id, answer)
+            return
+
+        try:
+            conversation = await self._backend.identify_agent_conversation(
+                make_workplace_identification(update)
+            )
+        except ConversationNotFound:
+            answer = self._texts.telegram_workplace_is_not_assigned_message
+            await context.bot.send_message(update.effective_chat.id, answer)
+            return
+
+        await self._backend.resolve_conversation(agent, conversation)
+
     async def _handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
@@ -93,7 +137,7 @@ class TelegramAgentFrontend(AgentFrontend):
                 self._texts.telegram_workplace_is_not_assigned_message,
             )
             return
-        await self._backend.process_message_from_agent(
+        await self._backend.process_message(
             conversation,
             Message(
                 kind=MessageKind.FROM_AGENT,
@@ -123,4 +167,10 @@ class TelegramAgentFrontend(AgentFrontend):
     def _group_messages(self, messages: Iterable[Message]) -> List[str]:
         # TODO actual grouping to reduce number of messages
         # TODO differentiation of previous agents' messages
-        return [message.text for message in messages if message.text]
+        result: List[str] = []
+        for message in messages:
+            if message.text:
+                result.append(message.text)
+            elif message.kind == MessageKind.RESOLVED:
+                result.append(self._texts.telegram_agent_conversation_resolved_message)
+        return result

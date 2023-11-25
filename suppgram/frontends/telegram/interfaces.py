@@ -14,6 +14,7 @@ class TelegramGroupRole(int, Enum):
 @dataclass
 class TelegramGroup:
     telegram_chat_id: int
+    # telegram_chat_title: Optional[str]  # TODO
     roles: FrozenSet[TelegramGroupRole]
 
 

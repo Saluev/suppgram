@@ -19,7 +19,6 @@ from sqlalchemy import (
     ColumnElement,
     select,
     update,
-    Update,
     DateTime,
 )
 from sqlalchemy.exc import NoResultFound
@@ -153,7 +152,7 @@ class ConversationMessage(Base):
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
     kind: Mapped[MessageKind] = mapped_column(Enum(MessageKind), nullable=False)
     time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    text: Mapped[str] = mapped_column(String, nullable=False)
+    text: Mapped[str] = mapped_column(String, nullable=True)
 
 
 T = TypeVar("T", bound=Base)
@@ -484,7 +483,9 @@ class SQLAlchemyStorage(Storage):
     def _convert_message(
         self, message: ConversationMessage
     ) -> ConversaionMessageInterface:
-        return ConversaionMessageInterface(kind=message.kind, text=message.text)
+        return ConversaionMessageInterface(
+            kind=message.kind, time_utc=message.time_utc, text=message.text
+        )
 
     def _convert_conversation(
         self,
@@ -535,7 +536,7 @@ class SQLAlchemyStorage(Storage):
         for k, v in diff_dc.__dict__.items():
             if v is None:
                 continue
-            # TODO other entities
+            # TODO other entities?..
             if isinstance(v, WorkplaceInterface):
                 k = f"{k}_id"
                 v = v.id
@@ -546,10 +547,6 @@ class SQLAlchemyStorage(Storage):
         for k, v in diff_dc.__dict__.items():
             if v is None:
                 continue
-            # TODO other entities
-            if isinstance(v, WorkplaceInterface):
-                k = f"{k}_id"
-                v = v.id
             if v is SetNone:
                 v = None
             result[k] = v

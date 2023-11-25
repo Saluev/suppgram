@@ -1,5 +1,5 @@
 from suppgram.entities import Agent, WorkplaceIdentification
-from suppgram.interfaces import PermissionChecker, Permission, Decision
+from suppgram.permissions import Permission, Decision, PermissionChecker
 
 
 class TelegramOwnerIDPermissionChecker(PermissionChecker):

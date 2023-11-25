@@ -1,9 +1,9 @@
 from typing import List, Optional, Set
 
+from suppgram.backend import WorkplaceManager
 from suppgram.entities import Agent, Workplace, WorkplaceIdentification
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.helpers import flat_gather
-from suppgram.interfaces import WorkplaceManager
 
 
 class TelegramWorkplaceManager(WorkplaceManager):

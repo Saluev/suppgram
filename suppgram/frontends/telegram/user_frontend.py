@@ -7,16 +7,16 @@ from telegram.ext import (
 )
 from telegram.ext.filters import TEXT, ChatType
 
+from suppgram.backend import Backend
 from suppgram.entities import (
     UserIdentification,
     MessageKind,
     Message,
     NewMessageForUserEvent,
 )
-from suppgram.interfaces import (
+from suppgram.frontend import (
     UserFrontend,
 )
-from suppgram.backend import Backend
 from suppgram.texts.interface import Texts
 
 
@@ -57,7 +57,7 @@ class TelegramUserFrontend(UserFrontend):
         conversation = await self._backend.identify_user_conversation(
             UserIdentification(telegram_user_id=update.effective_user.id)
         )
-        await self._backend.process_message_from_user(
+        await self._backend.process_message(
             conversation,
             Message(
                 kind=MessageKind.FROM_USER,
@@ -67,6 +67,10 @@ class TelegramUserFrontend(UserFrontend):
         )
 
     async def _handle_new_message_for_user_event(self, event: NewMessageForUserEvent):
-        await self._telegram_bot.send_message(
-            chat_id=event.user.telegram_user_id, text=event.message.text
-        )
+        text = event.message.text
+        if event.message.kind == MessageKind.RESOLVED:
+            text = self._texts.telegram_customer_conversation_resolved_message
+        if text:
+            await self._telegram_bot.send_message(
+                chat_id=event.user.telegram_user_id, text=text
+            )

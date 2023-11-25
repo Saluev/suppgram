@@ -10,7 +10,6 @@ from suppgram.entities import (
     WorkplaceIdentification,
     Workplace,
     Conversation,
-    ConversationState,
     Message,
     ConversationDiff,
 )

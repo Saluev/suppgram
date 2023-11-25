@@ -1,5 +1,5 @@
 import abc
-from typing import Any
+from typing import Any, List
 
 from suppgram.entities import (
     ConversationEvent,
@@ -15,8 +15,8 @@ from suppgram.entities import (
     Workplace,
     Message,
 )
-from suppgram.interfaces import Permission
 from suppgram.observer import Observable
+from suppgram.permissions import Permission
 
 
 class Backend(abc.ABC):
@@ -62,15 +62,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def process_message_from_user(
-        self, conversation: Conversation, message: Message
-    ):
-        pass
-
-    @abc.abstractmethod
-    async def process_message_from_agent(
-        self, conversation: Conversation, message: Message
-    ):
+    async def process_message(self, conversation: Conversation, message: Message):
         pass
 
     @abc.abstractmethod
@@ -82,3 +74,19 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         pass
+
+
+class WorkplaceManager(abc.ABC):
+    async def initialize(self):
+        pass
+
+    @abc.abstractmethod
+    def create_missing_workplaces(
+        self, agent: Agent, existing_workplaces: List[Workplace]
+    ) -> List[WorkplaceIdentification]:
+        pass
+
+    def filter_available_workplaces(
+        self, workplaces: List[Workplace]
+    ) -> List[Workplace]:
+        return workplaces

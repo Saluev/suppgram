@@ -1,5 +1,7 @@
+from datetime import datetime
 from typing import List, Iterable, Any
 
+from suppgram.backend import Backend as BackendInterface, WorkplaceManager
 from suppgram.entities import (
     ConversationEvent,
     NewMessageForUserEvent,
@@ -16,17 +18,12 @@ from suppgram.entities import (
     ConversationState,
     ConversationDiff,
     SetNone,
+    MessageKind,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
-from suppgram.interfaces import (
-    PermissionChecker,
-    WorkplaceManager,
-    Permission,
-    Decision,
-)
-from suppgram.backend import Backend as BackendInterface
 from suppgram.observer import Observable
+from suppgram.permissions import Permission, Decision, PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTexts
 from suppgram.texts.interface import Texts
@@ -98,7 +95,15 @@ class DefaultBackend(BackendInterface):
     ) -> Conversation:
         return await self._storage.get_agent_conversation(identification)
 
-    async def process_message_from_user(
+    async def process_message(self, conversation: Conversation, message: Message):
+        if message.kind == MessageKind.FROM_USER:
+            await self._process_message_from_user(conversation, message)
+        elif message.kind == MessageKind.FROM_AGENT:
+            await self._process_message_from_agent(conversation, message)
+        else:
+            await self._process_internal_message(conversation, message)
+
+    async def _process_message_from_user(
         self, conversation: Conversation, message: Message
     ):
         await self._storage.save_message(conversation, message)
@@ -120,13 +125,29 @@ class DefaultBackend(BackendInterface):
                 )
             )
 
-    async def process_message_from_agent(
+    async def _process_message_from_agent(
         self, conversation: Conversation, message: Message
     ):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_user.trigger(
             NewMessageForUserEvent(user=conversation.user, message=message)
         )
+
+    async def _process_internal_message(
+        self, conversation: Conversation, message: Message
+    ):
+        await self._storage.save_message(conversation, message)
+        await self.on_new_message_for_user.trigger(
+            NewMessageForUserEvent(user=conversation.user, message=message)
+        )
+        if conversation.assigned_agent and conversation.assigned_workplace:
+            await self.on_new_message_for_agent.trigger(
+                NewMessageForAgentEvent(
+                    agent=conversation.assigned_agent,
+                    workplace=conversation.assigned_workplace,
+                    message=message,
+                )
+            )
 
     async def assign_agent(
         self, assigner: Agent, assignee: Agent, conversation_id: Any
@@ -143,7 +164,7 @@ class DefaultBackend(BackendInterface):
         await self._storage.update_conversation(
             conversation_id,
             ConversationDiff(
-                state=ConversationState.ASSIGNED, assigned_workplace=workplace
+                state=ConversationState.ASSIGNED, assigned_workplace_id=workplace.id
             ),
             unassigned_only=True,
         )
@@ -165,11 +186,22 @@ class DefaultBackend(BackendInterface):
             raise PermissionDenied(
                 "not allowed to resolve conversations of other agents"
             )
+
+        # TODO processing message and updating conversation should be in a single transaction
+        await self.process_message(
+            conversation, Message(kind=MessageKind.RESOLVED, time_utc=datetime.utcnow())
+        )
         await self._storage.update_conversation(
             conversation.id,
             ConversationDiff(
-                state=ConversationState.RESOLVED, assigned_workplace=SetNone
+                state=ConversationState.RESOLVED, assigned_workplace_id=SetNone
             ),
+        )
+        conversation = Conversation(
+            id=conversation.id,
+            state=ConversationState.RESOLVED,
+            user=conversation.user,
+            messages=conversation.messages,
         )
         await self.on_conversation_resolution.trigger(
             ConversationEvent(conversation=conversation)

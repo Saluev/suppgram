@@ -6,17 +6,17 @@ from typing import Optional, List
 import click
 from click import UsageError
 
+from suppgram.backend import WorkplaceManager
 from suppgram.backends.default import DefaultBackend
 from suppgram.entities import AgentIdentification
-from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
-from suppgram.interfaces import (
-    PermissionChecker,
+from suppgram.frontend import (
     UserFrontend,
     ManagerFrontend,
     AgentFrontend,
-    WorkplaceManager,
 )
+from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
+from suppgram.permissions import PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.interface import Texts
 
