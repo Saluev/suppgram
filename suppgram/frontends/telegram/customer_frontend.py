@@ -9,18 +9,18 @@ from telegram.ext.filters import TEXT, ChatType
 
 from suppgram.backend import Backend
 from suppgram.entities import (
-    UserIdentification,
+    CustomerIdentification,
     MessageKind,
     Message,
-    NewMessageForUserEvent,
+    NewMessageForCustomerEvent,
 )
 from suppgram.frontend import (
-    UserFrontend,
+    CustomerFrontend,
 )
 from suppgram.texts.interface import Texts
 
 
-class TelegramUserFrontend(UserFrontend):
+class TelegramCustomerFrontend(CustomerFrontend):
     def __init__(self, token: str, backend: Backend, texts: Texts):
         self._backend = backend
         self._texts = texts
@@ -32,7 +32,7 @@ class TelegramUserFrontend(UserFrontend):
                 MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
             ]
         )
-        self._backend.on_new_message_for_user.add_handler(
+        self._backend.on_new_message_for_customer.add_handler(
             self._handle_new_message_for_user_event
         )
 
@@ -54,23 +54,25 @@ class TelegramUserFrontend(UserFrontend):
     async def _handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
-        conversation = await self._backend.identify_user_conversation(
-            UserIdentification(telegram_user_id=update.effective_user.id)
+        conversation = await self._backend.identify_customer_conversation(
+            CustomerIdentification(telegram_user_id=update.effective_user.id)
         )
         await self._backend.process_message(
             conversation,
             Message(
-                kind=MessageKind.FROM_USER,
+                kind=MessageKind.FROM_CUSTOMER,
                 time_utc=update.message.date,  # TODO utc?
                 text=update.message.text,
             ),
         )
 
-    async def _handle_new_message_for_user_event(self, event: NewMessageForUserEvent):
+    async def _handle_new_message_for_user_event(
+        self, event: NewMessageForCustomerEvent
+    ):
         text = event.message.text
         if event.message.kind == MessageKind.RESOLVED:
             text = self._texts.telegram_customer_conversation_resolved_message
         if text:
             await self._telegram_bot.send_message(
-                chat_id=event.user.telegram_user_id, text=text
+                chat_id=event.customer.telegram_user_id, text=text
             )

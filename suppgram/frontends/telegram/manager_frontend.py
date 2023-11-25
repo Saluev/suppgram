@@ -15,7 +15,7 @@ from telegram.ext.filters import ChatType
 from suppgram.backend import Backend
 from suppgram.entities import (
     Conversation,
-    NewUnassignedMessageFromUserEvent,
+    NewUnassignedMessageFromCustomerEvent,
     AgentDiff,
     ConversationEvent,
     ConversationState,
@@ -57,8 +57,8 @@ class TelegramManagerFrontend(ManagerFrontend):
         self._telegram_bot: Bot = self._telegram_app.bot
 
         backend.on_new_conversation.add_handler(self._handle_new_conversation_event)
-        backend.on_new_unassigned_message_from_user.add_handler(
-            self._handle_new_unassigned_message_from_user_event
+        backend.on_new_unassigned_message_from_customer.add_handler(
+            self._handle_new_unassigned_message_from_customer_event
         )
         backend.on_conversation_assignment.add_handler(
             self._handle_conversation_assignment_event
@@ -108,8 +108,8 @@ class TelegramManagerFrontend(ManagerFrontend):
             for group in groups
         )
 
-    async def _handle_new_unassigned_message_from_user_event(
-        self, event: NewUnassignedMessageFromUserEvent
+    async def _handle_new_unassigned_message_from_customer_event(
+        self, event: NewUnassignedMessageFromCustomerEvent
     ):
         if len(event.conversation.messages) == 1:
             # Already handled in `_handle_new_conversation_event()`.

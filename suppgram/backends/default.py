@@ -4,13 +4,13 @@ from typing import List, Iterable, Any
 from suppgram.backend import Backend as BackendInterface, WorkplaceManager
 from suppgram.entities import (
     ConversationEvent,
-    NewMessageForUserEvent,
-    NewUnassignedMessageFromUserEvent,
+    NewMessageForCustomerEvent,
+    NewUnassignedMessageFromCustomerEvent,
     NewMessageForAgentEvent,
     AgentIdentification,
     Agent,
     AgentDiff,
-    UserIdentification,
+    CustomerIdentification,
     Conversation,
     WorkplaceIdentification,
     Workplace,
@@ -45,9 +45,9 @@ class DefaultBackend(BackendInterface):
         self.on_new_conversation = Observable[ConversationEvent]()
         self.on_conversation_assignment = Observable[ConversationEvent]()
         self.on_conversation_resolution = Observable[ConversationEvent]()
-        self.on_new_message_for_user = Observable[NewMessageForUserEvent]()
-        self.on_new_unassigned_message_from_user = Observable[
-            NewUnassignedMessageFromUserEvent
+        self.on_new_message_for_customer = Observable[NewMessageForCustomerEvent]()
+        self.on_new_unassigned_message_from_customer = Observable[
+            NewUnassignedMessageFromCustomerEvent
         ]()
         self.on_new_message_for_agent = Observable[NewMessageForAgentEvent]()
 
@@ -60,11 +60,11 @@ class DefaultBackend(BackendInterface):
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
         return await self._storage.update_agent(identification, diff)
 
-    async def identify_user_conversation(
-        self, identification: UserIdentification
+    async def identify_customer_conversation(
+        self, identification: CustomerIdentification
     ) -> Conversation:
-        user = await self._storage.get_or_create_user(identification)
-        conversation = await self._storage.get_or_create_conversation(user)
+        customer = await self._storage.get_or_create_customer(identification)
+        conversation = await self._storage.get_or_create_conversation(customer)
         return conversation
 
     async def identify_workplace(
@@ -96,7 +96,7 @@ class DefaultBackend(BackendInterface):
         return await self._storage.get_agent_conversation(identification)
 
     async def process_message(self, conversation: Conversation, message: Message):
-        if message.kind == MessageKind.FROM_USER:
+        if message.kind == MessageKind.FROM_CUSTOMER:
             await self._process_message_from_user(conversation, message)
         elif message.kind == MessageKind.FROM_AGENT:
             await self._process_message_from_agent(conversation, message)
@@ -119,8 +119,8 @@ class DefaultBackend(BackendInterface):
                 )
             )
         else:
-            await self.on_new_unassigned_message_from_user.trigger(
-                NewUnassignedMessageFromUserEvent(
+            await self.on_new_unassigned_message_from_customer.trigger(
+                NewUnassignedMessageFromCustomerEvent(
                     message=message, conversation=conversation
                 )
             )
@@ -129,16 +129,16 @@ class DefaultBackend(BackendInterface):
         self, conversation: Conversation, message: Message
     ):
         await self._storage.save_message(conversation, message)
-        await self.on_new_message_for_user.trigger(
-            NewMessageForUserEvent(user=conversation.user, message=message)
+        await self.on_new_message_for_customer.trigger(
+            NewMessageForCustomerEvent(customer=conversation.customer, message=message)
         )
 
     async def _process_internal_message(
         self, conversation: Conversation, message: Message
     ):
         await self._storage.save_message(conversation, message)
-        await self.on_new_message_for_user.trigger(
-            NewMessageForUserEvent(user=conversation.user, message=message)
+        await self.on_new_message_for_customer.trigger(
+            NewMessageForCustomerEvent(customer=conversation.customer, message=message)
         )
         if conversation.assigned_agent and conversation.assigned_workplace:
             await self.on_new_message_for_agent.trigger(
@@ -200,7 +200,7 @@ class DefaultBackend(BackendInterface):
         conversation = Conversation(
             id=conversation.id,
             state=ConversationState.RESOLVED,
-            user=conversation.user,
+            customer=conversation.customer,
             messages=conversation.messages,
         )
         await self.on_conversation_resolution.trigger(

@@ -12,12 +12,12 @@ SetNone = _SetNone()
 
 
 @dataclass(frozen=True)
-class UserIdentification:
+class CustomerIdentification:
     telegram_user_id: Optional[int]
 
 
 @dataclass(frozen=True)
-class User(UserIdentification):
+class Customer(CustomerIdentification):
     id: Any
 
 
@@ -71,7 +71,7 @@ class Workplace(WorkplaceIdentification):
 
 
 class MessageKind(str, Enum):
-    FROM_USER = "from_user"
+    FROM_CUSTOMER = "from_customer"
     FROM_AGENT = "from_agent"
     RESOLVED = "resolved"
 
@@ -93,7 +93,7 @@ class ConversationState(str, Enum):
 class Conversation:
     id: Any
     state: str
-    user: User
+    customer: Customer
     assigned_agent: Optional[Agent] = None
     assigned_workplace: Optional[Workplace] = None
     messages: List[Message] = field(default_factory=list)
@@ -111,13 +111,13 @@ class ConversationEvent:
 
 
 @dataclass(frozen=True)
-class NewMessageForUserEvent:
-    user: User
+class NewMessageForCustomerEvent:
+    customer: Customer
     message: Message
 
 
 @dataclass(frozen=True)
-class NewUnassignedMessageFromUserEvent:
+class NewUnassignedMessageFromCustomerEvent:
     message: Message
     conversation: Conversation
 

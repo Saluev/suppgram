@@ -50,7 +50,7 @@ class EnglishTexts(Texts):
 
     def _format_message(self, message: Message) -> str:
         from_ = {
-            MessageKind.FROM_USER: "Customer",
+            MessageKind.FROM_CUSTOMER: "Customer",
             MessageKind.FROM_AGENT: "Agent",
         }[message.kind]
         return f"{from_}: {message.text}"

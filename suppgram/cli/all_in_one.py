@@ -10,7 +10,7 @@ from suppgram.backend import WorkplaceManager
 from suppgram.backends.default import DefaultBackend
 from suppgram.entities import AgentIdentification
 from suppgram.frontend import (
-    UserFrontend,
+    CustomerFrontend,
     ManagerFrontend,
     AgentFrontend,
 )
@@ -38,9 +38,9 @@ from suppgram.texts.interface import Texts
     help="Class with texts",
 )
 @click.option(
-    "--telegram-user-bot-token",
+    "--telegram-customer-bot-token",
     default=None,
-    help="Token for Telegram bot serving users",
+    help="Token for Telegram bot serving customers",
 )
 @click.option(
     "--telegram-manager-bot-token", default=None, help="Token for Telegram manager bot"
@@ -61,7 +61,7 @@ def run_all_in_one(
     loglevel: str,
     sqlalchemy_url: Optional[str],
     texts: str,
-    telegram_user_bot_token: Optional[str],
+    telegram_customer_bot_token: Optional[str],
     telegram_manager_bot_token: Optional[str],
     telegram_agent_bot_token: List[str],
     telegram_owner_id: Optional[int],
@@ -85,7 +85,7 @@ def run_all_in_one(
         tokens=list(
             filter(
                 None,
-                [telegram_user_bot_token, telegram_manager_bot_token]
+                [telegram_customer_bot_token, telegram_manager_bot_token]
                 + list(telegram_agent_bot_token),
             )
         )
@@ -117,12 +117,14 @@ def run_all_in_one(
         texts=texts_obj,
     )
 
-    user_frontend: UserFrontend
-    if telegram_user_bot_token:
-        from suppgram.frontends.telegram.user_frontend import TelegramUserFrontend
+    customer_frontend: CustomerFrontend
+    if telegram_customer_bot_token:
+        from suppgram.frontends.telegram.customer_frontend import (
+            TelegramCustomerFrontend,
+        )
 
-        user_frontend = TelegramUserFrontend(
-            telegram_user_bot_token, backend, texts_obj
+        customer_frontend = TelegramCustomerFrontend(
+            telegram_customer_bot_token, backend, texts_obj
         )
     else:
         raise UsageError(
@@ -172,12 +174,12 @@ def run_all_in_one(
                 AgentIdentification(telegram_user_id=telegram_owner_id)
             )
         await asyncio.gather(
-            user_frontend.initialize(),
+            customer_frontend.initialize(),
             manager_frontend.initialize(),
             agent_frontend.initialize(),
         )
         await asyncio.gather(
-            user_frontend.start(), manager_frontend.start(), agent_frontend.start()
+            customer_frontend.start(), manager_frontend.start(), agent_frontend.start()
         )
 
     loop = asyncio.new_event_loop()

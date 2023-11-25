@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from suppgram.entities import (
-    UserIdentification,
+    CustomerIdentification,
     WorkplaceIdentification,
     AgentIdentification,
 )
@@ -33,7 +33,9 @@ def storage(sqlite_engine) -> Storage:
 
 @pytest.mark.asyncio
 async def test_get_or_create_user(storage):
-    user = await storage.get_or_create_user(UserIdentification(telegram_user_id=100500))
+    user = await storage.get_or_create_customer(
+        CustomerIdentification(telegram_user_id=100500)
+    )
     assert user.id
     assert user.telegram_user_id == 100500
 
@@ -55,5 +57,7 @@ async def test_get_agent_conversation(storage):
 
 @pytest.mark.asyncio
 async def test_get_or_start_conversation(storage):
-    user = await storage.get_or_create_user(UserIdentification(telegram_user_id=100500))
+    user = await storage.get_or_create_customer(
+        CustomerIdentification(telegram_user_id=100500)
+    )
     await storage.get_or_create_conversation(user, "foo", ["bar"])

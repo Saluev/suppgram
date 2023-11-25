@@ -1,7 +1,7 @@
 import abc
 
 
-class UserFrontend(abc.ABC):
+class CustomerFrontend(abc.ABC):
     async def initialize(self):
         pass
 

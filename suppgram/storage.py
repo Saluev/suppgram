@@ -2,8 +2,8 @@ import abc
 from typing import List, Any
 
 from suppgram.entities import (
-    UserIdentification,
-    User,
+    CustomerIdentification,
+    Customer,
     AgentIdentification,
     Agent,
     AgentDiff,
@@ -20,7 +20,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_or_create_user(self, identification: UserIdentification) -> User:
+    async def get_or_create_customer(
+        self, identification: CustomerIdentification
+    ) -> Customer:
         pass
 
     @abc.abstractmethod
@@ -50,7 +52,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_or_create_conversation(self, user: User) -> Conversation:
+    async def get_or_create_conversation(self, customer: Customer) -> Conversation:
         pass
 
     @abc.abstractmethod

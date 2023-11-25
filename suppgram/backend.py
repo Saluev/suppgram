@@ -3,13 +3,13 @@ from typing import Any, List
 
 from suppgram.entities import (
     ConversationEvent,
-    NewMessageForUserEvent,
-    NewUnassignedMessageFromUserEvent,
+    NewMessageForCustomerEvent,
+    NewUnassignedMessageFromCustomerEvent,
     NewMessageForAgentEvent,
     AgentIdentification,
     Agent,
     AgentDiff,
-    UserIdentification,
+    CustomerIdentification,
     Conversation,
     WorkplaceIdentification,
     Workplace,
@@ -23,8 +23,10 @@ class Backend(abc.ABC):
     on_new_conversation: Observable[ConversationEvent]
     on_conversation_assignment: Observable[ConversationEvent]
     on_conversation_resolution: Observable[ConversationEvent]
-    on_new_message_for_user: Observable[NewMessageForUserEvent]
-    on_new_unassigned_message_from_user = Observable[NewUnassignedMessageFromUserEvent]
+    on_new_message_for_customer: Observable[NewMessageForCustomerEvent]
+    on_new_unassigned_message_from_customer = Observable[
+        NewUnassignedMessageFromCustomerEvent
+    ]
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]
 
     @abc.abstractmethod
@@ -40,8 +42,8 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def identify_user_conversation(
-        self, identification: UserIdentification
+    async def identify_customer_conversation(
+        self, identification: CustomerIdentification
     ) -> Conversation:
         pass
 

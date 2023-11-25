@@ -33,8 +33,8 @@ from sqlalchemy.orm import (
 )
 
 from suppgram.entities import (
-    UserIdentification,
-    User as UserInterface,
+    CustomerIdentification,
+    Customer as CustomerInterface,
     Agent as AgentInterface,
     WorkplaceIdentification,
     Workplace as WorkplaceInterface,
@@ -58,7 +58,7 @@ from suppgram.storage import Storage
 Base = declarative_base()
 
 
-# class UserBase:
+# class CustomerBase:
 #     id: Mapped[int]
 #     telegram_user_id: Mapped[int]
 #     conversations: Mapped[List["Conversation"]]
@@ -83,8 +83,8 @@ Base = declarative_base()
 #
 # class ConversationBase:
 #     id: Mapped[int]
-#     user_id: Mapped[int]
-#     user: Mapped[UserBase]
+#     customer_id: Mapped[int]
+#     customer: Mapped[CustomerBase]
 #     assigned_workplace_id: Mapped[int]
 #     assigned_workplace: Mapped[WorkplaceBase]
 #     state: Mapped[ConversationState]
@@ -100,11 +100,13 @@ Base = declarative_base()
 #     text: Mapped[str]
 
 
-class User(Base):
-    __tablename__ = "suppgram_users"
+class Customer(Base):
+    __tablename__ = "suppgram_customers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(Integer)
-    conversations: Mapped[List["Conversation"]] = relationship(back_populates="user")
+    conversations: Mapped[List["Conversation"]] = relationship(
+        back_populates="customer"
+    )
 
 
 class Agent(Base):
@@ -131,8 +133,8 @@ class Workplace(Base):
 class Conversation(Base):
     __tablename__ = "suppgram_conversations"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey(User.id))
-    user: Mapped[User] = relationship(back_populates="conversations")
+    customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id))
+    customer: Mapped[Customer] = relationship(back_populates="conversations")
     assigned_workplace_id: Mapped[int] = mapped_column(
         ForeignKey(Workplace.id), nullable=True
     )
@@ -162,7 +164,7 @@ class SQLAlchemyStorage(Storage):
     def __init__(
         self,
         engine: AsyncEngine,
-        user_model: Any = User,
+        customer_model: Any = Customer,
         agent_model: Any = Agent,
         workplace_model: Any = Workplace,
         conversation_model: Any = Conversation,
@@ -170,7 +172,7 @@ class SQLAlchemyStorage(Storage):
     ):
         self._engine = engine
         self._session = async_sessionmaker(bind=engine)
-        self._user_model = user_model
+        self._customer_model = customer_model
         self._agent_model = agent_model
         self._workplace_model = workplace_model
         self._conversation_model = conversation_model
@@ -181,7 +183,7 @@ class SQLAlchemyStorage(Storage):
         tables_to_create = [
             built_in_model.__table__
             for model, built_in_model in [
-                (self._user_model, User),
+                (self._customer_model, Customer),
                 (self._agent_model, Agent),
                 (self._workplace_model, Workplace),
                 (self._conversation_model, Conversation),
@@ -192,25 +194,25 @@ class SQLAlchemyStorage(Storage):
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, tables=tables_to_create)
 
-    async def get_or_create_user(
-        self, identification: UserIdentification
-    ) -> UserInterface:
+    async def get_or_create_customer(
+        self, identification: CustomerIdentification
+    ) -> CustomerInterface:
         async with self._session() as session, session.begin():
             row = (
                 await session.execute(
-                    select(self._user_model).filter(
-                        self._make_user_filter(identification)
+                    select(self._customer_model).filter(
+                        self._make_customer_filter(identification)
                     )
                 )
             ).one_or_none()
             if row is None:
-                user = self._make_model(identification, self._user_model)
-                session.add(user)
+                customer = self._make_model(identification, self._customer_model)
+                session.add(customer)
                 await session.flush()
-                await session.refresh(user)
+                await session.refresh(customer)
             else:
-                (user,) = row
-            return self._convert_user(user)
+                (customer,) = row
+            return self._convert_customer(customer)
 
     async def get_agent(self, identification: AgentIdentification) -> AgentInterface:
         async with self._session() as session:
@@ -317,7 +319,7 @@ class SQLAlchemyStorage(Storage):
             return self._convert_workplace(agent, workplace)
 
     async def get_or_create_conversation(
-        self, user: UserInterface
+        self, customer: CustomerInterface
     ) -> ConversationInterface:
         async with self._session() as session, session.begin():
             conv: Optional[Conversation] = (
@@ -325,14 +327,14 @@ class SQLAlchemyStorage(Storage):
                     await session.execute(
                         select(self._conversation_model)
                         .options(
-                            joinedload(self._conversation_model.user),
+                            joinedload(self._conversation_model.customer),
                             joinedload(
                                 self._conversation_model.assigned_workplace
                             ).joinedload(self._workplace_model.agent),
                             selectinload(self._conversation_model.messages),
                         )
                         .filter(
-                            (self._conversation_model.user_id == user.id)
+                            (self._conversation_model.customer_id == customer.id)
                             & (
                                 ~self._conversation_model.state.in_(
                                     [ConversationState.RESOLVED]
@@ -346,7 +348,7 @@ class SQLAlchemyStorage(Storage):
             )
             if conv is None:
                 conv = self._conversation_model(
-                    user_id=user.id,
+                    customer_id=customer.id,
                     state=ConversationState.NEW,
                 )
                 session.add(conv)
@@ -370,7 +372,7 @@ class SQLAlchemyStorage(Storage):
             return ConversationInterface(
                 id=conv.id,
                 state=conv.state,
-                user=user,
+                customer=customer,
                 assigned_agent=assigned_agent,
                 assigned_workplace=assigned_workplace,
                 messages=messages,
@@ -430,7 +432,7 @@ class SQLAlchemyStorage(Storage):
                                 )
                             )
                             .options(
-                                joinedload(self._conversation_model.user),
+                                joinedload(self._conversation_model.customer),
                                 selectinload(self._conversation_model.messages),
                                 joinedload(
                                     self._conversation_model.assigned_workplace
@@ -458,8 +460,10 @@ class SQLAlchemyStorage(Storage):
                 )
             )
 
-    def _convert_user(self, user: User) -> UserInterface:
-        return UserInterface(telegram_user_id=user.telegram_user_id, id=user.id)
+    def _convert_customer(self, customer: Customer) -> CustomerInterface:
+        return CustomerInterface(
+            telegram_user_id=customer.telegram_user_id, id=customer.id
+        )
 
     def _convert_agent(self, agent: Agent) -> AgentInterface:
         return AgentInterface(
@@ -495,7 +499,7 @@ class SQLAlchemyStorage(Storage):
         return ConversationInterface(
             id=conversation.id,
             state=conversation.state,
-            user=self._convert_user(conversation.user),
+            customer=self._convert_customer(conversation.customer),
             assigned_agent=agent,
             assigned_workplace=self._convert_workplace(
                 agent, conversation.assigned_workplace
@@ -505,8 +509,10 @@ class SQLAlchemyStorage(Storage):
             ],
         )
 
-    def _make_user_filter(self, identification: UserIdentification) -> ColumnElement:
-        return self._make_filter(identification, self._user_model)
+    def _make_customer_filter(
+        self, identification: CustomerIdentification
+    ) -> ColumnElement:
+        return self._make_filter(identification, self._customer_model)
 
     def _make_agent_filter(self, identification: AgentIdentification) -> ColumnElement:
         return self._make_filter(identification, self._agent_model)
