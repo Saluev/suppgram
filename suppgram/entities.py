@@ -106,7 +106,7 @@ class Conversation:
 @dataclass(frozen=True)
 class ConversationDiff:
     state: Optional[str] = None
-    assigned_workplace_id: Optional[Any] | SetNone = None
+    assigned_workplace_id: Optional[Any] | _SetNone = None
 
 
 @dataclass(frozen=True)

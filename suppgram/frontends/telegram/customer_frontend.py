@@ -47,6 +47,9 @@ class TelegramCustomerFrontend(CustomerFrontend):
     async def _handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert (
+            update.effective_chat
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
         await context.bot.send_message(
             update.effective_chat.id, self._texts.telegram_customer_start_message
         )
@@ -54,6 +57,10 @@ class TelegramCustomerFrontend(CustomerFrontend):
     async def _handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert update.message, "update with `TEXT` filter should have `message`"
+        assert (
+            update.effective_user
+        ), "update with `ChatType.PRIVATE` filter should have `effective_user`"
         conversation = await self._backend.identify_customer_conversation(
             CustomerIdentification(telegram_user_id=update.effective_user.id)
         )

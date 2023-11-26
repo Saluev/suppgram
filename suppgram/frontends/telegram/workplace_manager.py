@@ -10,7 +10,7 @@ class TelegramWorkplaceManager(WorkplaceManager):
     def __init__(self, tokens: List[str], app_manager: TelegramAppManager):
         self._tokens = tokens
         self._app_manager = app_manager
-        self._bot_ids: Optional[Set[int]] = None
+        self._bot_ids: Set[int] = set()
 
     async def initialize(self):
         await super().initialize()
@@ -43,7 +43,7 @@ class TelegramWorkplaceManager(WorkplaceManager):
         ]
 
     def _get_bot_ids(self) -> Set[int]:
-        if self._bot_ids is None:
+        if not self._bot_ids:
             self._bot_ids = {
                 self._app_manager.get_app(token).bot.id for token in self._tokens
             }

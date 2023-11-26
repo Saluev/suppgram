@@ -7,7 +7,7 @@ T = TypeVar("T")
 
 
 class Observable(Generic[T]):
-    def __init__(self):
+    def __init__(self) -> None:
         self._handlers: List[Callable[[T], Awaitable[None]]] = []
         self._batch_handlers: List[Callable[[List[T]], Awaitable[None]]] = []
 

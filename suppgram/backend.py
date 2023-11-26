@@ -24,7 +24,7 @@ class Backend(abc.ABC):
     on_conversation_assignment: Observable[ConversationEvent]
     on_conversation_resolution: Observable[ConversationEvent]
     on_new_message_for_customer: Observable[NewMessageForCustomerEvent]
-    on_new_unassigned_message_from_customer = Observable[
+    on_new_unassigned_message_from_customer: Observable[
         NewUnassignedMessageFromCustomerEvent
     ]
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]

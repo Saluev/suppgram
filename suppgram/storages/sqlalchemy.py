@@ -264,16 +264,19 @@ class SQLAlchemyStorage(Storage):
         self, identification: WorkplaceIdentification
     ) -> WorkplaceInterface:
         async with self._session() as session:
-            row = (
-                await session.execute(
-                    select(self._workplace_model).filter(
-                        self._make_workplace_filter(identification)
+            workplace = (
+                (
+                    await session.execute(
+                        select(self._workplace_model).filter(
+                            self._make_workplace_filter(identification)
+                        )
                     )
                 )
-            ).one_or_none()
-            if row is None:
+                .scalars()
+                .one_or_none()
+            )
+            if workplace is None:
                 raise WorkplaceNotFound(identification)
-            (workplace,) = row
             return workplace
 
     async def get_agent_workplaces(
@@ -348,6 +351,8 @@ class SQLAlchemyStorage(Storage):
                 .scalars()
                 .one_or_none()
             )
+            assigned_agent: Optional[AgentInterface] = None
+            assigned_workplace: Optional[WorkplaceInterface] = None
             if conv is None:
                 conv = self._conversation_model(
                     customer_id=customer.id,
@@ -356,20 +361,13 @@ class SQLAlchemyStorage(Storage):
                 session.add(conv)
                 await session.flush()
                 await session.refresh(conv)
-                assigned_agent = None
-                assigned_workplace = None
                 messages = []
             else:
-                assigned_agent = (
-                    self._convert_agent(conv.assigned_workplace.agent)
-                    if conv.assigned_workplace
-                    else None
-                )
-                assigned_workplace = (
-                    self._convert_workplace(assigned_agent, conv.assigned_workplace)
-                    if conv.assigned_workplace
-                    else None
-                )
+                if conv.assigned_workplace:
+                    assigned_agent = self._convert_agent(conv.assigned_workplace.agent)
+                    assigned_workplace = self._convert_workplace(
+                        assigned_agent, conv.assigned_workplace
+                    )
                 messages = [self._convert_message(msg) for msg in conv.messages]
             return ConversationInterface(
                 id=conv.id,

@@ -1,8 +1,17 @@
 import json
+import logging
 from enum import Enum
 from typing import Optional, Any
 
-from telegram import Bot, InlineKeyboardMarkup, InlineKeyboardButton, Update, BotCommand
+from telegram import (
+    Bot,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    Update,
+    BotCommand,
+    User,
+    Chat,
+)
 from telegram.error import BadRequest
 from telegram.ext import (
     ApplicationBuilder,
@@ -199,9 +208,15 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert (
+            update.effective_chat
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
+        assert (
+            update.effective_user
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_user`"
         try:
             agent = await self._backend.identify_agent(
-                make_agent_identification(update)
+                make_agent_identification(update.effective_user)
             )
         except AgentNotFound:
             answer = self._texts.telegram_manager_permission_denied_message
@@ -215,13 +230,23 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _handle_callback_query(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
-        await self._create_or_update_agent(update)
+        assert (
+            update.callback_query
+        ), "callback query update should have `callback_query`"
+        # TODO should it have effective chat?..
+        assert (
+            update.effective_user
+        ), "callback query update should have `effective_user`"
+        if not update.callback_query.data:
+            # No idea how to handle this update.
+            return
+        await self._create_or_update_agent(update.effective_chat, update.effective_user)
         callback_data = json.loads(update.callback_query.data)
         action = callback_data["action"]
         if action == CallbackActionKind.ASSIGN_TO_ME:
             conversation_id = callback_data["conversation_id"]
             workplace = await self._backend.identify_workplace(
-                make_workplace_identification(update)
+                make_workplace_identification(update, update.effective_user)
             )
             await self._backend.assign_agent(
                 workplace.agent,
@@ -231,29 +256,35 @@ class TelegramManagerFrontend(ManagerFrontend):
         else:
             ...  # TODO logging
 
-    async def _create_or_update_agent(self, update: Update):
-        identification = make_agent_identification(update)
+    async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User):
+        identification = make_agent_identification(effective_user)
         try:
             agent = await self._backend.identify_agent(identification)
         except AgentNotFound:
-            group = await self._storage.get_group(update.effective_chat.id)
+            group = await self._storage.get_group(effective_chat.id)
             if TelegramGroupRole.AGENTS not in group.roles:
                 return
             agent = await self._backend.create_agent(identification)
         await self._backend.update_agent(
             agent.identification,
             AgentDiff(
-                telegram_first_name=update.effective_user.first_name,
-                telegram_last_name=update.effective_user.last_name,
-                telegram_username=update.effective_user.username,
+                telegram_first_name=effective_user.first_name,
+                telegram_last_name=effective_user.last_name,
+                telegram_username=effective_user.username,
             ),
         )
 
     async def _handle_send_new_conversations_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert (
+            update.effective_chat
+        ), "command update with `ChatType.GROUP` filter should have `effective_chat`"
+        assert (
+            update.effective_user
+        ), "command update with `ChatType.GROUP` filter should have `effective_user`"
         workplace = await self._backend.identify_workplace(
-            make_workplace_identification(update)
+            make_workplace_identification(update, update.effective_user)
         )
         if not self._backend.check_permission(
             workplace.agent, Permission.TELEGRAM_GROUP_ROLE_ADD

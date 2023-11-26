@@ -85,9 +85,15 @@ class TelegramAgentFrontend(AgentFrontend):
     async def _handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert (
+            update.effective_chat
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
+        assert (
+            update.effective_user
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_user`"
         try:
             agent = await self._backend.identify_agent(
-                make_agent_identification(update)
+                make_agent_identification(update.effective_user)
             )
         except AgentNotFound:
             answer = self._texts.telegram_manager_permission_denied_message
@@ -101,9 +107,15 @@ class TelegramAgentFrontend(AgentFrontend):
     async def _handle_resolve_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert (
+            update.effective_chat
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
+        assert (
+            update.effective_user
+        ), "command update with `ChatType.PRIVATE` filter should have `effective_user`"
         try:
             agent = await self._backend.identify_agent(
-                make_agent_identification(update)
+                make_agent_identification(update.effective_user)
             )
         except AgentNotFound:
             answer = self._texts.telegram_manager_permission_denied_message
@@ -112,7 +124,7 @@ class TelegramAgentFrontend(AgentFrontend):
 
         try:
             conversation = await self._backend.identify_agent_conversation(
-                make_workplace_identification(update)
+                make_workplace_identification(update, update.effective_user)
             )
         except ConversationNotFound:
             answer = self._texts.telegram_workplace_is_not_assigned_message
@@ -124,6 +136,13 @@ class TelegramAgentFrontend(AgentFrontend):
     async def _handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert (
+            update.effective_chat
+        ), "update with `ChatType.PRIVATE` filter should have `effective_chat`"
+        assert (
+            update.effective_user
+        ), "update with `ChatType.PRIVATE` filter should have `effective_user`"
+        assert update.message, "update with `TEXT` filter should have `message`"
         try:
             conversation = await self._backend.identify_agent_conversation(
                 WorkplaceIdentification(

@@ -2,8 +2,6 @@ from importlib import import_module
 from typing import Optional, List, Any, Iterable
 from uuid import UUID, uuid4
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
 from suppgram.backend import WorkplaceManager, Backend
 from suppgram.entities import AgentIdentification
 from suppgram.frontend import ManagerFrontend, CustomerFrontend, AgentFrontend
@@ -15,15 +13,18 @@ from suppgram.texts.interface import Texts
 
 
 class Builder:
-    def __init__(self):
+    def __init__(self) -> None:
+        # Implementation-specific objects are declared as `Any` to
+        # avoid importing packages which may have missing dependencies.
+
         self._initialized = False
 
         self._storage: Optional[Storage] = None
-        self._sqlalchemy_engine: Optional[AsyncEngine] = None
+        self._sqlalchemy_engine: Optional[Any] = None
 
         self._texts: Optional[Texts] = None
 
-        # Helper classes
+        # Helper classes, including implementation-specific:
         self._telegram_app_manager: Optional[Any] = None
         self._telegram_storage: Optional[Any] = None
         self._permission_checkers: List[PermissionChecker] = []
@@ -284,6 +285,7 @@ class Builder:
             )
 
         await flat_gather(runnable.initialize() for runnable in self._get_runnables())
+        self._initialized = True
 
     def _get_runnables(
         self,
