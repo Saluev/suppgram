@@ -150,18 +150,22 @@ class TelegramAgentFrontend(AgentFrontend):
         self, events: List[NewMessageForAgentEvent]
     ):
         for _, batch_iter in groupby(
-            events, lambda event: (event.agent.id, event.workplace.id)
+            events, lambda event: (event.workplace.agent.id, event.workplace.id)
         ):
             batch = list(batch_iter)
+            workplace = batch[0].workplace
+            if not workplace.telegram_bot_id:
+                continue
+
             app = next(
                 app
                 for app in self._telegram_apps
-                if app.bot.id == batch[0].workplace.telegram_bot_id
+                if app.bot.id == workplace.telegram_bot_id
             )
             texts = self._group_messages(event.message for event in batch)
             for text in texts:
                 await app.bot.send_message(
-                    chat_id=batch[0].agent.telegram_user_id, text=text
+                    chat_id=workplace.agent.telegram_user_id, text=text
                 )
 
     def _group_messages(self, messages: Iterable[Message]) -> List[str]:

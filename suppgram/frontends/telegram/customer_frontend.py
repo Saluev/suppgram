@@ -33,7 +33,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
             ]
         )
         self._backend.on_new_message_for_customer.add_handler(
-            self._handle_new_message_for_user_event
+            self._handle_new_message_for_customer_event
         )
 
     async def initialize(self):
@@ -66,9 +66,12 @@ class TelegramCustomerFrontend(CustomerFrontend):
             ),
         )
 
-    async def _handle_new_message_for_user_event(
+    async def _handle_new_message_for_customer_event(
         self, event: NewMessageForCustomerEvent
     ):
+        if not event.customer.telegram_user_id:
+            return
+
         text = event.message.text
         if event.message.kind == MessageKind.RESOLVED:
             text = self._texts.telegram_customer_conversation_resolved_message

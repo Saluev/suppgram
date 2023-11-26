@@ -9,6 +9,7 @@ from typing import (
     Collection,
     MutableMapping,
 )
+from uuid import UUID
 
 from sqlalchemy import (
     Integer,
@@ -103,7 +104,8 @@ Base = declarative_base()
 class Customer(Base):
     __tablename__ = "suppgram_customers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    telegram_user_id: Mapped[int] = mapped_column(Integer)
+    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    shell_uuid: Mapped[str] = mapped_column(String, nullable=True)
     conversations: Mapped[List["Conversation"]] = relationship(
         back_populates="customer"
     )
@@ -112,7 +114,7 @@ class Customer(Base):
 class Agent(Base):
     __tablename__ = "suppgram_agents"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    telegram_user_id: Mapped[int] = mapped_column(Integer)
+    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True)
     telegram_first_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_username: Mapped[str] = mapped_column(String, nullable=True)
@@ -462,13 +464,15 @@ class SQLAlchemyStorage(Storage):
 
     def _convert_customer(self, customer: Customer) -> CustomerInterface:
         return CustomerInterface(
-            telegram_user_id=customer.telegram_user_id, id=customer.id
+            id=customer.id,
+            telegram_user_id=customer.telegram_user_id,
+            shell_uuid=UUID(customer.shell_uuid) if customer.shell_uuid else None,
         )
 
     def _convert_agent(self, agent: Agent) -> AgentInterface:
         return AgentInterface(
-            telegram_user_id=agent.telegram_user_id,
             id=agent.id,
+            telegram_user_id=agent.telegram_user_id,
             telegram_first_name=agent.telegram_first_name,
             telegram_last_name=agent.telegram_last_name,
             telegram_username=agent.telegram_username,
@@ -535,7 +539,7 @@ class SQLAlchemyStorage(Storage):
         **kwargs: Mapping[str, Any],
     ) -> T:
         params = {**dc.__dict__, **kwargs}
-        params = {k: v for k, v in params.items() if k not in exclude_fields}
+        params = {k: _simplify(v) for k, v in params.items() if k not in exclude_fields}
         return model(**params)
 
     def _update_model(self, model_instance: Any, diff_dc: Any):
@@ -560,5 +564,13 @@ class SQLAlchemyStorage(Storage):
 
     def _make_filter(self, dc: Any, model: Type[T]) -> ColumnElement:
         return and_(
-            *(getattr(model, k) == v for k, v in dc.__dict__.items() if v is not None)
+            *(
+                getattr(model, k) == _simplify(v)
+                for k, v in dc.__dict__.items()
+                if v is not None
+            )
         )
+
+
+def _simplify(v: Any) -> Any:
+    return str(v) if isinstance(v, UUID) else v

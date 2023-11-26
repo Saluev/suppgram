@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Any, List
+from uuid import UUID
 
 
 class _SetNone:
@@ -13,12 +14,15 @@ SetNone = _SetNone()
 
 @dataclass(frozen=True)
 class CustomerIdentification:
-    telegram_user_id: Optional[int]
+    telegram_user_id: Optional[int] = None
+    shell_uuid: Optional[UUID] = None
 
 
 @dataclass(frozen=True)
-class Customer(CustomerIdentification):
+class Customer:
     id: Any
+    telegram_user_id: Optional[int] = None
+    shell_uuid: Optional[UUID] = None
 
 
 @dataclass(frozen=True)

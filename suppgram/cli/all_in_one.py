@@ -1,24 +1,12 @@
 import asyncio
 import logging
-from importlib import import_module
+import sys
 from typing import Optional, List
 
 import click
-from click import UsageError
 
-from suppgram.backend import WorkplaceManager
-from suppgram.backends.default import DefaultBackend
-from suppgram.entities import AgentIdentification
-from suppgram.frontend import (
-    CustomerFrontend,
-    ManagerFrontend,
-    AgentFrontend,
-)
-from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
-from suppgram.permissions import PermissionChecker
-from suppgram.storage import Storage
-from suppgram.texts.interface import Texts
+from suppgram.builder import Builder
+from suppgram.logging import ConfidentialStreamHandler
 
 
 @click.command()
@@ -33,6 +21,7 @@ from suppgram.texts.interface import Texts
 )
 @click.option(
     "--texts",
+    "texts_class_path",
     default="suppgram.texts.en.EnglishTexts",
     show_default=True,
     help="Class with texts",
@@ -47,6 +36,7 @@ from suppgram.texts.interface import Texts
 )
 @click.option(
     "--telegram-agent-bot-token",
+    "telegram_agent_bot_tokens",
     default=[],
     multiple=True,
     help="Token(s) for Telegram bot(s) serving agents",
@@ -57,133 +47,59 @@ from suppgram.texts.interface import Texts
     default=None,
     help="ID of Telegram user who will be granted all permissions",
 )
+@click.option(
+    "--customer-shell",
+    is_flag=True,
+    default=False,
+    help="Run shell-based customer interface",
+)
 def run_all_in_one(
     loglevel: str,
     sqlalchemy_url: Optional[str],
-    texts: str,
+    texts_class_path: str,
     telegram_customer_bot_token: Optional[str],
     telegram_manager_bot_token: Optional[str],
-    telegram_agent_bot_token: List[str],
+    telegram_agent_bot_tokens: List[str],
     telegram_owner_id: Optional[int],
+    customer_shell: bool,
 ):
-    logging.basicConfig(level=getattr(logging, loglevel))
-
-    storage: Storage
-    if sqlalchemy_url:
-        from suppgram.storages.sqlalchemy import SQLAlchemyStorage
-
-        from sqlalchemy.ext.asyncio import create_async_engine
-
-        sqlalchemy_engine = create_async_engine(sqlalchemy_url)
-        storage = SQLAlchemyStorage(sqlalchemy_engine)
-    else:
-        raise UsageError(
-            "no storage specified. Use --sqlalchemy-url for SQLAlchemy storage"
-        )
-
-    telegram_app_manager = TelegramAppManager(
-        tokens=list(
-            filter(
-                None,
-                [telegram_customer_bot_token, telegram_manager_bot_token]
-                + list(telegram_agent_bot_token),
-            )
-        )
-    )
-
-    texts_module_name, texts_class_name = texts.rsplit(".", 1)
-    texts_class = getattr(import_module(texts_module_name), texts_class_name)
-    texts_obj: Texts = texts_class()
-
-    permission_checkers: List[PermissionChecker] = []
-    if telegram_owner_id:
-        from suppgram.frontends.telegram.permission_checkers import (
-            TelegramOwnerIDPermissionChecker,
-        )
-
-        permission_checkers.append(TelegramOwnerIDPermissionChecker(telegram_owner_id))
-    # TODO chat-based permission checker
-
-    workplace_managers: List[WorkplaceManager] = []
-    if telegram_agent_bot_token:
-        workplace_managers.append(
-            TelegramWorkplaceManager(telegram_agent_bot_token, telegram_app_manager)
-        )
-
-    backend = DefaultBackend(
-        storage=storage,
-        permission_checkers=permission_checkers,
-        workplace_managers=workplace_managers,
-        texts=texts_obj,
-    )
-
-    customer_frontend: CustomerFrontend
+    replacements = {}
     if telegram_customer_bot_token:
-        from suppgram.frontends.telegram.customer_frontend import (
-            TelegramCustomerFrontend,
-        )
-
-        customer_frontend = TelegramCustomerFrontend(
-            telegram_customer_bot_token, backend, texts_obj
-        )
-    else:
-        raise UsageError(
-            "no user frontend specified. Use --telegram-user-bot-token for Telegram frontend"
-        )
-
-    manager_frontend: ManagerFrontend
+        replacements[telegram_customer_bot_token] = "<CUSTOMER BOT TOKEN>"
     if telegram_manager_bot_token:
-        from suppgram.frontends.telegram.interfaces import TelegramStorage
-        from suppgram.frontends.telegram.manager_frontend import TelegramManagerFrontend
+        replacements[telegram_manager_bot_token] = "<MANAGER BOT TOKEN>"
+    if telegram_agent_bot_tokens:
+        for i, token in enumerate(telegram_agent_bot_tokens):
+            replacements[token] = f"<AGENT BOT TOKEN #{i}>"
+    logging.basicConfig(
+        level=getattr(logging, loglevel),
+        handlers=[ConfidentialStreamHandler(sys.stderr, replacements)],
+    )
 
-        telegram_storage: TelegramStorage
-        if sqlalchemy_engine:
-            from suppgram.bridges.sqlalchemy_telegram import SQLAlchemyTelegramBridge
+    builder = Builder()
 
-            telegram_storage = SQLAlchemyTelegramBridge(sqlalchemy_engine)
-            asyncio.run(telegram_storage.initialize())
-        else:
-            raise UsageError(
-                "no storage specified. Use --sqlalchemy-url for SQLAlchemy storage"
-            )
+    if sqlalchemy_url:
+        builder = builder.with_sqlalchemy_storage(sqlalchemy_url)
 
-        manager_frontend = TelegramManagerFrontend(
-            telegram_manager_bot_token, backend, telegram_storage, texts_obj
-        )
-    else:
-        raise UsageError(
-            "no manager frontend specified. Use --telegram-manager-bot-token for Telegram frontend"
-        )
+    if texts_class_path:
+        builder = builder.with_texts_class_path(texts_class_path)
 
-    agent_frontend: AgentFrontend
-    if telegram_agent_bot_token:
-        from suppgram.frontends.telegram.agent_frontend import TelegramAgentFrontend
-
-        agent_frontend = TelegramAgentFrontend(
-            telegram_agent_bot_token, telegram_app_manager, backend, texts_obj
-        )
-    else:
-        raise UsageError(
-            "no agent frontend specified. Use --telegram-agent-bot-token for Telegram frontend"
+    if telegram_manager_bot_token:
+        builder = builder.with_telegram_manager_frontend(
+            telegram_manager_bot_token, telegram_owner_id
         )
 
-    async def _run():
-        await storage.initialize()
-        if telegram_owner_id:
-            await backend.create_agent(
-                AgentIdentification(telegram_user_id=telegram_owner_id)
-            )
-        await asyncio.gather(
-            customer_frontend.initialize(),
-            manager_frontend.initialize(),
-            agent_frontend.initialize(),
-        )
-        await asyncio.gather(
-            customer_frontend.start(), manager_frontend.start(), agent_frontend.start()
-        )
+    if telegram_customer_bot_token:
+        builder = builder.with_telegram_customer_frontend(telegram_customer_bot_token)
+
+    if customer_shell:
+        builder = builder.with_shell_customer_frontend()
+
+    if telegram_agent_bot_tokens:
+        builder = builder.with_telegram_agent_frontend(telegram_agent_bot_tokens)
 
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(_run())
+    loop.run_until_complete(builder.start())
     loop.run_forever()
 
 

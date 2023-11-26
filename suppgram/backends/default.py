@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Iterable, Any
 
 from suppgram.backend import Backend as BackendInterface, WorkplaceManager
@@ -189,7 +189,8 @@ class DefaultBackend(BackendInterface):
 
         # TODO processing message and updating conversation should be in a single transaction
         await self.process_message(
-            conversation, Message(kind=MessageKind.RESOLVED, time_utc=datetime.utcnow())
+            conversation,
+            Message(kind=MessageKind.RESOLVED, time_utc=datetime.now(timezone.utc)),
         )
         await self._storage.update_conversation(
             conversation.id,
