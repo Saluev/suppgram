@@ -17,14 +17,21 @@ from suppgram.entities import (
 from suppgram.frontend import (
     CustomerFrontend,
 )
+from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.texts.interface import Texts
 
 
 class TelegramCustomerFrontend(CustomerFrontend):
-    def __init__(self, token: str, backend: Backend, texts: Texts):
+    def __init__(
+        self,
+        token: str,
+        app_manager: TelegramAppManager,
+        backend: Backend,
+        texts: Texts,
+    ):
         self._backend = backend
         self._texts = texts
-        self._telegram_app = ApplicationBuilder().token(token).build()
+        self._telegram_app = app_manager.get_app(token)
         self._telegram_bot: Bot = self._telegram_app.bot
         self._telegram_app.add_handlers(
             [

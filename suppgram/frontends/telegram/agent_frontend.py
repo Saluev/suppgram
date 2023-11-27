@@ -6,6 +6,7 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     CommandHandler,
+    Application,
 )
 from telegram.ext.filters import TEXT, ChatType
 
@@ -42,7 +43,7 @@ class TelegramAgentFrontend(AgentFrontend):
     ):
         self._backend = backend
         self._texts = texts
-        self._telegram_apps = []
+        self._telegram_apps: List[Application] = []
         for token in tokens:
             app = app_manager.get_app(token)
             app.add_handlers(

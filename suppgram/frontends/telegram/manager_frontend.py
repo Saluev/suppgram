@@ -33,6 +33,7 @@ from suppgram.errors import AgentNotFound
 from suppgram.frontend import (
     ManagerFrontend,
 )
+from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.identification import (
     make_workplace_identification,
     make_agent_identification,
@@ -57,12 +58,17 @@ class TelegramManagerFrontend(ManagerFrontend):
     _SEND_NEW_CONVERSATIONS_COMMAND = "send_new_conversations"
 
     def __init__(
-        self, token: str, backend: Backend, storage: TelegramStorage, texts: Texts
+        self,
+        token: str,
+        app_manager: TelegramAppManager,
+        backend: Backend,
+        storage: TelegramStorage,
+        texts: Texts,
     ):
         self._backend = backend
         self._storage = storage
         self._texts = texts
-        self._telegram_app = ApplicationBuilder().token(token).build()
+        self._telegram_app = app_manager.get_app(token)
         self._telegram_bot: Bot = self._telegram_app.bot
 
         backend.on_new_conversation.add_handler(self._handle_new_conversation_event)
@@ -287,7 +293,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             make_workplace_identification(update, update.effective_user)
         )
         if not self._backend.check_permission(
-            workplace.agent, Permission.TELEGRAM_GROUP_ROLE_ADD
+            workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE
         ):
             return  # TODO negative answer
         await self._storage.upsert_group(update.effective_chat.id)

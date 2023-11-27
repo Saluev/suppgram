@@ -189,9 +189,9 @@ class Builder:
     def _build_backend(self) -> Backend:
         if self._backend is not None:
             return self._backend
-        from suppgram.backends.default import DefaultBackend
+        from suppgram.backends.local import LocalBackend
 
-        self._backend = DefaultBackend(
+        self._backend = LocalBackend(
             storage=self._build_storage(),
             permission_checkers=self._build_permission_checkers(),
             workplace_managers=self._build_workplace_managers(),
@@ -210,6 +210,7 @@ class Builder:
 
             self._manager_frontend = TelegramManagerFrontend(
                 token=self._telegram_manager_bot_token,
+                app_manager=self._build_telegram_app_manager(),
                 backend=self._build_backend(),
                 storage=self._build_telegram_storage(),
                 texts=self._build_texts(),
@@ -229,13 +230,14 @@ class Builder:
             self._customer_frontends.append(
                 TelegramCustomerFrontend(
                     token=self._telegram_customer_bot_token,
+                    app_manager=self._build_telegram_app_manager(),
                     backend=self._build_backend(),
                     texts=self._build_texts(),
                 )
             )
 
         if self._shell_customer_uuid:
-            from suppgram.frontends.shell import ShellCustomerFrontend
+            from suppgram.frontends.shell.customer_frontend import ShellCustomerFrontend
 
             self._customer_frontends.append(
                 ShellCustomerFrontend(

@@ -68,9 +68,8 @@ def run_all_in_one(
         replacements[telegram_customer_bot_token] = "<CUSTOMER BOT TOKEN>"
     if telegram_manager_bot_token:
         replacements[telegram_manager_bot_token] = "<MANAGER BOT TOKEN>"
-    if telegram_agent_bot_tokens:
-        for i, token in enumerate(telegram_agent_bot_tokens):
-            replacements[token] = f"<AGENT BOT TOKEN #{i}>"
+    for i, token in enumerate(telegram_agent_bot_tokens):
+        replacements[token] = f"<AGENT BOT TOKEN #{i}>"
     logging.basicConfig(
         level=getattr(logging, loglevel),
         handlers=[ConfidentialStreamHandler(sys.stderr, replacements)],

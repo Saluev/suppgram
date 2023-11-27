@@ -22,14 +22,14 @@ from suppgram.entities import (
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
-from suppgram.observer import Observable
+from suppgram.observer import LocalObservable
 from suppgram.permissions import Permission, Decision, PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTexts
 from suppgram.texts.interface import Texts
 
 
-class DefaultBackend(BackendInterface):
+class LocalBackend(BackendInterface):
     def __init__(
         self,
         storage: Storage,
@@ -42,14 +42,14 @@ class DefaultBackend(BackendInterface):
         self._workplace_managers = workplace_managers
         self._texts = texts
 
-        self.on_new_conversation = Observable[ConversationEvent]()
-        self.on_conversation_assignment = Observable[ConversationEvent]()
-        self.on_conversation_resolution = Observable[ConversationEvent]()
-        self.on_new_message_for_customer = Observable[NewMessageForCustomerEvent]()
-        self.on_new_unassigned_message_from_customer = Observable[
+        self.on_new_conversation = LocalObservable[ConversationEvent]()
+        self.on_conversation_assignment = LocalObservable[ConversationEvent]()
+        self.on_conversation_resolution = LocalObservable[ConversationEvent]()
+        self.on_new_message_for_customer = LocalObservable[NewMessageForCustomerEvent]()
+        self.on_new_unassigned_message_from_customer = LocalObservable[
             NewUnassignedMessageFromCustomerEvent
         ]()
-        self.on_new_message_for_agent = Observable[NewMessageForAgentEvent]()
+        self.on_new_message_for_agent = LocalObservable[NewMessageForAgentEvent]()
 
     async def create_agent(self, identification: AgentIdentification) -> Agent:
         return await self._storage.create_agent(identification)

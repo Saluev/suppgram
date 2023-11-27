@@ -7,7 +7,7 @@ from suppgram.entities import WorkplaceIdentification, Agent
 class Permission(str, Enum):
     MANAGE = "manage"
     SUPPORT = "support"
-    TELEGRAM_GROUP_ROLE_ADD = "telegram_group_role_add"
+    TELEGRAM_ADD_GROUP_ROLE = "telegram_add_group_role"
     ASSIGN_TO_SELF = "assign_to_self"
     ASSIGN_TO_OTHERS = "assign_to_others"
 
