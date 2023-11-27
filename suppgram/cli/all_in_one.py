@@ -6,6 +6,7 @@ from typing import Optional, List
 import click
 
 from suppgram.builder import Builder
+from suppgram.frontends.pubnub.errors import MissingCredentials
 from suppgram.logging import ConfidentialStreamHandler
 
 
@@ -53,6 +54,25 @@ from suppgram.logging import ConfidentialStreamHandler
     default=False,
     help="Run shell-based customer interface",
 )
+@click.option(
+    "--pubnub-user-id",
+    default="support",
+    show_default=True,
+    help="PubNub user ID to send support messages from",
+)
+@click.option(
+    "--pubnub-channel-group",
+    default="support",
+    show_default=True,
+    help="PubNub channel group containing chats with support",
+)
+@click.option(
+    "--pubnub-message-converter",
+    "pubnub_message_converter_class_path",
+    default="suppgram.frontends.pubnub.DefaultMessageConverter",
+    show_default=True,
+    help="Class converting messages between PubNub JSONs and suppgram Message objects",
+)
 def run_all_in_one(
     loglevel: str,
     sqlalchemy_url: Optional[str],
@@ -62,6 +82,9 @@ def run_all_in_one(
     telegram_agent_bot_tokens: List[str],
     telegram_owner_id: Optional[int],
     customer_shell: bool,
+    pubnub_user_id: str,
+    pubnub_channel_group: str,
+    pubnub_message_converter_class_path: str,
 ):
     replacements = {}
     if telegram_customer_bot_token:
@@ -74,6 +97,7 @@ def run_all_in_one(
         level=getattr(logging, loglevel),
         handlers=[ConfidentialStreamHandler(sys.stderr, replacements)],
     )
+    # TODO figure out what's with pubnub logging
 
     builder = Builder()
 
@@ -96,6 +120,17 @@ def run_all_in_one(
 
     if telegram_agent_bot_tokens:
         builder = builder.with_telegram_agent_frontend(telegram_agent_bot_tokens)
+
+    try:
+        # Since all command line arguments for this frontend have default values,
+        # we ought to figure out whether we should instantiate it in some other way.
+        builder = builder.with_pubnub_customer_frontend(
+            pubnub_user_id=pubnub_user_id,
+            pubnub_channel_group=pubnub_channel_group,
+            pubnub_message_converter_class_path=pubnub_message_converter_class_path,
+        )
+    except (ImportError, MissingCredentials):
+        pass
 
     loop = asyncio.new_event_loop()
     loop.run_until_complete(builder.start())

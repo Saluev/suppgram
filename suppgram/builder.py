@@ -1,3 +1,4 @@
+import logging
 from importlib import import_module
 from typing import Optional, List, Any, Iterable
 from uuid import UUID, uuid4
@@ -10,6 +11,8 @@ from suppgram.permissions import PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTexts
 from suppgram.texts.interface import Texts
+
+logger = logging.getLogger(__name__)
 
 
 class Builder:
@@ -27,6 +30,8 @@ class Builder:
         # Helper classes, including implementation-specific:
         self._telegram_app_manager: Optional[Any] = None
         self._telegram_storage: Optional[Any] = None
+        self._pubnub_configuration: Optional[Any] = None
+        self._pubnub_message_converter: Optional[Any] = None
         self._permission_checkers: List[PermissionChecker] = []
         self._workplace_managers: List[WorkplaceManager] = []
 
@@ -39,6 +44,7 @@ class Builder:
         self._customer_frontends: List[CustomerFrontend] = []
         self._telegram_customer_bot_token: Optional[str] = None
         self._shell_customer_uuid: Optional[UUID] = None
+        self._pubnub_channel_group: Optional[str] = None
 
         self._agent_frontends: List[AgentFrontend] = []
         self._telegram_agent_bot_tokens: List[str] = []
@@ -108,6 +114,23 @@ class Builder:
         if uuid is None:
             uuid = uuid4()
         self._shell_customer_uuid = uuid
+        return self
+
+    def with_pubnub_customer_frontend(
+        self,
+        pubnub_user_id: str,
+        pubnub_channel_group: str,
+        pubnub_message_converter_class_path: str,
+    ) -> "Builder":
+        from suppgram.frontends.pubnub.configuration import make_pubnub_configuration
+        from suppgram.frontends.pubnub.converter import make_pubnub_message_converter
+
+        configuration = make_pubnub_configuration(pubnub_user_id)
+        converter = make_pubnub_message_converter(pubnub_message_converter_class_path)
+
+        self._pubnub_configuration = configuration
+        self._pubnub_message_converter = converter
+        self._pubnub_channel_group = pubnub_channel_group
         return self
 
     def with_telegram_agent_frontend(
@@ -227,6 +250,7 @@ class Builder:
                 TelegramCustomerFrontend,
             )
 
+            logger.info("Initializing Telegram customer frontend")
             self._customer_frontends.append(
                 TelegramCustomerFrontend(
                     token=self._telegram_customer_bot_token,
@@ -239,9 +263,25 @@ class Builder:
         if self._shell_customer_uuid:
             from suppgram.frontends.shell.customer_frontend import ShellCustomerFrontend
 
+            logger.info("Initializing shell customer frontend")
             self._customer_frontends.append(
                 ShellCustomerFrontend(
                     backend=self._build_backend(), texts=self._build_texts()
+                )
+            )
+
+        if self._pubnub_configuration:
+            from suppgram.frontends.pubnub.customer_frontend import (
+                PubNubCustomerFrontend,
+            )
+
+            logger.info("Initializing PubNub customer frontend")
+            self._customer_frontends.append(
+                PubNubCustomerFrontend(
+                    backend=self._build_backend(),
+                    message_converter=self._pubnub_message_converter,
+                    pubnub_channel_group=self._pubnub_channel_group,
+                    pubnub_configuration=self._pubnub_configuration,
                 )
             )
 

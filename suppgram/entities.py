@@ -16,6 +16,8 @@ SetNone = _SetNone()
 class CustomerIdentification:
     telegram_user_id: Optional[int] = None
     shell_uuid: Optional[UUID] = None
+    pubnub_user_id: Optional[str] = None
+    pubnub_channel_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,8 @@ class Customer:
     id: Any
     telegram_user_id: Optional[int] = None
     shell_uuid: Optional[UUID] = None
+    pubnub_user_id: Optional[str] = None
+    pubnub_channel_id: Optional[str] = None
 
 
 @dataclass(frozen=True)

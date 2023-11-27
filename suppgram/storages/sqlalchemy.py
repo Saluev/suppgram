@@ -106,6 +106,8 @@ class Customer(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True)
     shell_uuid: Mapped[str] = mapped_column(String, nullable=True)
+    pubnub_user_id: Mapped[str] = mapped_column(String, nullable=True)
+    pubnub_channel_id: Mapped[str] = mapped_column(String, nullable=True)
     conversations: Mapped[List["Conversation"]] = relationship(
         back_populates="customer"
     )
@@ -465,6 +467,8 @@ class SQLAlchemyStorage(Storage):
             id=customer.id,
             telegram_user_id=customer.telegram_user_id,
             shell_uuid=UUID(customer.shell_uuid) if customer.shell_uuid else None,
+            pubnub_user_id=customer.pubnub_user_id,
+            pubnub_channel_id=customer.pubnub_channel_id,
         )
 
     def _convert_agent(self, agent: Agent) -> AgentInterface:

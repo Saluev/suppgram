@@ -2,6 +2,8 @@ import asyncio
 import uuid
 from datetime import datetime, timezone
 
+import aioconsole
+
 from suppgram.backend import Backend
 from suppgram.entities import (
     NewMessageForCustomerEvent,
@@ -27,8 +29,6 @@ class ShellCustomerFrontend(CustomerFrontend):
         asyncio.create_task(self._run())
 
     async def _run(self):
-        import aioconsole  # type: ignore
-
         print(self._texts.telegram_customer_start_message)
         while True:
             text = await aioconsole.ainput("You: ")
