@@ -56,6 +56,12 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def get_conversations(
+        self, conversation_ids: List[Any], with_messages: bool = False
+    ) -> List[Conversation]:
+        pass
+
+    @abc.abstractmethod
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):

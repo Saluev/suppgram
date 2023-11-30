@@ -1,6 +1,8 @@
+import operator
+from functools import reduce
 from typing import Optional, Any, List, Iterable
 
-from sqlalchemy import Integer, ForeignKey, Enum, select, update
+from sqlalchemy import Integer, ForeignKey, Enum, select, update, ColumnElement
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 
@@ -150,14 +152,41 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
                 (
                     await session.execute(
                         select(self._message_model)
-                        .filter(query)
                         .options(joinedload(self._message_model.group))
+                        .filter(query)
                     )
                 )
                 .scalars()
                 .all()
             )
             return [self._convert_message(msg) for msg in msgs]
+
+    async def get_newer_messages_of_kind(
+        self, messages: List[TelegramMessageInterface]
+    ) -> List[TelegramMessageInterface]:
+        if not messages:
+            return []
+        async with self._session() as session:
+            filter = reduce(
+                operator.or_,
+                (self._filter_newer_messages_of_kind(message) for message in messages),
+            )
+            query = (
+                select(self._message_model)
+                .options(joinedload(self._message_model.group))
+                .filter(filter)
+            )
+            msgs = (await session.execute(query)).scalars().all()
+            return [self._convert_message(msg) for msg in msgs]
+
+    def _filter_newer_messages_of_kind(
+        self, message: TelegramMessageInterface
+    ) -> ColumnElement:
+        return (
+            (self._message_model.kind == message.kind)
+            & (self._message_model.group_id == message.group.telegram_chat_id)
+            & (self._message_model.telegram_message_id > message.telegram_message_id)
+        )
 
     def _convert_message(self, msg: TelegramMessage) -> TelegramMessageInterface:
         return TelegramMessageInterface(

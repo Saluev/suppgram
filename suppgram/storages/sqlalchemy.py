@@ -33,6 +33,7 @@ from sqlalchemy.orm import (
     selectinload,
 )
 
+from suppgram.containers import UnavailableList
 from suppgram.entities import (
     CustomerIdentification,
     Customer as CustomerInterface,
@@ -380,6 +381,29 @@ class SQLAlchemyStorage(Storage):
                 messages=messages,
             )
 
+    async def get_conversations(
+        self, conversation_ids: List[Any], with_messages: bool = False
+    ) -> List[Conversation]:
+        async with self._session() as session:
+            options = [
+                joinedload(self._conversation_model.customer),
+                joinedload(self._conversation_model.assigned_workplace).joinedload(
+                    self._workplace_model.agent
+                ),
+            ]
+            if with_messages:
+                options.append(selectinload(self._conversation_model.messages))
+            query = (
+                select(self._conversation_model)
+                .options(*options)
+                .filter(self._conversation_model.id.in_(conversation_ids))
+            )
+            convs = (await session.execute(query)).scalars().all()
+            return [
+                self._convert_conversation(conv, with_messages=with_messages)
+                for conv in convs
+            ]
+
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
@@ -445,7 +469,7 @@ class SQLAlchemyStorage(Storage):
                     .scalars()
                     .one()
                 )
-                return self._convert_conversation(conv)
+                return self._convert_conversation(conv, with_messages=True)
         except NoResultFound as exc:
             raise ConversationNotFound() from exc
 
@@ -498,8 +522,7 @@ class SQLAlchemyStorage(Storage):
         )
 
     def _convert_conversation(
-        self,
-        conversation: Conversation,
+        self, conversation: Conversation, with_messages: bool
     ) -> ConversationInterface:
         agent = self._convert_agent(conversation.assigned_workplace.agent)
         return ConversationInterface(
@@ -512,7 +535,9 @@ class SQLAlchemyStorage(Storage):
             ),
             messages=[
                 self._convert_message(message) for message in conversation.messages
-            ],
+            ]
+            if with_messages
+            else UnavailableList[ConversaionMessageInterface](),
         )
 
     def _make_customer_filter(

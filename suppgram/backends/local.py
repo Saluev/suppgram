@@ -181,6 +181,13 @@ class LocalBackend(BackendInterface):
             ]
         )
 
+    async def get_conversations(
+        self, conversation_ids: List[Any], with_messages: bool = False
+    ) -> List[Conversation]:
+        return await self._storage.get_conversations(
+            conversation_ids, with_messages=with_messages
+        )
+
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         if resolver != conversation.assigned_agent:
             raise PermissionDenied(

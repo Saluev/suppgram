@@ -74,6 +74,12 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def get_conversations(
+        self, conversation_ids: List[Any], with_messages: bool = False
+    ) -> List[Conversation]:
+        pass
+
+    @abc.abstractmethod
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         pass
 

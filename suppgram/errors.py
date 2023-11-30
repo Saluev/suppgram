@@ -29,3 +29,7 @@ class ConversationNotFound(Exception):
 
 class PermissionDenied(Exception):
     pass
+
+
+class DataNotFetched(RuntimeError):
+    pass

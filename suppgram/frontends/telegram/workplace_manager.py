@@ -1,4 +1,4 @@
-from typing import List, Optional, Set
+from typing import List, Set
 
 from suppgram.backend import WorkplaceManager
 from suppgram.entities import Agent, Workplace, WorkplaceIdentification

@@ -65,3 +65,9 @@ class TelegramStorage(abc.ABC):
         self, kind: TelegramMessageKind, conversation_id: Optional[Any] = None
     ) -> List[TelegramMessage]:
         pass
+
+    @abc.abstractmethod
+    async def get_newer_messages_of_kind(
+        self, messages: List[TelegramMessage]
+    ) -> List[TelegramMessage]:
+        pass

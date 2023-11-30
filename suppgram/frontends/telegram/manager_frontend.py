@@ -1,7 +1,7 @@
+import asyncio
 import json
-import logging
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 from telegram import (
     Bot,
@@ -14,7 +14,6 @@ from telegram import (
 )
 from telegram.error import BadRequest
 from telegram.ext import (
-    ApplicationBuilder,
     CallbackQueryHandler,
     ContextTypes,
     CommandHandler,
@@ -112,7 +111,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         await self._telegram_app.start()
 
     async def _handle_new_conversation_event(self, event: ConversationEvent):
-        await self._send_new_conversation_notifications(event.conversation)
+        await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _send_new_conversation_notifications(self, conversation: Conversation):
         groups = await self._storage.get_groups_by_role(
@@ -166,18 +165,75 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _send_or_edit_new_conversation_notifications(
         self, conversation: Conversation
     ):
+        # For this conversation, there are some notifications in some groups.
+        #
+        # In those groups where newer messages with non-NEW conversation
+        # notifications are present, we should delete the old notification and
+        # create a new one to avoid losing the notification in the chat history.
+        #
+        # In other groups (where the notification is still on top or at least
+        # among other NEW notifications), we should update the existing notification.
         messages = await self._storage.get_messages(
             TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
             conversation_id=conversation.id,
         )
-        if messages:
-            await flat_gather(
+        groups = await self._storage.get_groups_by_role(
+            TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
+        )
+        group_ids = {group.telegram_chat_id for group in groups}
+        newer_messages = await self._storage.get_newer_messages_of_kind(messages)
+        newer_message_conversation_ids = {
+            message.conversation_id for message in newer_messages
+        }
+        conversations = await self._backend.get_conversations(
+            list(newer_message_conversation_ids)
+        )
+        not_new_conversation_ids = {
+            conv.id for conv in conversations if conv.state != ConversationState.NEW
+        }
+        now_new_group_ids = [
+            message.group.telegram_chat_id
+            for message in newer_messages
+            if message.conversation_id in not_new_conversation_ids
+        ]
+
+        messages_to_delete: List[TelegramMessage] = []
+        messages_to_update: List[TelegramMessage] = []
+        for message in messages:
+            if message.group.telegram_chat_id in now_new_group_ids:
+                messages_to_delete.append(message)
+            else:
+                messages_to_update.append(message)
+                group_ids.remove(message.group.telegram_chat_id)
+
+        groups_to_send_to = [
+            group for group in groups if group.telegram_chat_id in group_ids
+        ]
+
+        await asyncio.gather(
+            flat_gather(
+                self._telegram_bot.delete_message(
+                    chat_id=message.group.telegram_chat_id,
+                    message_id=message.telegram_message_id,
+                )
+                for message in messages_to_delete
+            ),
+            flat_gather(
+                self._send_new_conversation_notification(group, conversation)
+                for group in groups_to_send_to
+            ),
+            flat_gather(
                 self._update_new_conversation_notification(message, conversation)
-                for message in messages
-            )
-        else:
-            # TODO create messages in all groups
-            await self._send_new_conversation_notifications(conversation)
+                for message in messages_to_update
+            ),
+        )
+
+    async def _send_or_edit_new_conversation_notification(
+        self,
+        conversation: Conversation,
+        message: TelegramMessage,
+    ):
+        pass
 
     async def _update_new_conversation_notification(
         self, message: TelegramMessage, conversation: Conversation

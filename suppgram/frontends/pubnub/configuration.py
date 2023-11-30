@@ -9,7 +9,9 @@ def make_pubnub_configuration(pubnub_user_id: str) -> PNConfiguration:
     pnconfig = PNConfiguration()
     pnconfig.subscribe_key = _get_env_variable("PUBNUB_SUBSCRIBE_KEY")
     pnconfig.publish_key = _get_env_variable("PUBNUB_PUBLISH_KEY")
-    pnconfig.secret_key = _get_env_variable("PUBNUB_SECRET_KEY")
+    pnconfig.secret_key = _get_env_variable(
+        "PUBNUB_SECRET_KEY"
+    )  # TODO accept token instead of secret key, handle exceptions
     pnconfig.uuid = pubnub_user_id
     return pnconfig
 
