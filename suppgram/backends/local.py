@@ -66,17 +66,17 @@ class LocalBackend(BackendInterface):
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
         return await self._storage.update_agent(identification, diff)
 
+    async def create_or_update_customer(
+        self, identification: CustomerIdentification, diff: CustomerDiff
+    ):
+        await self._storage.create_or_update_customer(identification, diff)
+
     async def identify_customer_conversation(
         self, identification: CustomerIdentification
     ) -> Conversation:
         customer = await self._storage.get_or_create_customer(identification)
         conversation = await self._storage.get_or_create_conversation(customer)
         return conversation
-
-    async def create_or_update_customer(
-        self, identification: CustomerIdentification, diff: CustomerDiff
-    ):
-        await self._storage.create_or_update_customer(identification, diff)
 
     async def identify_workplace(
         self, identification: WorkplaceIdentification
@@ -222,7 +222,7 @@ class LocalBackend(BackendInterface):
         await self._storage.update_conversation(
             conversation.id, ConversationDiff(added_tags=[tag])
         )
-        conversation = await self.get_conversation(conversation.id, with_messages=True)
+        conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_tag_added.trigger(
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
@@ -233,7 +233,7 @@ class LocalBackend(BackendInterface):
         await self._storage.update_conversation(
             conversation.id, ConversationDiff(removed_tags=[tag])
         )
-        conversation = await self.get_conversation(conversation.id, with_messages=True)
+        conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_tag_removed.trigger(
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
@@ -242,7 +242,7 @@ class LocalBackend(BackendInterface):
         await self._storage.update_conversation(
             conversation.id, ConversationDiff(customer_rating=rating)
         )
-        conversation = await self.get_conversation(conversation.id, with_messages=True)
+        conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_rated.trigger(
             ConversationEvent(conversation=conversation)
         )

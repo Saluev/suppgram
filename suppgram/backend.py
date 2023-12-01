@@ -48,15 +48,15 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def identify_customer_conversation(
-        self, identification: CustomerIdentification
-    ) -> Conversation:
-        pass
-
-    @abc.abstractmethod
     async def create_or_update_customer(
         self, identification: CustomerIdentification, diff: CustomerDiff
     ):
+        pass
+
+    @abc.abstractmethod
+    async def identify_customer_conversation(
+        self, identification: CustomerIdentification
+    ) -> Conversation:
         pass
 
     @abc.abstractmethod
@@ -93,12 +93,8 @@ class Backend(abc.ABC):
     ):
         pass
 
-    async def get_conversation(
-        self, conversation_id: Any, with_messages: bool = False
-    ) -> Conversation:
-        return (
-            await self.get_conversations([conversation_id], with_messages=with_messages)
-        )[0]
+    async def get_conversation(self, conversation_id: Any) -> Conversation:
+        return (await self.get_conversations([conversation_id], with_messages=True))[0]
 
     @abc.abstractmethod
     async def get_conversations(

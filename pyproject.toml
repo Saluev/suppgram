@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "suppgram"
+version = "0.0.1"
+authors = [
+  { name="Tigran Saluev", email="tigran@saluev.com" },
+]
+maintainers = [
+  { name="Tigran Saluev", email="tigran@saluev.com" },
+]
+description = "Minimalistic support system with Telegram-based UI"
+readme = "README.md"
+license = {text = "MIT License"}
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "click~=8.1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=7.4.2",
+    "pytest-asyncio~=0.21.1",
+]
+pubnub = ["pubnub~=7.3.1"]
+shell = ["aioconsole~=0.6.2"]
+sqlalchemy = ["SQLAlchemy~=2.0.22"]
+telegram = ["python-telegram-bot~=20.6"]
+
+[project.urls]
+Homepage = "https://github.com/Saluev/suppgram"
+Repository = "https://github.com/Saluev/suppgram.git"
+Issues = "https://github.com/Saluev/suppgram/issues"

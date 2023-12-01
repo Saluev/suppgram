@@ -293,7 +293,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                         "t": tag.id,
                     },
                     separators=(",", ":"),
-                ),
+                ),  # TODO encrypt
             )
             for tag in all_tags
         ]
