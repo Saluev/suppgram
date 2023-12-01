@@ -56,22 +56,23 @@ def run_pubnub_customer_client(
     if not pubnub_channel:
         pubnub_channel = f"{pubnub_user_id}-support"
     pubnub_configuration = make_pubnub_configuration(pubnub_user_id)
-    pubnub = PubNubAsyncio(pubnub_configuration)
+    pubnub = pubnub_configuration.instantiate_async()
 
     converter = make_pubnub_message_converter(pubnub_message_converter_class_path)
 
     async def _run():
-        users = [User.id(pubnub_user_id).get()]
-        channels = [Channel.id(pubnub_channel).read().write().join()]
-        result = (
-            await pubnub.grant_token()
-            .ttl(43200)
-            .authorized_uuid(pubnub_user_id)
-            .users(users)
-            .channels(channels)
-            .future()
-        )
-        pubnub.set_token(result.result.get_token())
+        # Not needed when secret key is provided.
+        # users = [User.id(pubnub_user_id).get()]
+        # channels = [Channel.id(pubnub_channel).read().write().join()]
+        # result = (
+        #     await pubnub.grant_token()
+        #     .ttl(43200)
+        #     .authorized_uuid(pubnub_user_id)
+        #     .users(users)
+        #     .channels(channels)
+        #     .future()
+        # )
+        # pubnub.set_token(result.result.get_token())
         await pubnub.add_channel_to_channel_group().channels(
             [pubnub_channel]
         ).channel_group(pubnub_channel_group).future()

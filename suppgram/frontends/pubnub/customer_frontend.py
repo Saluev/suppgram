@@ -3,13 +3,12 @@ import asyncio
 from pubnub.callbacks import SubscribeCallback
 from pubnub.models.consumer.common import PNStatus
 from pubnub.models.consumer.pubsub import PNPresenceEventResult, PNMessageResult
-from pubnub.pnconfiguration import PNConfiguration
 from pubnub.pubnub import PubNub
-from pubnub.pubnub_asyncio import PubNubAsyncio
 
 from suppgram.backend import Backend
 from suppgram.entities import MessageKind, NewMessageForCustomerEvent
 from suppgram.frontend import CustomerFrontend
+from suppgram.frontends.pubnub.configuration import Configuration
 from suppgram.frontends.pubnub.converter import MessageConverter
 from suppgram.frontends.pubnub.identification import make_customer_identification
 
@@ -20,10 +19,10 @@ class PubNubCustomerFrontend(CustomerFrontend):
         backend: Backend,
         message_converter: MessageConverter,
         pubnub_channel_group: str,
-        pubnub_configuration: PNConfiguration,  # user ID to send messages from is also in there
+        pubnub_configuration: Configuration,  # user ID to send messages from is also in there
     ):
         self._message_converter = message_converter
-        self._pubnub = PubNubAsyncio(pubnub_configuration)
+        self._pubnub = pubnub_configuration.instantiate_async()
         self._pubnub.add_listener(_SubscribeCallback(backend, message_converter))
         self._pubnub_channel_group = pubnub_channel_group
         backend.on_new_message_for_customer.add_handler(
