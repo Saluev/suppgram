@@ -28,7 +28,7 @@ from suppgram.frontends.telegram.identification import (
 )
 from suppgram.helpers import flat_gather
 from suppgram.permissions import Permission
-from suppgram.texts.interface import Texts
+from suppgram.texts.interface import TextsProvider
 
 
 class TelegramAgentFrontend(AgentFrontend):
@@ -39,7 +39,7 @@ class TelegramAgentFrontend(AgentFrontend):
         tokens: List[str],
         app_manager: TelegramAppManager,
         backend: Backend,
-        texts: Texts,
+        texts: TextsProvider,
     ):
         self._backend = backend
         self._texts = texts

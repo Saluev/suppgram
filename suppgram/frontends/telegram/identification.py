@@ -1,10 +1,18 @@
 from telegram import Update, User
 
-from suppgram.entities import WorkplaceIdentification, AgentIdentification
+from suppgram.entities import (
+    WorkplaceIdentification,
+    AgentIdentification,
+    CustomerIdentification,
+)
 
 
 def make_agent_identification(effective_user: User) -> AgentIdentification:
     return AgentIdentification(telegram_user_id=effective_user.id)
+
+
+def make_customer_identification(effective_user: User) -> CustomerIdentification:
+    return CustomerIdentification(telegram_user_id=effective_user.id)
 
 
 def make_workplace_identification(

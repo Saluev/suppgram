@@ -14,6 +14,7 @@ SetNone = _SetNone()
 
 @dataclass(frozen=True)
 class CustomerIdentification:
+    id: Optional[Any] = None
     telegram_user_id: Optional[int] = None
     shell_uuid: Optional[UUID] = None
     pubnub_user_id: Optional[str] = None
@@ -23,10 +24,26 @@ class CustomerIdentification:
 @dataclass(frozen=True)
 class Customer:
     id: Any
+
     telegram_user_id: Optional[int] = None
+    telegram_first_name: Optional[str] = None
+    telegram_last_name: Optional[str] = None
+    telegram_username: Optional[str] = None
+
     shell_uuid: Optional[UUID] = None
     pubnub_user_id: Optional[str] = None
     pubnub_channel_id: Optional[str] = None
+
+    @property
+    def identification(self) -> CustomerIdentification:
+        return CustomerIdentification(id=self.id)
+
+
+@dataclass(frozen=True)
+class CustomerDiff:
+    telegram_first_name: Optional[str] = None
+    telegram_last_name: Optional[str] = None
+    telegram_username: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +55,7 @@ class AgentIdentification:
 @dataclass(frozen=True)
 class Agent:
     id: Any
+
     telegram_user_id: Optional[int] = None
     telegram_first_name: Optional[str] = None
     telegram_last_name: Optional[str] = None

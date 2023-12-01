@@ -19,14 +19,15 @@ from suppgram.entities import (
     ConversationDiff,
     SetNone,
     MessageKind,
+    CustomerDiff,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
 from suppgram.observer import LocalObservable
 from suppgram.permissions import Permission, Decision, PermissionChecker
 from suppgram.storage import Storage
-from suppgram.texts.en import EnglishTexts
-from suppgram.texts.interface import Texts
+from suppgram.texts.en import EnglishTextsProvider
+from suppgram.texts.interface import TextsProvider
 
 
 class LocalBackend(BackendInterface):
@@ -35,7 +36,7 @@ class LocalBackend(BackendInterface):
         storage: Storage,
         permission_checkers: List[PermissionChecker],
         workplace_managers: List[WorkplaceManager],
-        texts: Texts = EnglishTexts(),
+        texts: TextsProvider = EnglishTextsProvider(),
     ):
         self._storage = storage
         self._permission_checkers = permission_checkers
@@ -66,6 +67,11 @@ class LocalBackend(BackendInterface):
         customer = await self._storage.get_or_create_customer(identification)
         conversation = await self._storage.get_or_create_conversation(customer)
         return conversation
+
+    async def create_or_update_customer(
+        self, identification: CustomerIdentification, diff: CustomerDiff
+    ):
+        await self._storage.create_or_update_customer(identification, diff)
 
     async def identify_workplace(
         self, identification: WorkplaceIdentification

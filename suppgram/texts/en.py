@@ -1,8 +1,15 @@
-from suppgram.entities import Conversation, Message, MessageKind
-from suppgram.texts.interface import Texts
+import html
+import logging
+from typing import Optional, Collection
+
+from suppgram.entities import Conversation, Message, MessageKind, Customer
+from suppgram.helpers import escape_markdown
+from suppgram.texts.interface import TextsProvider, Text, Format
+
+logger = logging.getLogger(__name__)
 
 
-class EnglishTexts(Texts):
+class EnglishTextsProvider(TextsProvider):
     telegram_customer_start_message = (
         "Welcome to support service! Please describe your problem."
     )
@@ -34,19 +41,59 @@ class EnglishTexts(Texts):
     )
     telegram_new_conversation_notification_placeholder = "New conversation!"
 
+    # TODO move logic to base class, keep only string templates here
+    def compose_customer_profile(
+        self, customer: Customer, allowed_formats: Collection[Format] = (Format.PLAIN,)
+    ) -> Text:
+        format_ = next(iter(allowed_formats))
+        if Format.TELEGRAM_HTML in allowed_formats:
+            format_ = Format.TELEGRAM_HTML
+        elif Format.TELEGRAM_MARKDOWN in allowed_formats:
+            format_ = Format.TELEGRAM_MARKDOWN
+
+        full_name = (
+            f"{customer.telegram_first_name or ''} {customer.telegram_last_name or ''}".strip()
+            or "Anonymous"
+        )
+        lines = [full_name]
+        contacts = []
+        if customer.telegram_user_id:
+            contacts.append(
+                self._format_telegram_mention(
+                    telegram_user_id=customer.telegram_user_id,
+                    telegram_first_name=customer.telegram_first_name,
+                    telegram_last_name=customer.telegram_last_name,
+                    telegram_username=customer.telegram_username,
+                    format_=format_,
+                )
+            )
+        lines.append("Contacts: " + ", ".join(contacts))
+        return Text(text="\n".join(lines), format=format_)
+
     def compose_telegram_new_conversation_notification(
         self, conversation: Conversation
-    ) -> str:
-        lines = [f"Conversation in status #{conversation.state.upper()}", ""]
+    ) -> Text:
+        profile = self.compose_customer_profile(
+            conversation.customer,
+            allowed_formats=Format.get_formats_supported_by_telegram(),
+        )
+        lines = [
+            f"Conversation in status #{conversation.state.upper()}",
+            "",
+            f"Customer: {profile.text}",
+            "",
+        ]
         lines.extend(self._format_message(message) for message in conversation.messages)
         if agent := conversation.assigned_agent:
-            agent_ref = (
-                f"@{agent.telegram_username}"
-                if agent.telegram_username
-                else f"agent #{agent.id}"
+            agent_ref = self._format_telegram_mention(
+                telegram_user_id=agent.telegram_user_id,
+                telegram_first_name=agent.telegram_first_name,
+                telegram_last_name=None,  # less formal
+                telegram_username=agent.telegram_username,
+                format_=profile.format,
             )
             lines.extend(["", f"Assigned to {agent_ref}"])
-        return "\n".join(lines)
+        return Text(text="\n".join(lines), format=profile.format)
 
     def _format_message(self, message: Message) -> str:
         from_ = {
@@ -56,3 +103,36 @@ class EnglishTexts(Texts):
         return f"{from_}: {message.text}"
 
     telegram_assign_to_me_button_text = "Assign to me"
+
+    def _format_telegram_mention(
+        self,
+        telegram_user_id: int,
+        telegram_first_name: Optional[str],
+        telegram_last_name: Optional[str],
+        telegram_username: Optional[str],
+        format_: Format,
+    ) -> str:
+        full_name: str = (
+            f"{telegram_first_name or ''} {telegram_last_name or ''}".strip()
+            or telegram_username
+            or str(telegram_user_id)
+        )
+
+        if format_ == Format.PLAIN:
+            if not telegram_username:
+                logger.warning(
+                    f"Can't mention Telegram user {telegram_user_id} without username in plain format"
+                )
+            return f"@{telegram_username}" if telegram_username else full_name
+
+        url = f"tg://user?id={telegram_user_id}"
+
+        if format_ == Format.TELEGRAM_MARKDOWN:
+            escaped_name = escape_markdown(full_name)
+            return f"[{escaped_name}]({url})"
+
+        if format_ == Format.TELEGRAM_HTML:
+            escaped_name = html.escape(full_name)
+            return f'<a href="{url}">{escaped_name}</a>'
+
+        raise ValueError(f"text format {format_.value!r} is not supported")

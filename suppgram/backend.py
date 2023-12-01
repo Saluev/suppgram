@@ -14,6 +14,7 @@ from suppgram.entities import (
     WorkplaceIdentification,
     Workplace,
     Message,
+    CustomerDiff,
 )
 from suppgram.observer import Observable
 from suppgram.permissions import Permission
@@ -45,6 +46,12 @@ class Backend(abc.ABC):
     async def identify_customer_conversation(
         self, identification: CustomerIdentification
     ) -> Conversation:
+        pass
+
+    @abc.abstractmethod
+    async def create_or_update_customer(
+        self, identification: CustomerIdentification, diff: CustomerDiff
+    ):
         pass
 
     @abc.abstractmethod

@@ -9,8 +9,8 @@ from suppgram.frontend import ManagerFrontend, CustomerFrontend, AgentFrontend
 from suppgram.helpers import flat_gather
 from suppgram.permissions import PermissionChecker
 from suppgram.storage import Storage
-from suppgram.texts.en import EnglishTexts
-from suppgram.texts.interface import Texts
+from suppgram.texts.en import EnglishTextsProvider
+from suppgram.texts.interface import TextsProvider
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class Builder:
         self._storage: Optional[Storage] = None
         self._sqlalchemy_engine: Optional[Any] = None
 
-        self._texts: Optional[Texts] = None
+        self._texts: Optional[TextsProvider] = None
 
         # Helper classes, including implementation-specific:
         self._telegram_app_manager: Optional[Any] = None
@@ -77,7 +77,7 @@ class Builder:
         self._storage = SQLAlchemyStorage(self._sqlalchemy_engine)
         return self
 
-    def with_texts(self, texts: Texts) -> "Builder":
+    def with_texts(self, texts: TextsProvider) -> "Builder":
         if self._texts is not None:
             raise ValueError(
                 f"can't use {type(texts).__name__} — already instantiated {type(self._texts).__name__}"
@@ -144,9 +144,9 @@ class Builder:
             raise ValueError("no storage specified")
         return self._storage
 
-    def _build_texts(self) -> Texts:
+    def _build_texts(self) -> TextsProvider:
         if self._texts is None:
-            self._texts = EnglishTexts()
+            self._texts = EnglishTextsProvider()
         return self._texts
 
     def _build_telegram_app_manager(self) -> Any:

@@ -48,12 +48,14 @@ from suppgram.entities import (
     AgentDiff,
     ConversationDiff,
     SetNone,
+    CustomerDiff,
 )
 from suppgram.errors import (
     ConversationNotFound,
     WorkplaceNotFound,
     AgentNotFound,
     WorkplaceAlreadyAssigned,
+    CustomerNotFound,
 )
 from suppgram.storage import Storage
 
@@ -106,6 +108,9 @@ class Customer(Base):
     __tablename__ = "suppgram_customers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    telegram_first_name: Mapped[str] = mapped_column(String, nullable=True)
+    telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
+    telegram_username: Mapped[str] = mapped_column(String, nullable=True)
     shell_uuid: Mapped[str] = mapped_column(String, nullable=True)
     pubnub_user_id: Mapped[str] = mapped_column(String, nullable=True)
     pubnub_channel_id: Mapped[str] = mapped_column(String, nullable=True)
@@ -203,35 +208,34 @@ class SQLAlchemyStorage(Storage):
         self, identification: CustomerIdentification
     ) -> CustomerInterface:
         async with self._session() as session, session.begin():
-            row = (
-                await session.execute(
-                    select(self._customer_model).filter(
-                        self._make_customer_filter(identification)
-                    )
-                )
-            ).one_or_none()
-            if row is None:
+            query = select(self._customer_model).filter(
+                self._make_customer_filter(identification)
+            )
+            customer = (await session.execute(query)).scalars().one_or_none()
+            if customer is None:
                 customer = self._make_model(identification, self._customer_model)
                 session.add(customer)
                 await session.flush()
                 await session.refresh(customer)
-            else:
-                (customer,) = row
             return self._convert_customer(customer)
+
+    async def create_or_update_customer(
+        self, identification: CustomerIdentification, diff: CustomerDiff
+    ):
+        async with self._session() as session, session.begin():
+            customer = await self.get_or_create_customer(identification)
+            await session.execute(
+                update(self._customer_model)
+                .filter(self._customer_model.id == customer.id)
+                .values(**self._make_update_values(diff))
+            )
 
     async def get_agent(self, identification: AgentIdentification) -> AgentInterface:
         async with self._session() as session:
-            agent = (
-                (
-                    await session.execute(
-                        select(self._agent_model).filter(
-                            self._make_agent_filter(identification)
-                        )
-                    )
-                )
-                .scalars()
-                .one_or_none()
+            query = select(self._agent_model).filter(
+                self._make_agent_filter(identification)
             )
+            agent = (await session.execute(query)).scalars().one_or_none()
             if agent is None:
                 raise AgentNotFound(identification)
             return self._convert_agent(agent)
@@ -249,17 +253,12 @@ class SQLAlchemyStorage(Storage):
 
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
         async with self._session() as session, session.begin():
-            agent = (
-                (
-                    await session.execute(
-                        select(self._agent_model)
-                        .filter(self._make_agent_filter(identification))
-                        .with_for_update()
-                    )
-                )
-                .scalars()
-                .one()
+            query = (
+                select(self._agent_model)
+                .filter(self._make_agent_filter(identification))
+                .with_for_update()
             )
+            agent = (await session.execute(query)).scalars().one()
             self._update_model(agent, diff)
             session.add(agent)
 
@@ -267,17 +266,10 @@ class SQLAlchemyStorage(Storage):
         self, identification: WorkplaceIdentification
     ) -> WorkplaceInterface:
         async with self._session() as session:
-            workplace = (
-                (
-                    await session.execute(
-                        select(self._workplace_model).filter(
-                            self._make_workplace_filter(identification)
-                        )
-                    )
-                )
-                .scalars()
-                .one_or_none()
+            query = select(self._workplace_model).filter(
+                self._make_workplace_filter(identification)
             )
+            workplace = (await session.execute(query)).scalars().one_or_none()
             if workplace is None:
                 raise WorkplaceNotFound(identification)
             return workplace
@@ -286,17 +278,10 @@ class SQLAlchemyStorage(Storage):
         self, agent: AgentInterface
     ) -> List[WorkplaceInterface]:
         async with self._session() as session:
-            workplaces = (
-                (
-                    await session.execute(
-                        select(self._workplace_model).filter(
-                            self._workplace_model.agent_id == agent.id
-                        )
-                    )
-                )
-                .scalars()
-                .all()
+            query = select(self._workplace_model).filter(
+                self._workplace_model.agent_id == agent.id
             )
+            workplaces = (await session.execute(query)).scalars().all()
             return [
                 self._convert_workplace(agent, workplace) for workplace in workplaces
             ]
@@ -305,14 +290,11 @@ class SQLAlchemyStorage(Storage):
         self, agent: AgentInterface, identification: WorkplaceIdentification
     ) -> WorkplaceInterface:
         async with self._session() as session, session.begin():
-            row = (
-                await session.execute(
-                    select(self._workplace_model, self._agent_model).filter(
-                        self._make_workplace_filter(identification)
-                    )
-                )
-            ).one_or_none()
-            if row is None:
+            query = select(self._workplace_model, self._agent_model).filter(
+                self._make_workplace_filter(identification)
+            )
+            workplace = (await session.execute(query)).scalars().one_or_none()
+            if workplace is None:
                 workplace = self._make_model(
                     identification,
                     self._workplace_model,
@@ -322,8 +304,6 @@ class SQLAlchemyStorage(Storage):
                 session.add(workplace)
                 await session.flush()
                 await session.refresh(workplace)
-            else:
-                workplace, _ = row
             return self._convert_workplace(agent, workplace)
 
     async def get_or_create_conversation(
@@ -408,17 +388,10 @@ class SQLAlchemyStorage(Storage):
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
         async with self._session() as session, session.begin():
-            conv = (
-                (
-                    await session.execute(
-                        select(self._conversation_model).filter(
-                            self._conversation_model.id == id
-                        )
-                    )
-                )
-                .scalars()
-                .one_or_none()
+            query = select(self._conversation_model).filter(
+                self._conversation_model.id == id
             )
+            conv = (await session.execute(query)).scalars().one_or_none()
             if conv is None:
                 raise ConversationNotFound()
 
@@ -442,33 +415,29 @@ class SQLAlchemyStorage(Storage):
     ) -> ConversationInterface:
         try:
             async with self._session() as session, session.begin():
-                conv = (
-                    (
-                        await session.execute(
-                            select(
-                                self._conversation_model,
-                                self._workplace_model,
-                                self._agent_model,
-                            )
-                            .filter(
-                                self._make_workplace_filter(identification)
-                                & (
-                                    self._conversation_model.assigned_workplace_id
-                                    == Workplace.id
-                                )
-                            )
-                            .options(
-                                joinedload(self._conversation_model.customer),
-                                selectinload(self._conversation_model.messages),
-                                joinedload(
-                                    self._conversation_model.assigned_workplace
-                                ).joinedload(self._workplace_model.agent),
-                            )
+                options = [
+                    joinedload(self._conversation_model.customer),
+                    selectinload(self._conversation_model.messages),
+                    joinedload(self._conversation_model.assigned_workplace).joinedload(
+                        self._workplace_model.agent
+                    ),
+                ]
+                query = (
+                    select(
+                        self._conversation_model,
+                        self._workplace_model,
+                        self._agent_model,
+                    )
+                    .filter(
+                        self._make_workplace_filter(identification)
+                        & (
+                            self._conversation_model.assigned_workplace_id
+                            == Workplace.id
                         )
                     )
-                    .scalars()
-                    .one()
+                    .options(*options)
                 )
+                conv = (await session.execute(query)).scalars().one()
                 return self._convert_conversation(conv, with_messages=True)
         except NoResultFound as exc:
             raise ConversationNotFound() from exc
@@ -490,6 +459,9 @@ class SQLAlchemyStorage(Storage):
         return CustomerInterface(
             id=customer.id,
             telegram_user_id=customer.telegram_user_id,
+            telegram_first_name=customer.telegram_first_name,
+            telegram_last_name=customer.telegram_last_name,
+            telegram_username=customer.telegram_username,
             shell_uuid=UUID(customer.shell_uuid) if customer.shell_uuid else None,
             pubnub_user_id=customer.pubnub_user_id,
             pubnub_channel_id=customer.pubnub_channel_id,

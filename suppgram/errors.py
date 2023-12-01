@@ -23,6 +23,10 @@ class WorkplaceAlreadyAssigned(Exception):
     pass
 
 
+class CustomerNotFound(Exception):
+    pass
+
+
 class ConversationNotFound(Exception):
     pass
 

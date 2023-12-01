@@ -8,16 +8,17 @@ from telegram.ext.filters import TEXT, ChatType
 
 from suppgram.backend import Backend
 from suppgram.entities import (
-    CustomerIdentification,
     MessageKind,
     Message,
     NewMessageForCustomerEvent,
+    CustomerDiff,
 )
 from suppgram.frontend import (
     CustomerFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.texts.interface import Texts
+from suppgram.frontends.telegram.identification import make_customer_identification
+from suppgram.texts.interface import TextsProvider
 
 
 class TelegramCustomerFrontend(CustomerFrontend):
@@ -26,7 +27,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
         token: str,
         app_manager: TelegramAppManager,
         backend: Backend,
-        texts: Texts,
+        texts: TextsProvider,
     ):
         self._backend = backend
         self._texts = texts
@@ -67,8 +68,17 @@ class TelegramCustomerFrontend(CustomerFrontend):
         assert (
             update.effective_user
         ), "update with `ChatType.PRIVATE` filter should have `effective_user`"
+        identification = make_customer_identification(update.effective_user)
+        await self._backend.create_or_update_customer(
+            identification,
+            CustomerDiff(
+                telegram_first_name=update.effective_user.first_name,
+                telegram_last_name=update.effective_user.last_name,
+                telegram_username=update.effective_user.username,
+            ),
+        )
         conversation = await self._backend.identify_customer_conversation(
-            CustomerIdentification(telegram_user_id=update.effective_user.id)
+            identification
         )
         await self._backend.process_message(
             conversation,

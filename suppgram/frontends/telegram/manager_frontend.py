@@ -46,7 +46,7 @@ from suppgram.frontends.telegram.interfaces import (
 )
 from suppgram.helpers import flat_gather
 from suppgram.permissions import Permission
-from suppgram.texts.interface import Texts
+from suppgram.texts.interface import TextsProvider
 
 
 class CallbackActionKind(str, Enum):
@@ -62,7 +62,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         app_manager: TelegramAppManager,
         backend: Backend,
         storage: TelegramStorage,
-        texts: Texts,
+        texts: TextsProvider,
     ):
         self._backend = backend
         self._storage = storage
@@ -241,7 +241,10 @@ class TelegramManagerFrontend(ManagerFrontend):
         text = self._texts.compose_telegram_new_conversation_notification(conversation)
         try:
             await self._telegram_bot.edit_message_text(
-                text, message.group.telegram_chat_id, message.telegram_message_id
+                text.text,
+                message.group.telegram_chat_id,
+                message.telegram_message_id,
+                parse_mode=text.parse_mode,
             )
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):

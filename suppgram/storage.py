@@ -12,6 +12,7 @@ from suppgram.entities import (
     Conversation,
     Message,
     ConversationDiff,
+    CustomerDiff,
 )
 
 
@@ -23,6 +24,12 @@ class Storage(abc.ABC):
     async def get_or_create_customer(
         self, identification: CustomerIdentification
     ) -> Customer:
+        pass
+
+    @abc.abstractmethod
+    async def create_or_update_customer(
+        self, identification: CustomerIdentification, diff: CustomerDiff
+    ):
         pass
 
     @abc.abstractmethod

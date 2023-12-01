@@ -12,11 +12,11 @@ from suppgram.entities import (
     Message,
 )
 from suppgram.frontend import CustomerFrontend
-from suppgram.texts.interface import Texts
+from suppgram.texts.interface import TextsProvider
 
 
 class ShellCustomerFrontend(CustomerFrontend):
-    def __init__(self, backend: Backend, texts: Texts):
+    def __init__(self, backend: Backend, texts: TextsProvider):
         self._uuid = uuid.uuid4()
         self._backend = backend
         self._texts = texts
