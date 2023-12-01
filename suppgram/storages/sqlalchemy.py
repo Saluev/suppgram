@@ -184,6 +184,7 @@ class Conversation(Base):
     messages: Mapped[List["ConversationMessage"]] = relationship(
         back_populates="conversation"
     )
+    customer_rating: Mapped[int] = mapped_column(Integer, nullable=True)
 
 
 class ConversationMessage(Base):
@@ -607,6 +608,7 @@ class SQLAlchemyStorage(Storage):
             ]
             if with_messages
             else UnavailableList[ConversaionMessageInterface](),
+            customer_rating=conversation.customer_rating,
         )
 
     def _make_customer_filter(

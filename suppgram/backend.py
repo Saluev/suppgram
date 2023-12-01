@@ -28,6 +28,7 @@ class Backend(abc.ABC):
     on_conversation_resolution: Observable[ConversationEvent]
     on_conversation_tag_added: Observable[ConversationTagEvent]
     on_conversation_tag_removed: Observable[ConversationTagEvent]
+    on_conversation_rated: Observable[ConversationEvent]
     on_new_message_for_customer: Observable[NewMessageForCustomerEvent]
     on_new_unassigned_message_from_customer: Observable[
         NewUnassignedMessageFromCustomerEvent
@@ -115,6 +116,10 @@ class Backend(abc.ABC):
     async def remove_tag_from_conversation(
         self, conversation: Conversation, tag: ConversationTag
     ):
+        pass
+
+    @abc.abstractmethod
+    async def rate_conversation(self, conversation: Conversation, rating: int):
         pass
 
     @abc.abstractmethod

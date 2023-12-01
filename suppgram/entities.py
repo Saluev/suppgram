@@ -132,6 +132,7 @@ class Conversation:
     assigned_agent: Optional[Agent] = None
     assigned_workplace: Optional[Workplace] = None
     messages: List[Message] = field(default_factory=list)
+    customer_rating: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,7 @@ class ConversationDiff:
     assigned_workplace_id: Optional[Any] | _SetNone = None
     added_tags: Optional[List[ConversationTag]] = None
     removed_tags: Optional[List[ConversationTag]] = None
+    customer_rating: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,7 @@ class ConversationTagEvent:
 @dataclass(frozen=True)
 class NewMessageForCustomerEvent:
     customer: Customer
+    conversation: Conversation
     message: Message
 
 

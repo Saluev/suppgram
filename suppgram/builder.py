@@ -256,6 +256,7 @@ class Builder:
                     token=self._telegram_customer_bot_token,
                     app_manager=self._build_telegram_app_manager(),
                     backend=self._build_backend(),
+                    storage=self._build_telegram_storage(),
                     texts=self._build_texts(),
                 )
             )

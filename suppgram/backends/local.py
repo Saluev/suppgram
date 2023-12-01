@@ -50,6 +50,7 @@ class LocalBackend(BackendInterface):
         self.on_conversation_resolution = LocalObservable[ConversationEvent]()
         self.on_conversation_tag_added = LocalObservable[ConversationTagEvent]()
         self.on_conversation_tag_removed = LocalObservable[ConversationTagEvent]()
+        self.on_conversation_rated = LocalObservable[ConversationEvent]()
         self.on_new_message_for_customer = LocalObservable[NewMessageForCustomerEvent]()
         self.on_new_unassigned_message_from_customer = LocalObservable[
             NewUnassignedMessageFromCustomerEvent
@@ -149,7 +150,11 @@ class LocalBackend(BackendInterface):
     ):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
-            NewMessageForCustomerEvent(customer=conversation.customer, message=message)
+            NewMessageForCustomerEvent(
+                customer=conversation.customer,
+                conversation=conversation,
+                message=message,
+            )
         )
 
     async def _process_internal_message(
@@ -157,7 +162,11 @@ class LocalBackend(BackendInterface):
     ):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
-            NewMessageForCustomerEvent(customer=conversation.customer, message=message)
+            NewMessageForCustomerEvent(
+                customer=conversation.customer,
+                conversation=conversation,
+                message=message,
+            )
         )
         if conversation.assigned_agent and conversation.assigned_workplace:
             await self.on_new_message_for_agent.trigger(
@@ -229,6 +238,15 @@ class LocalBackend(BackendInterface):
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
 
+    async def rate_conversation(self, conversation: Conversation, rating: int):
+        await self._storage.update_conversation(
+            conversation.id, ConversationDiff(customer_rating=rating)
+        )
+        conversation = await self.get_conversation(conversation.id, with_messages=True)
+        await self.on_conversation_rated.trigger(
+            ConversationEvent(conversation=conversation)
+        )
+
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         if resolver != conversation.assigned_agent:
             raise PermissionDenied(
@@ -246,11 +264,12 @@ class LocalBackend(BackendInterface):
                 state=ConversationState.RESOLVED, assigned_workplace_id=SetNone
             ),
         )
-        conversation = Conversation(
+        conversation = Conversation(  # TODO just fetch?..
             id=conversation.id,
             state=ConversationState.RESOLVED,
             customer=conversation.customer,
             messages=conversation.messages,
+            tags=conversation.tags,
         )
         await self.on_conversation_resolution.trigger(
             ConversationEvent(conversation=conversation)

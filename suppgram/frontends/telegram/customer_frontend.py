@@ -1,8 +1,13 @@
-from telegram import Update, Bot
+import json
+import logging
+from enum import Enum
+
+from telegram import Update, Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     CommandHandler,
     ContextTypes,
     MessageHandler,
+    CallbackQueryHandler,
 )
 from telegram.ext.filters import TEXT, ChatType
 
@@ -12,13 +17,22 @@ from suppgram.entities import (
     Message,
     NewMessageForCustomerEvent,
     CustomerDiff,
+    Conversation,
+    ConversationEvent,
 )
 from suppgram.frontend import (
     CustomerFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.identification import make_customer_identification
+from suppgram.frontends.telegram.interfaces import TelegramStorage, TelegramMessageKind
 from suppgram.texts.interface import TextsProvider
+
+logger = logging.getLogger(__name__)
+
+
+class CallbackActionKind(str, Enum):
+    RATE = "rate"
 
 
 class TelegramCustomerFrontend(CustomerFrontend):
@@ -27,21 +41,25 @@ class TelegramCustomerFrontend(CustomerFrontend):
         token: str,
         app_manager: TelegramAppManager,
         backend: Backend,
+        storage: TelegramStorage,
         texts: TextsProvider,
     ):
         self._backend = backend
         self._texts = texts
+        self._storage = storage
         self._telegram_app = app_manager.get_app(token)
         self._telegram_bot: Bot = self._telegram_app.bot
         self._telegram_app.add_handlers(
             [
                 CommandHandler("start", self._handle_start_command),
+                CallbackQueryHandler(self._handle_callback_query),
                 MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
             ]
         )
         self._backend.on_new_message_for_customer.add_handler(
             self._handle_new_message_for_customer_event
         )
+        self._backend.on_conversation_rated.add_handler(self._handle_conversation_rated)
 
     async def initialize(self):
         await super().initialize()
@@ -60,6 +78,29 @@ class TelegramCustomerFrontend(CustomerFrontend):
         await context.bot.send_message(
             update.effective_chat.id, self._texts.telegram_customer_start_message
         )
+
+    async def _handle_callback_query(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        assert (
+            update.callback_query
+        ), "callback query update should have `callback_query`"
+        # TODO should it have effective chat?..
+        assert (
+            update.effective_user
+        ), "callback query update should have `effective_user`"
+        if not update.callback_query.data:
+            # No idea how to handle this update.
+            return
+        callback_data = json.loads(update.callback_query.data)
+        action = callback_data["a"]
+        conversation = await self._backend.get_conversation(callback_data["c"])
+        if action == CallbackActionKind.RATE:
+            await self._backend.rate_conversation(conversation, callback_data["r"])
+        else:
+            logger.info(
+                f"Customer frontend received unsupported callback action {action!r}"
+            )
 
     async def _handle_text_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -95,10 +136,70 @@ class TelegramCustomerFrontend(CustomerFrontend):
         if not event.customer.telegram_user_id:
             return
 
-        text = event.message.text
         if event.message.kind == MessageKind.RESOLVED:
-            text = self._texts.telegram_customer_conversation_resolved_message
-        if text:
+            await self._handle_conversation_resolution(event)
+            return
+
+        if event.message.text:
             await self._telegram_bot.send_message(
-                chat_id=event.customer.telegram_user_id, text=text
+                chat_id=event.customer.telegram_user_id,
+                text=event.message.text,
             )
+
+    async def _handle_conversation_resolution(self, event: NewMessageForCustomerEvent):
+        reply_markup = InlineKeyboardMarkup(
+            [
+                [
+                    self._make_rate_button(event.conversation, 1),
+                    self._make_rate_button(event.conversation, 2),
+                    self._make_rate_button(event.conversation, 3),
+                ],
+                [
+                    self._make_rate_button(event.conversation, 4),
+                    self._make_rate_button(event.conversation, 5),
+                ],
+            ]
+        )
+        message = await self._telegram_bot.send_message(
+            chat_id=event.customer.telegram_user_id,
+            text=self._texts.telegram_customer_conversation_resolved_message_placeholder,
+        )
+        group = await self._storage.upsert_group(event.customer.telegram_user_id)
+        await self._storage.insert_message(
+            group,
+            message.message_id,
+            TelegramMessageKind.RATE_CONVERSATION,
+            event.conversation.id,
+        )
+        await self._telegram_bot.edit_message_text(
+            chat_id=event.customer.telegram_user_id,
+            message_id=message.message_id,
+            text=self._texts.telegram_customer_conversation_resolved_message,
+            reply_markup=reply_markup,
+        )
+
+    async def _handle_conversation_rated(self, event: ConversationEvent):
+        messages = await self._storage.get_messages(
+            TelegramMessageKind.RATE_CONVERSATION, event.conversation.id
+        )
+        for message in messages:
+            # Normally just one message, so no `gather()`.
+            await self._telegram_bot.edit_message_text(
+                chat_id=message.group.telegram_chat_id,
+                message_id=message.telegram_message_id,
+                text=self._texts.compose_customer_conversation_resolved_message(
+                    event.conversation.customer_rating
+                ),
+                reply_markup=None,
+            )
+
+    def _make_rate_button(
+        self, conversation: Conversation, rating: int
+    ) -> InlineKeyboardButton:
+        return InlineKeyboardButton(
+            self._texts.format_rating(rating),
+            callback_data=json.dumps(
+                {"a": CallbackActionKind.RATE, "c": conversation.id, "r": rating},
+                separators=(",", ":"),
+            ),  # TODO encrypt
+        )

@@ -20,6 +20,7 @@ class TelegramGroup:
 
 class TelegramMessageKind(str, Enum):
     NEW_CONVERSATION_NOTIFICATION = "new_conversation_notification"
+    RATE_CONVERSATION = "rate_conversation"
 
 
 @dataclass
@@ -39,7 +40,7 @@ class TelegramStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def upsert_group(self, telegram_chat_id: int):
+    async def upsert_group(self, telegram_chat_id: int) -> TelegramGroup:
         pass
 
     @abc.abstractmethod

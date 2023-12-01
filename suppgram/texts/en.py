@@ -20,10 +20,22 @@ class EnglishTextsProvider(TextsProvider):
     telegram_customer_start_message = (
         "Welcome to support service! Please describe your problem."
     )
-    telegram_customer_conversation_resolved_message = (
+    telegram_customer_conversation_resolved_message_placeholder = (
         "Conversation was marked as resolved. "
         "You can always start a new conversation by writing to this chat!"
     )
+    telegram_customer_conversation_resolved_message = (
+        telegram_customer_conversation_resolved_message_placeholder + "\n\n"
+        "Please rate your experience with the support agent:"
+    )
+
+    def compose_customer_conversation_resolved_message(self, rating: int) -> str:
+        return (
+            self.telegram_customer_conversation_resolved_message_placeholder
+            + "\n\nYour rating: "
+            + self.format_rating(rating)
+        )
+
     telegram_manager_start_message = "Welcome to the support admin bot!"
     telegram_manager_permission_denied_message = (
         "You don't have permission to access manager functionality."

@@ -126,7 +126,11 @@ class TelegramManagerFrontend(ManagerFrontend):
                 BotCommand(
                     self._SEND_NEW_CONVERSATIONS_COMMAND,
                     self._texts.telegram_send_new_conversations_command_description,
-                )
+                ),
+                BotCommand(
+                    self._CREATE_CONVERSATION_TAG_COMMAND,
+                    self._texts.telegram_create_tag_command_description,
+                ),
             ]
         )
 
@@ -136,15 +140,6 @@ class TelegramManagerFrontend(ManagerFrontend):
 
     async def _handle_new_conversation_event(self, event: ConversationEvent):
         await self._send_or_edit_new_conversation_notifications(event.conversation)
-
-    async def _send_new_conversation_notifications(self, conversation: Conversation):
-        groups = await self._storage.get_groups_by_role(
-            TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
-        )
-        await flat_gather(
-            self._send_new_conversation_notification(group, conversation)
-            for group in groups
-        )
 
     async def _handle_new_unassigned_message_from_customer_event(
         self, event: NewUnassignedMessageFromCustomerEvent
@@ -278,8 +273,9 @@ class TelegramManagerFrontend(ManagerFrontend):
                 {
                     "a": CallbackActionKind.ASSIGN_TO_ME,
                     "c": conversation.id,
-                }
-            ),
+                },
+                separators=(",", ":"),
+            ),  # TODO encrypt
         )
         present_tag_ids = {tag.id for tag in conversation.tags}
 
@@ -295,7 +291,8 @@ class TelegramManagerFrontend(ManagerFrontend):
                         else CallbackActionKind.ADD_CONVERSATION_TAG,
                         "c": conversation.id,
                         "t": tag.id,
-                    }
+                    },
+                    separators=(",", ":"),
                 ),
             )
             for tag in all_tags
@@ -413,7 +410,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             else:
                 await self._backend.remove_tag_from_conversation(conversation, tag)
         else:
-            logger.info(f"Received unsupported callback action {action!r}")
+            logger.info(
+                f"Manager frontend received unsupported callback action {action!r}"
+            )
 
     async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User):
         identification = make_agent_identification(effective_user)

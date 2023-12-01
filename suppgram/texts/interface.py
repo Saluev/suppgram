@@ -40,7 +40,11 @@ class Text:
 
 class TextsProvider:
     telegram_customer_start_message: str
+    telegram_customer_conversation_resolved_message_placeholder: str
     telegram_customer_conversation_resolved_message: str
+
+    def compose_customer_conversation_resolved_message(self, rating: int) -> str:
+        pass
 
     telegram_manager_start_message: str
     telegram_manager_permission_denied_message: str
@@ -78,3 +82,6 @@ class TextsProvider:
         raise NotImplementedError
 
     telegram_assign_to_me_button_text: str
+
+    def format_rating(self, rating: int) -> str:
+        return "★" * rating + "☆" * (5 - rating)
