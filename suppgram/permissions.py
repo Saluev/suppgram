@@ -10,6 +10,7 @@ class Permission(str, Enum):
     TELEGRAM_ADD_GROUP_ROLE = "telegram_add_group_role"
     ASSIGN_TO_SELF = "assign_to_self"
     ASSIGN_TO_OTHERS = "assign_to_others"
+    CREATE_TAGS = "create_tags"
 
 
 class Decision(str, Enum):

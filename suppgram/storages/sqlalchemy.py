@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import (
     List,
     Any,
@@ -21,6 +21,8 @@ from sqlalchemy import (
     select,
     update,
     DateTime,
+    Table,
+    Column,
 )
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
@@ -42,6 +44,7 @@ from suppgram.entities import (
     Workplace as WorkplaceInterface,
     MessageKind,
     Message as ConversaionMessageInterface,
+    ConversationTag as ConversationTagInterface,
     Conversation as ConversationInterface,
     AgentIdentification,
     ConversationState,
@@ -140,11 +143,37 @@ class Workplace(Base):
     )
 
 
+class ConversationTag(Base):
+    __tablename__ = "suppgram_conversation_tags"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    created_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_by_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=False)
+    created_by: Mapped[Agent] = relationship()
+
+
+association_table = Table(
+    "suppgram_conversation_tag_associations",
+    Base.metadata,
+    Column(
+        "conversation_id", ForeignKey("suppgram_conversations.id"), primary_key=True
+    ),
+    Column(
+        "conversation_tag_id",
+        ForeignKey("suppgram_conversation_tags.id"),
+        primary_key=True,
+    ),
+)
+
+
 class Conversation(Base):
     __tablename__ = "suppgram_conversations"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id))
+    customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id), nullable=False)
     customer: Mapped[Customer] = relationship(back_populates="conversations")
+    tags: Mapped[List[ConversationTag]] = relationship(secondary=association_table)
     assigned_workplace_id: Mapped[int] = mapped_column(
         ForeignKey(Workplace.id), nullable=True
     )
@@ -179,6 +208,8 @@ class SQLAlchemyStorage(Storage):
         workplace_model: Any = Workplace,
         conversation_model: Any = Conversation,
         conversation_message_model: Any = ConversationMessage,
+        conversation_tag_model: Any = ConversationTag,
+        conversation_tag_association_table: Optional[Table] = association_table,
     ):
         self._engine = engine
         self._session = async_sessionmaker(bind=engine)
@@ -187,19 +218,25 @@ class SQLAlchemyStorage(Storage):
         self._workplace_model = workplace_model
         self._conversation_model = conversation_model
         self._conversation_message_model = conversation_message_model
+        self._conversation_tag_model = conversation_tag_model
+        self._conversation_tag_association_table = conversation_tag_association_table
 
     async def initialize(self):
         await super().initialize()
         tables_to_create = [
-            built_in_model.__table__
-            for model, built_in_model in [
+            built_in_model_or_table
+            if isinstance(built_in_model_or_table, Table)
+            else built_in_model_or_table.__table__
+            for model_or_table, built_in_model_or_table in [
                 (self._customer_model, Customer),
                 (self._agent_model, Agent),
                 (self._workplace_model, Workplace),
                 (self._conversation_model, Conversation),
                 (self._conversation_message_model, ConversationMessage),
+                (self._conversation_tag_model, ConversationTag),
+                (self._conversation_tag_association_table, association_table),
             ]
-            if model is built_in_model
+            if model_or_table is built_in_model_or_table
         ]
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, tables=tables_to_create)
@@ -306,6 +343,23 @@ class SQLAlchemyStorage(Storage):
                 await session.refresh(workplace)
             return self._convert_workplace(agent, workplace)
 
+    async def create_tag(self, name: str, created_by: AgentInterface):
+        async with self._session() as session, session.begin():
+            tag = ConversationTag(
+                name=name,
+                created_at_utc=datetime.now(timezone.utc),
+                created_by_id=created_by.id,
+            )
+            session.add(tag)
+
+    async def get_all_tags(self) -> List[ConversationTagInterface]:
+        async with self._session() as session:
+            query = select(self._conversation_tag_model).options(
+                joinedload(self._conversation_tag_model.created_by)
+            )
+            tags = (await session.execute(query)).scalars().all()
+            return [self._convert_tag(tag) for tag in tags]
+
     async def get_or_create_conversation(
         self, customer: CustomerInterface
     ) -> ConversationInterface:
@@ -319,6 +373,9 @@ class SQLAlchemyStorage(Storage):
                             joinedload(
                                 self._conversation_model.assigned_workplace
                             ).joinedload(self._workplace_model.agent),
+                            selectinload(self._conversation_model.tags).joinedload(
+                                self._conversation_tag_model.created_by
+                            ),
                             selectinload(self._conversation_model.messages),
                         )
                         .filter(
@@ -345,6 +402,7 @@ class SQLAlchemyStorage(Storage):
                 await session.flush()
                 await session.refresh(conv)
                 messages = []
+                tags = []
             else:
                 if conv.assigned_workplace:
                     assigned_agent = self._convert_agent(conv.assigned_workplace.agent)
@@ -352,10 +410,12 @@ class SQLAlchemyStorage(Storage):
                         assigned_agent, conv.assigned_workplace
                     )
                 messages = [self._convert_message(msg) for msg in conv.messages]
+                tags = [self._convert_tag(tag) for tag in conv.tags]
             return ConversationInterface(
                 id=conv.id,
                 state=conv.state,
                 customer=customer,
+                tags=tags,
                 assigned_agent=assigned_agent,
                 assigned_workplace=assigned_workplace,
                 messages=messages,
@@ -369,6 +429,9 @@ class SQLAlchemyStorage(Storage):
                 joinedload(self._conversation_model.customer),
                 joinedload(self._conversation_model.assigned_workplace).joinedload(
                     self._workplace_model.agent
+                ),
+                selectinload(self._conversation_model.tags).joinedload(
+                    self._conversation_tag_model.created_by
                 ),
             ]
             if with_messages:
@@ -401,14 +464,32 @@ class SQLAlchemyStorage(Storage):
                     self._conversation_model.assigned_workplace_id == None
                 )
 
-            result = await session.execute(
-                update(self._conversation_model)
-                .filter(filter_)
-                .values(**self._make_update_values(diff))
-            )
+            if update_values := self._make_update_values(
+                diff, exclude_fields=["added_tags", "removed_tags"]
+            ):
+                query = (
+                    update(self._conversation_model)
+                    .filter(filter_)
+                    .values(**update_values)
+                )
+                result = await session.execute(query)
+                if unassigned_only and result.rowcount == 0:
+                    raise WorkplaceAlreadyAssigned()
 
-            if unassigned_only and result.rowcount == 0:
-                raise WorkplaceAlreadyAssigned()
+            if diff.added_tags:
+                query = association_table.insert().values(
+                    [(conv.id, tag.id) for tag in diff.added_tags]
+                )
+                await session.execute(query)
+
+            if diff.removed_tags:
+                filter_ = (Column("conversation_id") == conv.id) & (
+                    Column("conversation_tag_id").in_(
+                        tag.id for tag in diff.removed_tags
+                    )
+                )
+                query = association_table.delete().where(filter_)
+                await session.execute(query)
 
     async def get_agent_conversation(
         self, identification: WorkplaceIdentification
@@ -417,6 +498,9 @@ class SQLAlchemyStorage(Storage):
             async with self._session() as session, session.begin():
                 options = [
                     joinedload(self._conversation_model.customer),
+                    selectinload(self._conversation_model.tags).joinedload(
+                        self._conversation_tag_model.created_by
+                    ),
                     selectinload(self._conversation_model.messages),
                     joinedload(self._conversation_model.assigned_workplace).joinedload(
                         self._workplace_model.agent
@@ -493,18 +577,31 @@ class SQLAlchemyStorage(Storage):
             kind=message.kind, time_utc=message.time_utc, text=message.text
         )
 
+    def _convert_tag(self, tag: ConversationTag) -> ConversationTagInterface:
+        return ConversationTagInterface(
+            id=tag.id,
+            name=tag.name,
+            created_at_utc=tag.created_at_utc,
+            created_by=self._convert_agent(tag.created_by),
+        )
+
     def _convert_conversation(
         self, conversation: Conversation, with_messages: bool
     ) -> ConversationInterface:
-        agent = self._convert_agent(conversation.assigned_workplace.agent)
+        assigned_agent: Optional[Agent] = None
+        assigned_workplace: Optional[Workplace] = None
+        if conversation.assigned_workplace:
+            assigned_agent = self._convert_agent(conversation.assigned_workplace.agent)
+            assigned_workplace = self._convert_workplace(
+                assigned_agent, conversation.assigned_workplace
+            )
         return ConversationInterface(
             id=conversation.id,
             state=conversation.state,
             customer=self._convert_customer(conversation.customer),
-            assigned_agent=agent,
-            assigned_workplace=self._convert_workplace(
-                agent, conversation.assigned_workplace
-            ),
+            tags=[self._convert_tag(tag) for tag in conversation.tags],
+            assigned_agent=assigned_agent,
+            assigned_workplace=assigned_workplace,
             messages=[
                 self._convert_message(message) for message in conversation.messages
             ]
@@ -551,10 +648,12 @@ class SQLAlchemyStorage(Storage):
                 v = v.id
             setattr(model_instance, k, v)
 
-    def _make_update_values(self, diff_dc: Any) -> Mapping[str, Any]:
+    def _make_update_values(
+        self, diff_dc: Any, exclude_fields: Collection[str] = ()
+    ) -> Mapping[str, Any]:
         result: MutableMapping[str, Any] = {}
         for k, v in diff_dc.__dict__.items():
-            if v is None:
+            if k in exclude_fields or v is None:
                 continue
             if v is SetNone:
                 v = None

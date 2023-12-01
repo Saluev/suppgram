@@ -116,10 +116,19 @@ class ConversationState(str, Enum):
 
 
 @dataclass(frozen=True)
+class ConversationTag:
+    id: Any
+    name: str
+    created_at_utc: datetime
+    created_by: Agent
+
+
+@dataclass(frozen=True)
 class Conversation:
     id: Any
     state: str
     customer: Customer
+    tags: List[ConversationTag]
     assigned_agent: Optional[Agent] = None
     assigned_workplace: Optional[Workplace] = None
     messages: List[Message] = field(default_factory=list)
@@ -129,11 +138,19 @@ class Conversation:
 class ConversationDiff:
     state: Optional[str] = None
     assigned_workplace_id: Optional[Any] | _SetNone = None
+    added_tags: Optional[List[ConversationTag]] = None
+    removed_tags: Optional[List[ConversationTag]] = None
 
 
 @dataclass(frozen=True)
 class ConversationEvent:
     conversation: Conversation
+
+
+@dataclass(frozen=True)
+class ConversationTagEvent:
+    conversation: Conversation
+    tag: ConversationTag
 
 
 @dataclass(frozen=True)

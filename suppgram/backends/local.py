@@ -20,10 +20,12 @@ from suppgram.entities import (
     SetNone,
     MessageKind,
     CustomerDiff,
+    ConversationTag,
+    ConversationTagEvent,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
-from suppgram.observer import LocalObservable
+from suppgram.observer import LocalObservable, Observable
 from suppgram.permissions import Permission, Decision, PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTextsProvider
@@ -46,6 +48,8 @@ class LocalBackend(BackendInterface):
         self.on_new_conversation = LocalObservable[ConversationEvent]()
         self.on_conversation_assignment = LocalObservable[ConversationEvent]()
         self.on_conversation_resolution = LocalObservable[ConversationEvent]()
+        self.on_conversation_tag_added = LocalObservable[ConversationTagEvent]()
+        self.on_conversation_tag_removed = LocalObservable[ConversationTagEvent]()
         self.on_new_message_for_customer = LocalObservable[NewMessageForCustomerEvent]()
         self.on_new_unassigned_message_from_customer = LocalObservable[
             NewUnassignedMessageFromCustomerEvent
@@ -95,6 +99,15 @@ class LocalBackend(BackendInterface):
             if decision == Decision.DENIED:
                 has_been_denied = True
         return has_been_allowed and not has_been_denied
+
+    async def create_tag(self, name: str, created_by: Agent):
+        if not self.check_permission(created_by, Permission.CREATE_TAGS):
+            raise PermissionDenied("not allowed to create new tags")
+        return await self._storage.create_tag(name=name, created_by=created_by)
+        # TODO trigger event to update new conversation notifications' keyboards
+
+    async def get_all_tags(self) -> List[ConversationTag]:
+        return await self._storage.get_all_tags()
 
     async def identify_agent_conversation(
         self, identification: WorkplaceIdentification
@@ -192,6 +205,28 @@ class LocalBackend(BackendInterface):
     ) -> List[Conversation]:
         return await self._storage.get_conversations(
             conversation_ids, with_messages=with_messages
+        )
+
+    async def add_tag_to_conversation(
+        self, conversation: Conversation, tag: ConversationTag
+    ):
+        await self._storage.update_conversation(
+            conversation.id, ConversationDiff(added_tags=[tag])
+        )
+        conversation = await self.get_conversation(conversation.id, with_messages=True)
+        await self.on_conversation_tag_added.trigger(
+            ConversationTagEvent(conversation=conversation, tag=tag)
+        )
+
+    async def remove_tag_from_conversation(
+        self, conversation: Conversation, tag: ConversationTag
+    ):
+        await self._storage.update_conversation(
+            conversation.id, ConversationDiff(removed_tags=[tag])
+        )
+        conversation = await self.get_conversation(conversation.id, with_messages=True)
+        await self.on_conversation_tag_removed.trigger(
+            ConversationTagEvent(conversation=conversation, tag=tag)
         )
 
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):

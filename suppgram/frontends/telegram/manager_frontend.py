@@ -1,7 +1,8 @@
 import asyncio
 import json
+import logging
 from enum import Enum
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Iterable
 
 from telegram import (
     Bot,
@@ -18,7 +19,7 @@ from telegram.ext import (
     ContextTypes,
     CommandHandler,
 )
-from telegram.ext.filters import ChatType
+from telegram.ext.filters import ChatType, TEXT
 
 from suppgram.backend import Backend
 from suppgram.entities import (
@@ -27,12 +28,19 @@ from suppgram.entities import (
     AgentDiff,
     ConversationEvent,
     ConversationState,
+    ConversationTag,
+    ConversationTagEvent,
 )
-from suppgram.errors import AgentNotFound
+from suppgram.errors import AgentNotFound, PermissionDenied
 from suppgram.frontend import (
     ManagerFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.helpers import (
+    send_text_answers,
+    send_text_answer,
+    arrange_buttons,
+)
 from suppgram.frontends.telegram.identification import (
     make_workplace_identification,
     make_agent_identification,
@@ -48,13 +56,18 @@ from suppgram.helpers import flat_gather
 from suppgram.permissions import Permission
 from suppgram.texts.interface import TextsProvider
 
+logger = logging.getLogger(__name__)
+
 
 class CallbackActionKind(str, Enum):
     ASSIGN_TO_ME = "assign_to_me"
+    ADD_CONVERSATION_TAG = "add_tag"
+    REMOVE_CONVERSATION_TAG = "remove_tag"
 
 
 class TelegramManagerFrontend(ManagerFrontend):
     _SEND_NEW_CONVERSATIONS_COMMAND = "send_new_conversations"
+    _CREATE_CONVERSATION_TAG_COMMAND = "create_tag"
 
     def __init__(
         self,
@@ -78,7 +91,13 @@ class TelegramManagerFrontend(ManagerFrontend):
             self._handle_conversation_assignment_event
         )
         backend.on_conversation_resolution.add_handler(
-            self._handle_conversation_assignment_event
+            self._handle_conversation_resolution_event
+        )
+        backend.on_conversation_tag_added.add_handler(
+            self._handle_conversation_tags_event
+        )
+        backend.on_conversation_tag_removed.add_handler(
+            self._handle_conversation_tags_event
         )
         self._telegram_app.add_handlers(
             [
@@ -90,6 +109,11 @@ class TelegramManagerFrontend(ManagerFrontend):
                     self._SEND_NEW_CONVERSATIONS_COMMAND,
                     self._handle_send_new_conversations_command,
                     filters=ChatType.GROUP,
+                ),
+                CommandHandler(
+                    self._CREATE_CONVERSATION_TAG_COMMAND,
+                    self._handle_create_conversation_tag_command,
+                    filters=TEXT & (ChatType.GROUP | ChatType.PRIVATE),
                 ),
             ]
         )
@@ -136,8 +160,14 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _handle_conversation_resolution_event(self, event: ConversationEvent):
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
+    async def _handle_conversation_tags_event(self, event: ConversationTagEvent):
+        await self._send_or_edit_new_conversation_notifications(event.conversation)
+
     async def _send_new_conversation_notification(
-        self, group: TelegramGroup, conversation: Conversation
+        self,
+        group: TelegramGroup,
+        conversation: Conversation,
+        all_tags: List[ConversationTag],
     ):
         message = await self._send_placeholder_message(
             group,
@@ -145,7 +175,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
             conversation_id=conversation.id,
         )
-        await self._update_new_conversation_notification(message, conversation)
+        await self._update_new_conversation_notification(
+            message, conversation, all_tags
+        )
 
     async def _send_placeholder_message(
         self,
@@ -210,6 +242,8 @@ class TelegramManagerFrontend(ManagerFrontend):
             group for group in groups if group.telegram_chat_id in group_ids
         ]
 
+        all_tags = await self._backend.get_all_tags()
+
         await asyncio.gather(
             flat_gather(
                 self._telegram_bot.delete_message(
@@ -219,51 +253,69 @@ class TelegramManagerFrontend(ManagerFrontend):
                 for message in messages_to_delete
             ),
             flat_gather(
-                self._send_new_conversation_notification(group, conversation)
+                self._send_new_conversation_notification(group, conversation, all_tags)
                 for group in groups_to_send_to
             ),
             flat_gather(
-                self._update_new_conversation_notification(message, conversation)
+                self._update_new_conversation_notification(
+                    message, conversation, all_tags
+                )
                 for message in messages_to_update
             ),
         )
 
-    async def _send_or_edit_new_conversation_notification(
-        self,
-        conversation: Conversation,
-        message: TelegramMessage,
-    ):
-        pass
-
     async def _update_new_conversation_notification(
-        self, message: TelegramMessage, conversation: Conversation
+        self,
+        message: TelegramMessage,
+        conversation: Conversation,
+        all_tags: List[ConversationTag],
     ):
         text = self._texts.compose_telegram_new_conversation_notification(conversation)
+
+        assign_to_me_button = InlineKeyboardButton(
+            self._texts.telegram_assign_to_me_button_text,
+            callback_data=json.dumps(
+                {
+                    "a": CallbackActionKind.ASSIGN_TO_ME,
+                    "c": conversation.id,
+                }
+            ),
+        )
+        present_tag_ids = {tag.id for tag in conversation.tags}
+
+        tag_buttons = [
+            InlineKeyboardButton(
+                self._texts.compose_remove_tag_button_text(tag)
+                if tag.id in present_tag_ids
+                else self._texts.compose_add_tag_button_text(tag),
+                callback_data=json.dumps(
+                    {
+                        "a": CallbackActionKind.REMOVE_CONVERSATION_TAG
+                        if tag.id in present_tag_ids
+                        else CallbackActionKind.ADD_CONVERSATION_TAG,
+                        "c": conversation.id,
+                        "t": tag.id,
+                    }
+                ),
+            )
+            for tag in all_tags
+        ]
+
+        inline_buttons = (
+            [[assign_to_me_button]]
+            if conversation.state == ConversationState.NEW
+            else []
+        )
+        inline_buttons.extend(arrange_buttons(tag_buttons))
+
         try:
             await self._telegram_bot.edit_message_text(
                 text.text,
                 message.group.telegram_chat_id,
                 message.telegram_message_id,
                 parse_mode=text.parse_mode,
-            )
-        except BadRequest as exc:
-            if "Message is not modified" not in str(exc):
-                raise
-        assign_to_me_button = InlineKeyboardButton(
-            self._texts.telegram_assign_to_me_button_text,
-            callback_data=json.dumps(
-                {
-                    "action": CallbackActionKind.ASSIGN_TO_ME,
-                    "conversation_id": conversation.id,
-                }
-            ),
-        )
-        try:
-            await self._telegram_bot.edit_message_reply_markup(
-                message.group.telegram_chat_id,
-                message.telegram_message_id,
-                reply_markup=InlineKeyboardMarkup([[assign_to_me_button]])
-                if conversation.state == ConversationState.NEW
+                reply_markup=InlineKeyboardMarkup(inline_buttons)
+                if inline_buttons
                 else None,
             )
         except BadRequest as exc:
@@ -292,6 +344,35 @@ class TelegramManagerFrontend(ManagerFrontend):
                 answer = self._texts.telegram_manager_permission_denied_message
         await context.bot.send_message(update.effective_chat.id, answer)
 
+    @send_text_answer
+    async def _handle_create_conversation_tag_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> Iterable[str]:
+        assert update.message, "command update with `TEXT` filter should have `message`"
+        assert update.effective_user, "command update should have `effective_user`"
+        try:
+            agent = await self._backend.identify_agent(
+                make_agent_identification(update.effective_user)
+            )
+        except AgentNotFound:
+            return self._texts.telegram_manager_permission_denied_message
+
+        tag_name = update.message.text.removeprefix(
+            f"/{self._CREATE_CONVERSATION_TAG_COMMAND}"
+        ).strip()
+        if not tag_name:
+            return self._texts.telegram_create_tag_usage_message
+
+        existing_tags = await self._backend.get_all_tags()
+        if any(tag.name == tag_name for tag in existing_tags):
+            return self._texts.telegram_tag_already_exists_message
+
+        try:
+            await self._backend.create_tag(tag_name, agent)
+            return self._texts.telegram_tag_successfully_created_message
+        except PermissionDenied:
+            return self._texts.telegram_create_tag_permission_denied_message
+
     async def _handle_callback_query(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
@@ -307,9 +388,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             return
         await self._create_or_update_agent(update.effective_chat, update.effective_user)
         callback_data = json.loads(update.callback_query.data)
-        action = callback_data["action"]
+        action = callback_data["a"]
         if action == CallbackActionKind.ASSIGN_TO_ME:
-            conversation_id = callback_data["conversation_id"]
+            conversation_id = callback_data["c"]
             workplace = await self._backend.identify_workplace(
                 make_workplace_identification(update, update.effective_user)
             )
@@ -318,8 +399,21 @@ class TelegramManagerFrontend(ManagerFrontend):
                 workplace.agent,
                 conversation_id,
             )
+        elif action in (
+            CallbackActionKind.ADD_CONVERSATION_TAG,
+            CallbackActionKind.REMOVE_CONVERSATION_TAG,
+        ):
+            conversation_id = callback_data["c"]
+            conversation = await self._backend.get_conversation(conversation_id)
+            all_tags = await self._backend.get_all_tags()
+            tag_id = callback_data["t"]
+            tag = next(tag for tag in all_tags if tag.id == tag_id)
+            if action == CallbackActionKind.ADD_CONVERSATION_TAG:
+                await self._backend.add_tag_to_conversation(conversation, tag)
+            else:
+                await self._backend.remove_tag_from_conversation(conversation, tag)
         else:
-            ...  # TODO logging
+            logger.info(f"Received unsupported callback action {action!r}")
 
     async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User):
         identification = make_agent_identification(effective_user)

@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Iterable, Awaitable
+from typing import Iterable, Awaitable, Optional
 
 
 async def flat_gather(futures: Iterable[Awaitable]):
@@ -12,7 +12,7 @@ async def flat_gather(futures: Iterable[Awaitable]):
 
 # The following function is taken from python-telegram-bot
 # to avoid unnecessary dependencies.
-def escape_markdown(text: str, entity_type: str = None) -> str:
+def escape_markdown(text: str, entity_type: Optional[str] = None) -> str:
     """
     Helper function to escape telegram markup symbols.
 

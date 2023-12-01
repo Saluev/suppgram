@@ -13,6 +13,7 @@ from suppgram.entities import (
     Message,
     ConversationDiff,
     CustomerDiff,
+    ConversationTag,
 )
 
 
@@ -56,6 +57,14 @@ class Storage(abc.ABC):
     async def get_or_create_workplace(
         self, agent: Agent, identification: WorkplaceIdentification
     ) -> Workplace:
+        pass
+
+    @abc.abstractmethod
+    async def create_tag(self, name: str, created_by: Agent):
+        pass
+
+    @abc.abstractmethod
+    async def get_all_tags(self) -> List[ConversationTag]:
         pass
 
     @abc.abstractmethod

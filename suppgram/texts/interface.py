@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Literal, Collection
 
-from suppgram.entities import Conversation, Customer
+from suppgram.entities import Conversation, Customer, ConversationTag
 
 TelegramParseMode = Optional[Literal["MarkdownV2", "HTML"]]
 
@@ -45,6 +45,19 @@ class TextsProvider:
     telegram_manager_start_message: str
     telegram_manager_permission_denied_message: str
     telegram_send_new_conversations_command_description: str
+
+    # Tags
+    telegram_create_tag_command_description: str
+    telegram_create_tag_permission_denied_message: str
+    telegram_create_tag_usage_message: str
+    telegram_tag_already_exists_message: str
+    telegram_tag_successfully_created_message: str
+
+    def compose_add_tag_button_text(self, tag: ConversationTag) -> str:
+        raise NotImplementedError
+
+    def compose_remove_tag_button_text(self, tag: ConversationTag) -> str:
+        raise NotImplementedError
 
     telegram_agent_start_message: str
     telegram_agent_permission_denied_message: str

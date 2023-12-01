@@ -1,8 +1,15 @@
 import html
 import logging
+import re
 from typing import Optional, Collection
 
-from suppgram.entities import Conversation, Message, MessageKind, Customer
+from suppgram.entities import (
+    Conversation,
+    Message,
+    MessageKind,
+    Customer,
+    ConversationTag,
+)
 from suppgram.helpers import escape_markdown
 from suppgram.texts.interface import TextsProvider, Text, Format
 
@@ -24,6 +31,25 @@ class EnglishTextsProvider(TextsProvider):
     telegram_send_new_conversations_command_description = (
         "Send notifications about new conversations to this group."
     )
+
+    telegram_create_tag_command_description = (
+        "Create new tag to label conversations with"
+    )
+    telegram_create_tag_permission_denied_message = (
+        "You don't have permission to create new tags."
+    )
+    telegram_create_tag_usage_message = (
+        "Please specify new tag name after command:\n\n    /create_tag urgent"
+    )
+    telegram_tag_successfully_created_message = "New tag has been successfully created."
+    telegram_tag_already_exists_message = "Tag with this name already exists!"
+
+    def compose_add_tag_button_text(self, tag: ConversationTag) -> str:
+        return f"☐ {tag.name}"
+
+    def compose_remove_tag_button_text(self, tag: ConversationTag) -> str:
+        return f"☑ {tag.name}"
+
     telegram_agent_start_message = "Welcome to the support agent bot!"
     telegram_agent_permission_denied_message = (
         "You don't have permission to access support agent functionality."
@@ -92,7 +118,10 @@ class EnglishTextsProvider(TextsProvider):
                 telegram_username=agent.telegram_username,
                 format_=profile.format,
             )
-            lines.extend(["", f"Assigned to {agent_ref}"])
+            lines.extend(("", f"Assigned to {agent_ref}"))
+        if conversation.tags:
+            tags = [self._format_telegram_tag(tag) for tag in conversation.tags]
+            lines.extend(("", " ".join(tags)))
         return Text(text="\n".join(lines), format=profile.format)
 
     def _format_message(self, message: Message) -> str:
@@ -136,3 +165,12 @@ class EnglishTextsProvider(TextsProvider):
             return f'<a href="{url}">{escaped_name}</a>'
 
         raise ValueError(f"text format {format_.value!r} is not supported")
+
+    def _format_telegram_tag(self, tag: ConversationTag) -> str:
+        tag_name = tag.name
+        tag_name = re.sub(r"\s+", "_", tag_name)
+        tag_name = re.sub(r"\W+", "", tag_name)
+        tag_name = tag_name.strip("_")
+        if not tag_name:
+            tag_name = f"tag_{tag.id}"  # assuming that database IDs are safe
+        return f"#{tag_name}"
