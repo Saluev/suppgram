@@ -29,7 +29,10 @@ dev = [
     "pytest~=7.4.2",
     "pytest-asyncio~=0.21.1",
 ]
-pubnub = ["pubnub~=7.3.1"]
+pubnub = [
+    "aioconsole~=0.6.2",
+    "pubnub~=7.3.1",
+]
 shell = ["aioconsole~=0.6.2"]
 sqlalchemy = ["SQLAlchemy~=2.0.22"]
 telegram = ["python-telegram-bot~=20.6"]

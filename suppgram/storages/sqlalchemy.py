@@ -130,6 +130,9 @@ class Agent(Base):
     telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_username: Mapped[str] = mapped_column(String, nullable=True)
     workplaces: Mapped[List["Workplace"]] = relationship(back_populates="agent")
+    created_conversation_tags: Mapped[List["ConversationTag"]] = relationship(
+        back_populates="created_by"
+    )  # `created_conversation_tags` is not really needed, but without it mypy terminates with an exception...
 
 
 class Workplace(Base):
@@ -151,7 +154,8 @@ class ConversationTag(Base):
         DateTime(timezone=True), nullable=False
     )
     created_by_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=False)
-    created_by: Mapped[Agent] = relationship()
+    created_by: Mapped[Agent] = relationship(back_populates="created_conversation_tags")
+    # `back_populates` is not really needed, but without it mypy terminates with an exception...
 
 
 association_table = Table(
@@ -424,7 +428,7 @@ class SQLAlchemyStorage(Storage):
 
     async def get_conversations(
         self, conversation_ids: List[Any], with_messages: bool = False
-    ) -> List[Conversation]:
+    ) -> List[ConversationInterface]:
         async with self._session() as session:
             options = [
                 joinedload(self._conversation_model.customer),
@@ -468,20 +472,20 @@ class SQLAlchemyStorage(Storage):
             if update_values := self._make_update_values(
                 diff, exclude_fields=["added_tags", "removed_tags"]
             ):
-                query = (
+                update_query = (
                     update(self._conversation_model)
                     .filter(filter_)
                     .values(**update_values)
                 )
-                result = await session.execute(query)
+                result = await session.execute(update_query)
                 if unassigned_only and result.rowcount == 0:
                     raise WorkplaceAlreadyAssigned()
 
             if diff.added_tags:
-                query = association_table.insert().values(
+                insert_query = association_table.insert().values(
                     [(conv.id, tag.id) for tag in diff.added_tags]
                 )
-                await session.execute(query)
+                await session.execute(insert_query)
 
             if diff.removed_tags:
                 filter_ = (Column("conversation_id") == conv.id) & (
@@ -489,8 +493,8 @@ class SQLAlchemyStorage(Storage):
                         tag.id for tag in diff.removed_tags
                     )
                 )
-                query = association_table.delete().where(filter_)
-                await session.execute(query)
+                delete_query = association_table.delete().where(filter_)
+                await session.execute(delete_query)
 
     async def get_agent_conversation(
         self, identification: WorkplaceIdentification
@@ -589,8 +593,8 @@ class SQLAlchemyStorage(Storage):
     def _convert_conversation(
         self, conversation: Conversation, with_messages: bool
     ) -> ConversationInterface:
-        assigned_agent: Optional[Agent] = None
-        assigned_workplace: Optional[Workplace] = None
+        assigned_agent: Optional[AgentInterface] = None
+        assigned_workplace: Optional[WorkplaceInterface] = None
         if conversation.assigned_workplace:
             assigned_agent = self._convert_agent(conversation.assigned_workplace.agent)
             assigned_workplace = self._convert_workplace(

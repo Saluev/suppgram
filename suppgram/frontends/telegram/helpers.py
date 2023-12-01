@@ -1,6 +1,6 @@
 import functools
 from itertools import zip_longest
-from typing import Callable, TypeVar, Iterable, Coroutine, List
+from typing import Callable, TypeVar, Iterable, Coroutine, List, Any
 
 from telegram import Update, InlineKeyboardButton
 from telegram.ext import ContextTypes
@@ -9,9 +9,7 @@ T = TypeVar("T")
 
 
 def send_text_answer(
-    handler: Callable[
-        [T, Update, ContextTypes.DEFAULT_TYPE], Coroutine[None, None, str]
-    ]
+    handler: Callable[[T, Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, str]]
 ) -> Callable[[T, Update, ContextTypes.DEFAULT_TYPE], Coroutine[None, None, None]]:
     @functools.wraps(handler)
     async def wrapped_handler(

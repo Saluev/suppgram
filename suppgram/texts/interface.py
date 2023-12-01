@@ -44,7 +44,7 @@ class TextsProvider:
     telegram_customer_conversation_resolved_message: str
 
     def compose_customer_conversation_resolved_message(self, rating: int) -> str:
-        pass
+        raise NotImplementedError
 
     telegram_manager_start_message: str
     telegram_manager_permission_denied_message: str

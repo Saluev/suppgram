@@ -344,8 +344,11 @@ class TelegramManagerFrontend(ManagerFrontend):
     @send_text_answer
     async def _handle_create_conversation_tag_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> Iterable[str]:
+    ) -> str:
         assert update.message, "command update with `TEXT` filter should have `message`"
+        assert (
+            update.message.text
+        ), "command update with `TEXT` filter should have `message.text`"
         assert update.effective_user, "command update should have `effective_user`"
         try:
             agent = await self._backend.identify_agent(
