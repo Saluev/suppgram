@@ -24,7 +24,7 @@ from sqlalchemy import (
     Table,
     Column,
 )
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import (
     declarative_base,
@@ -58,11 +58,17 @@ from suppgram.errors import (
     WorkplaceNotFound,
     AgentNotFound,
     WorkplaceAlreadyAssigned,
-    CustomerNotFound,
+    AgentAlreadyExists,
 )
 from suppgram.storage import Storage
 
 Base = declarative_base()
+
+# @as_declarative()
+# class Base:
+#     def __init__(self, *args, **kwargs) -> None:
+#         # See https://github.com/dropbox/sqlalchemy-stubs/issues/40.
+#         pass
 
 
 # class CustomerBase:
@@ -110,12 +116,14 @@ Base = declarative_base()
 class Customer(Base):
     __tablename__ = "suppgram_customers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True, unique=True)
     telegram_first_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_username: Mapped[str] = mapped_column(String, nullable=True)
-    shell_uuid: Mapped[str] = mapped_column(String, nullable=True)
-    pubnub_user_id: Mapped[str] = mapped_column(String, nullable=True)
+    shell_uuid: Mapped[str] = mapped_column(String, nullable=True, unique=True)
+    pubnub_user_id: Mapped[str] = mapped_column(
+        String, nullable=True
+    )  # TODO unique together with channel
     pubnub_channel_id: Mapped[str] = mapped_column(String, nullable=True)
     conversations: Mapped[List["Conversation"]] = relationship(
         back_populates="customer"
@@ -125,7 +133,7 @@ class Customer(Base):
 class Agent(Base):
     __tablename__ = "suppgram_agents"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True, unique=True)
     telegram_first_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_username: Mapped[str] = mapped_column(String, nullable=True)
@@ -283,15 +291,20 @@ class SQLAlchemyStorage(Storage):
             return self._convert_agent(agent)
 
     async def create_agent(self, identification: AgentIdentification) -> AgentInterface:
-        async with self._session() as session, session.begin():
-            agent = self._make_model(
-                identification,
-                self._agent_model,
-            )
-            session.add(agent)
-            await session.flush()
-            await session.refresh(agent)
-            return self._convert_agent(agent)
+        try:
+            async with self._session() as session, session.begin():
+                agent = self._make_model(
+                    identification,
+                    self._agent_model,
+                )
+                session.add(agent)
+                await session.flush()
+                await session.refresh(agent)
+                return self._convert_agent(agent)
+        except IntegrityError as exc:
+            if "UNIQUE constraint failed" in str(exc):
+                raise AgentAlreadyExists(identification) from exc
+            raise
 
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
         async with self._session() as session, session.begin():

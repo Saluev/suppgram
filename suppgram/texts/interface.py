@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Literal, Collection
 
-from suppgram.entities import Conversation, Customer, ConversationTag
+from suppgram.entities import Conversation, Customer, ConversationTag, ConversationState
 
 TelegramParseMode = Optional[Literal["MarkdownV2", "HTML"]]
 
@@ -48,6 +48,7 @@ class TextsProvider:
 
     telegram_manager_start_message: str
     telegram_manager_permission_denied_message: str
+    telegram_agents_command_description: str
     telegram_send_new_conversations_command_description: str
 
     # Tags
@@ -75,6 +76,12 @@ class TextsProvider:
         self, customer: Customer, allowed_formats: Collection[Format] = (Format.PLAIN,)
     ) -> Text:
         raise NotImplementedError
+
+    CONVERSATION_STATE_TO_EMOJI = {
+        ConversationState.NEW: "❗️",
+        ConversationState.ASSIGNED: "⏳",
+        ConversationState.RESOLVED: "✅",
+    }
 
     def compose_telegram_new_conversation_notification(
         self, conversation: Conversation

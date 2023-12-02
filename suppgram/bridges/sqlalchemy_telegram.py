@@ -96,10 +96,14 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
 
     async def upsert_group(self, telegram_chat_id: int) -> TelegramGroupInterface:
         async with self._session() as session, session.begin():
-            session.add(TelegramGroup(telegram_chat_id=telegram_chat_id))
-            return TelegramGroupInterface(
-                telegram_chat_id=telegram_chat_id, roles=frozenset()
+            query = select(self._group_model).filter(
+                self._group_model.telegram_chat_id == telegram_chat_id
             )
+            group = (await session.execute(query)).scalars().one_or_none()
+            if group is None:
+                group = TelegramGroup(telegram_chat_id=telegram_chat_id)
+                session.add(group)
+            return self._convert_group(group)
 
     async def add_group_role(self, telegram_chat_id: int, role: TelegramGroupRole):
         async with self._session() as session, session.begin():

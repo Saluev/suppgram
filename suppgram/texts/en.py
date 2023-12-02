@@ -40,6 +40,9 @@ class EnglishTextsProvider(TextsProvider):
     telegram_manager_permission_denied_message = (
         "You don't have permission to access manager functionality."
     )
+    telegram_agents_command_description = (
+        "Make all members of this group support agents."
+    )
     telegram_send_new_conversations_command_description = (
         "Send notifications about new conversations to this group."
     )
@@ -115,8 +118,9 @@ class EnglishTextsProvider(TextsProvider):
             conversation.customer,
             allowed_formats=Format.get_formats_supported_by_telegram(),
         )
+        emoji = self.CONVERSATION_STATE_TO_EMOJI.get(conversation.state, "")
         lines = [
-            f"Conversation in status #{conversation.state.upper()}",
+            f"{emoji} Conversation in status #{conversation.state.upper()}",
             "",
             f"Customer: {profile.text}",
             "",

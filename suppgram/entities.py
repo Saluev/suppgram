@@ -126,7 +126,7 @@ class ConversationTag:
 @dataclass(frozen=True)
 class Conversation:
     id: Any
-    state: str
+    state: ConversationState
     customer: Customer
     tags: List[ConversationTag]
     assigned_agent: Optional[Agent] = None

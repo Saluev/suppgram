@@ -1,6 +1,6 @@
 import logging
 from importlib import import_module
-from typing import Optional, List, Any, Iterable
+from typing import Optional, List, Any, Iterable, cast
 from uuid import UUID, uuid4
 
 from suppgram.backend import WorkplaceManager, Backend
@@ -272,16 +272,20 @@ class Builder:
             )
 
         if self._pubnub_configuration:
+            from suppgram.frontends.pubnub.converter import MessageConverter
             from suppgram.frontends.pubnub.customer_frontend import (
                 PubNubCustomerFrontend,
             )
 
             logger.info("Initializing PubNub customer frontend")
+
             self._customer_frontends.append(
                 PubNubCustomerFrontend(
                     backend=self._build_backend(),
-                    message_converter=self._pubnub_message_converter,
-                    pubnub_channel_group=self._pubnub_channel_group,
+                    message_converter=cast(
+                        MessageConverter, self._pubnub_message_converter
+                    ),
+                    pubnub_channel_group=cast(str, self._pubnub_channel_group),
                     pubnub_configuration=self._pubnub_configuration,
                 )
             )
@@ -297,9 +301,11 @@ class Builder:
 
             self._agent_frontends.append(
                 TelegramAgentFrontend(
-                    tokens=self._telegram_agent_bot_tokens,
+                    agent_bot_tokens=self._telegram_agent_bot_tokens,
+                    manager_bot_token=self._telegram_manager_bot_token,
                     app_manager=self._build_telegram_app_manager(),
                     backend=self._build_backend(),
+                    storage=self._build_telegram_storage(),
                     texts=self._build_texts(),
                 )
             )

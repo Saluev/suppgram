@@ -1,7 +1,8 @@
 from itertools import groupby
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 
-from telegram import Update, BotCommand
+from telegram import Update, BotCommand, User, Bot
+from telegram.error import TelegramError
 from telegram.ext import (
     MessageHandler,
     ContextTypes,
@@ -16,18 +17,24 @@ from suppgram.entities import (
     MessageKind,
     Message,
     NewMessageForAgentEvent,
+    AgentDiff,
 )
-from suppgram.errors import ConversationNotFound, AgentNotFound
+from suppgram.errors import ConversationNotFound, AgentNotFound, AgentAlreadyExists
 from suppgram.frontend import (
     AgentFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.helpers import send_text_answer
 from suppgram.frontends.telegram.identification import (
     make_agent_identification,
     make_workplace_identification,
 )
+from suppgram.frontends.telegram.interfaces import (
+    TelegramStorage,
+    TelegramGroupRole,
+    TelegramGroup,
+)
 from suppgram.helpers import flat_gather
-from suppgram.permissions import Permission
 from suppgram.texts.interface import TextsProvider
 
 
@@ -36,15 +43,18 @@ class TelegramAgentFrontend(AgentFrontend):
 
     def __init__(
         self,
-        tokens: List[str],
+        agent_bot_tokens: List[str],
+        manager_bot_token: Optional[str],
         app_manager: TelegramAppManager,
         backend: Backend,
+        storage: TelegramStorage,
         texts: TextsProvider,
     ):
         self._backend = backend
+        self._storage = storage
         self._texts = texts
         self._telegram_apps: List[Application] = []
-        for token in tokens:
+        for token in agent_bot_tokens:
             app = app_manager.get_app(token)
             app.add_handlers(
                 [
@@ -60,6 +70,9 @@ class TelegramAgentFrontend(AgentFrontend):
                 ]
             )
             self._telegram_apps.append(app)
+        self._manager_bot: Optional[Bot] = (
+            app_manager.get_app(manager_bot_token).bot if manager_bot_token else None
+        )
         self._backend.on_new_message_for_agent.add_batch_handler(
             self._handle_new_message_for_agent_events
         )
@@ -83,27 +96,57 @@ class TelegramAgentFrontend(AgentFrontend):
         await flat_gather(app.updater.start_polling() for app in self._telegram_apps)
         await flat_gather(app.start() for app in self._telegram_apps)
 
+    @send_text_answer
     async def _handle_start_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    ) -> str:
         assert (
             update.effective_chat
         ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
         assert (
             update.effective_user
         ), "command update with `ChatType.PRIVATE` filter should have `effective_user`"
+        identification = make_agent_identification(update.effective_user)
         try:
-            agent = await self._backend.identify_agent(
-                make_agent_identification(update.effective_user)
-            )
+            await self._backend.identify_agent(identification)
         except AgentNotFound:
-            answer = self._texts.telegram_manager_permission_denied_message
-        else:
-            if self._backend.check_permission(agent, Permission.SUPPORT):
-                answer = self._texts.telegram_agent_start_message
-            else:
-                answer = self._texts.telegram_agent_permission_denied_message
-        await context.bot.send_message(update.effective_chat.id, answer)
+            should_create = await self._check_belongs_to_agent_groups(
+                update.effective_user
+            )
+            if not should_create:
+                return self._texts.telegram_manager_permission_denied_message
+            try:
+                await self._backend.create_agent(identification)
+            except AgentAlreadyExists:
+                pass
+            await self._backend.update_agent(
+                identification,
+                AgentDiff(
+                    telegram_first_name=update.effective_user.first_name,
+                    telegram_last_name=update.effective_user.last_name,
+                    telegram_username=update.effective_user.username,
+                ),
+            )
+        return self._texts.telegram_agent_start_message
+
+    async def _check_belongs_to_agent_groups(self, user: User) -> bool:
+        groups = await self._storage.get_groups_by_role(TelegramGroupRole.AGENTS)
+        return any(
+            await flat_gather(
+                self._check_belongs_to_group(user, group) for group in groups
+            )
+        )
+
+    async def _check_belongs_to_group(self, user: User, group: TelegramGroup) -> bool:
+        if self._manager_bot is None:
+            return False
+        try:
+            member = await self._manager_bot.get_chat_member(
+                chat_id=group.telegram_chat_id, user_id=user.id
+            )
+            return member.status in (member.ADMINISTRATOR, member.OWNER, member.MEMBER)
+        except TelegramError:  # TODO more precise exception handling
+            return False
 
     async def _handle_resolve_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE

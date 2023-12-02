@@ -85,7 +85,9 @@ class TelegramCustomerFrontend(CustomerFrontend):
         assert (
             update.callback_query
         ), "callback query update should have `callback_query`"
-        # TODO should it have effective chat?..
+        assert (
+            update.effective_chat
+        ), "callback query update should have `effective_chat`"
         assert (
             update.effective_user
         ), "callback query update should have `effective_user`"
@@ -147,6 +149,9 @@ class TelegramCustomerFrontend(CustomerFrontend):
             )
 
     async def _handle_conversation_resolution(self, event: NewMessageForCustomerEvent):
+        if event.customer.telegram_user_id is None:
+            return
+
         reply_markup = InlineKeyboardMarkup(
             [
                 [

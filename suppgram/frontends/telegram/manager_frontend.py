@@ -67,6 +67,7 @@ class CallbackActionKind(str, Enum):
 
 class TelegramManagerFrontend(ManagerFrontend):
     _SEND_NEW_CONVERSATIONS_COMMAND = "send_new_conversations"
+    _AGENTS_COMMAND = "agents"
     _CREATE_CONVERSATION_TAG_COMMAND = "create_tag"
 
     def __init__(
@@ -106,6 +107,11 @@ class TelegramManagerFrontend(ManagerFrontend):
                     "start", self._handle_start_command, filters=ChatType.PRIVATE
                 ),
                 CommandHandler(
+                    self._AGENTS_COMMAND,
+                    self._handle_agents_command,
+                    filters=ChatType.GROUP,
+                ),
+                CommandHandler(
                     self._SEND_NEW_CONVERSATIONS_COMMAND,
                     self._handle_send_new_conversations_command,
                     filters=ChatType.GROUP,
@@ -123,6 +129,10 @@ class TelegramManagerFrontend(ManagerFrontend):
         await self._telegram_app.initialize()
         await self._telegram_bot.set_my_commands(
             [
+                BotCommand(
+                    self._AGENTS_COMMAND,
+                    self._texts.telegram_agents_command_description,
+                ),
                 BotCommand(
                     self._SEND_NEW_CONVERSATIONS_COMMAND,
                     self._texts.telegram_send_new_conversations_command_description,
@@ -379,7 +389,9 @@ class TelegramManagerFrontend(ManagerFrontend):
         assert (
             update.callback_query
         ), "callback query update should have `callback_query`"
-        # TODO should it have effective chat?..
+        assert (
+            update.effective_chat
+        ), "callback query update should have `effective_chat`"
         assert (
             update.effective_user
         ), "callback query update should have `effective_user`"
@@ -434,6 +446,28 @@ class TelegramManagerFrontend(ManagerFrontend):
                 telegram_username=effective_user.username,
             ),
         )
+
+    async def _handle_agents_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        assert (
+            update.effective_chat
+        ), "command update with `ChatType.GROUP` filter should have `effective_chat`"
+        assert (
+            update.effective_user
+        ), "command update with `ChatType.GROUP` filter should have `effective_user`"
+        workplace = await self._backend.identify_workplace(
+            make_workplace_identification(update, update.effective_user)
+        )
+        if not self._backend.check_permission(
+            workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE
+        ):
+            return  # TODO negative answer
+        await self._storage.upsert_group(update.effective_chat.id)
+        await self._storage.add_group_role(
+            update.effective_chat.id, TelegramGroupRole.AGENTS
+        )
+        # TODO positive answer
 
     async def _handle_send_new_conversations_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
