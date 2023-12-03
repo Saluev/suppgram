@@ -18,8 +18,13 @@ from suppgram.entities import (
 
 
 class Storage(abc.ABC):
+    """
+    Storage encapsulates functionality related to storing data persistently in a database,
+    allowing to integrate Suppgram into systems with various tech stacks.
+    """
+
     async def initialize(self):
-        pass
+        """Performs asynchronous initialization if needed."""
 
     @abc.abstractmethod
     async def create_or_update_customer(
@@ -27,7 +32,14 @@ class Storage(abc.ABC):
         identification: CustomerIdentification,
         diff: Optional[CustomerDiff] = None,
     ) -> Customer:
-        pass
+        """Creates or updates customer identified by given `identification` with new data provided in `diff`.
+
+        Can be used with `diff=None` to get already existing customer with no changes applied.
+
+        Parameters:
+            identification: data necessary to uniquely identify the customer.
+            diff: optional metadata to be updated.
+        """
 
     @abc.abstractmethod
     async def get_agent(self, identification: AgentIdentification) -> Agent:

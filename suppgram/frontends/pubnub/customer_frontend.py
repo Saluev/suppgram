@@ -14,6 +14,15 @@ from suppgram.frontends.pubnub.identification import make_customer_identificatio
 
 
 class PubNubCustomerFrontend(CustomerFrontend):
+    """
+    Allows customers to access the support system via PubNub channels.
+
+    All channels from a specific PubNub channel group will be considered
+    individual chats with support. When agent responds, agent's message content
+    will be copied and sent to the customer on behalf of a particular PubNub user
+    (e.g. with user ID "support").
+    """
+
     def __init__(
         self,
         backend: Backend,
@@ -21,6 +30,17 @@ class PubNubCustomerFrontend(CustomerFrontend):
         pubnub_channel_group: str,
         pubnub_configuration: Configuration,  # user ID to send messages from is also in there
     ):
+        """
+        This constructor should not be used directly; use [Builder](suppgram.builder.Builder) instead.
+
+        Arguments:
+            backend: used backend instance.
+            message_converter: helper object responsible for converting messages between Suppgram dataclasses
+                               and project-specific PubNub JSONs.
+            pubnub_channel_group: name of PubNub channel group which includes all individual chats with support.
+                                  Will be used to subscribe for updates from all those chats at once.
+            pubnub_configuration: PubNub client configuration.
+        """
         self._message_converter = message_converter
         self._pubnub = pubnub_configuration.instantiate_async()
         self._pubnub.add_listener(_SubscribeCallback(backend, message_converter))

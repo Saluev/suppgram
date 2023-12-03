@@ -16,7 +16,18 @@ from suppgram.texts.interface import TextsProvider
 
 
 class ShellCustomerFrontend(CustomerFrontend):
+    """
+    Allows customers to access the support system via terminal.
+
+    Useful for debug purposes.
+    """
+
     def __init__(self, backend: Backend, texts: TextsProvider):
+        """
+        Arguments:
+            backend: used backend instance.
+            texts: texts provider.
+        """
         self._uuid = uuid.uuid4()
         self._backend = backend
         self._texts = texts

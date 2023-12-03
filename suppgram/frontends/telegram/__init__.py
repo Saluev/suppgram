@@ -1,0 +1,3 @@
+from .customer_frontend import TelegramCustomerFrontend
+from .agent_frontend import TelegramAgentFrontend
+from .manager_frontend import TelegramManagerFrontend

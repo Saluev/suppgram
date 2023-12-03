@@ -1,1 +1,2 @@
 from .converter import DefaultMessageConverter
+from .customer_frontend import PubNubCustomerFrontend

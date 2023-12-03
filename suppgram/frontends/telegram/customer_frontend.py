@@ -37,6 +37,15 @@ class CallbackActionKind(str, Enum):
 
 
 class TelegramCustomerFrontend(CustomerFrontend):
+    """
+    Allows customers to access the support system via Telegram bot.
+
+    All messages from all users to a specific Telegram bot will be considered
+    messages to the support. When agent responds, the bot will copy agent's
+    message content and send it to the customer. Important: the message will be
+    copied, not forwarded; thus the agent's identity will remain hidden.
+    """
+
     def __init__(
         self,
         token: str,
@@ -45,6 +54,16 @@ class TelegramCustomerFrontend(CustomerFrontend):
         storage: TelegramStorage,
         texts: TextsProvider,
     ):
+        """
+        This constructor should not be used directly; use [Builder](suppgram.builder.Builder) instead.
+
+        Arguments:
+            token: Telegram bot token.
+            app_manager: helper object storing built `telegram.ext.Application` instances.
+            backend: used backend instance.
+            storage: helper object encapsulating persistent storage of Telegram-specific data.
+            texts: texts provider.
+        """
         self._backend = backend
         self._texts = texts
         self._storage = storage

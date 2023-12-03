@@ -13,7 +13,7 @@ from sqlalchemy import (
     update,
     Column,
 )
-from sqlalchemy.exc import NoResultFound, IntegrityError
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import (
     joinedload,
@@ -41,7 +41,6 @@ from suppgram.errors import (
     WorkplaceNotFound,
     AgentNotFound,
     WorkplaceAlreadyAssigned,
-    AgentAlreadyExists,
 )
 from suppgram.storage import Storage
 from suppgram.storages.sqlalchemy.models import (
@@ -55,7 +54,16 @@ T = TypeVar("T", bound=Base)
 
 
 class SQLAlchemyStorage(Storage):
+    """ Implementation of [Storage][suppgram.storage.Storage] for SQLAlchemy."""
+
     def __init__(self, engine: AsyncEngine, models: Models):
+        """
+        Parameters:
+            engine: asynchronous SQLAlchemy engine
+            models: collection of SQLAlchemy model types.
+                    Allows using custom models, possibly enriched with some
+                    business-specific fields or stripped of unnecessary columns
+                    (e.g. for frontends you are not going to use)."""
         self._engine = engine
         self._models = models
         self._session = async_sessionmaker(bind=engine)
@@ -377,7 +385,3 @@ class SQLAlchemyStorage(Storage):
                 v = None
             result[k] = v
         return result
-
-
-def _is_unique_constraint_failed(exc: IntegrityError) -> bool:
-    return "UNIQUE constraint failed" in str(exc)

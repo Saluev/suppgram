@@ -26,6 +26,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "mkdocs~=1.5.3",
+    "mkdocstrings~=0.24.0",
+    "mkdocstrings-python~=1.7.5",
     "pytest~=7.4.2",
     "pytest-asyncio~=0.21.1",
 ]
