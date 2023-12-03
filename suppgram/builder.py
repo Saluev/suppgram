@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from suppgram.backend import WorkplaceManager, Backend
 from suppgram.entities import AgentIdentification
+from suppgram.errors import NoStorageSpecified, NoFrontendSpecified
 from suppgram.frontend import ManagerFrontend, CustomerFrontend, AgentFrontend
 from suppgram.helpers import flat_gather
 from suppgram.permissions import PermissionChecker
@@ -146,7 +147,7 @@ class Builder:
 
     def _build_storage(self) -> Storage:
         if self._storage is None:
-            raise ValueError("no storage specified")
+            raise NoStorageSpecified()
         return self._storage
 
     def _build_texts(self) -> TextsProvider:
@@ -183,7 +184,7 @@ class Builder:
 
             self._telegram_storage = SQLAlchemyTelegramBridge(self._sqlalchemy_engine)
         else:
-            raise ValueError("no storage specified")
+            raise NoStorageSpecified()
         return self._telegram_storage
 
     def _build_permission_checkers(self) -> List[PermissionChecker]:
@@ -317,17 +318,26 @@ class Builder:
 
         return self._agent_frontends
 
-    def _build(self):
+    def build(self):
         self._build_backend()
         self._build_manager_frontend()
         self._build_customer_frontends()
         self._build_agent_frontends()
+        from suppgram.backends.local import LocalBackend
+
+        if (
+            not self._customer_frontends
+            and not self._agent_frontends
+            and self._manager_frontend is None
+            and isinstance(self._backend, LocalBackend)
+        ):
+            raise NoFrontendSpecified()
 
     async def _initialize(self):
         if self._initialized:
             return
 
-        self._build()
+        self.build()
 
         await self._storage.initialize()
         if self._telegram_storage:

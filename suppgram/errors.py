@@ -1,6 +1,14 @@
 from suppgram.entities import WorkplaceIdentification, AgentIdentification
 
 
+class NoStorageSpecified(Exception):
+    pass
+
+
+class NoFrontendSpecified(Exception):
+    pass
+
+
 class AgentException(Exception):
     def __init__(self, identification: AgentIdentification):
         self.identification = identification

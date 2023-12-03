@@ -1,11 +1,14 @@
 import asyncio
 import logging
+import os
 import sys
 from typing import Optional, List
 
 import click
+from click import UsageError
 
 from suppgram.builder import Builder
+from suppgram.errors import NoStorageSpecified, NoFrontendSpecified
 from suppgram.frontends.pubnub.errors import MissingCredentials
 from suppgram.logging import ConfidentialStreamHandler
 
@@ -28,19 +31,25 @@ from suppgram.logging import ConfidentialStreamHandler
     help="Class with texts",
 )
 @click.option(
-    "--telegram-customer-bot-token",
+    "--telegram-customer-bot-token-file",
     default=None,
-    help="Token for Telegram bot serving customers",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to file storing token for Telegram bot serving customers. "
+    "Alternatively, environment variable TELEGRAM_CUSTOMER_BOT_TOKEN may be used",
 )
 @click.option(
-    "--telegram-manager-bot-token", default=None, help="Token for Telegram manager bot"
+    "--telegram-manager-bot-token-file",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to file storing token for Telegram manager bot. "
+    "Alternatively, environment variable TELEGRAM_MANAGER_BOT_TOKEN may be used",
 )
 @click.option(
-    "--telegram-agent-bot-token",
-    "telegram_agent_bot_tokens",
-    default=[],
-    multiple=True,
-    help="Token(s) for Telegram bot(s) serving agents",
+    "--telegram-agent-bot-tokens-file",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to file storing token(s) for Telegram bot(s) serving agents. "
+    "Alternatively, environment variable TELEGRAM_AGENT_BOT_TOKENS may be used",
 )
 @click.option(
     "--telegram-owner-id",
@@ -71,21 +80,38 @@ from suppgram.logging import ConfidentialStreamHandler
     "pubnub_message_converter_class_path",
     default="suppgram.frontends.pubnub.DefaultMessageConverter",
     show_default=True,
-    help="Class converting messages between PubNub JSONs and suppgram Message objects",
+    help="Class converting messages between PubNub JSONs and `suppgram.entities.Message` objects",
 )
 def run_all_in_one(
     loglevel: str,
     sqlalchemy_url: Optional[str],
     texts_class_path: str,
-    telegram_customer_bot_token: Optional[str],
-    telegram_manager_bot_token: Optional[str],
-    telegram_agent_bot_tokens: List[str],
+    telegram_customer_bot_token_file: Optional[str],
+    telegram_manager_bot_token_file: Optional[str],
+    telegram_agent_bot_tokens_file: Optional[str],
     telegram_owner_id: Optional[int],
     customer_shell: bool,
     pubnub_user_id: str,
     pubnub_channel_group: str,
     pubnub_message_converter_class_path: str,
 ):
+    telegram_customer_bot_token: Optional[str] = os.environ.get(
+        "TELEGRAM_CUSTOMER_BOT_TOKEN"
+    ) or _read_secret_from_file(telegram_customer_bot_token_file)
+
+    telegram_manager_bot_token: Optional[str] = os.environ.get(
+        "TELEGRAM_MANAGER_BOT_TOKEN"
+    ) or _read_secret_from_file(telegram_manager_bot_token_file)
+
+    telegram_agent_bot_tokens_joined: Optional[str] = os.environ.get(
+        "TELEGRAM_AGENT_BOT_TOKENS"
+    ) or _read_secret_from_file(telegram_agent_bot_tokens_file)
+    telegram_agent_bot_tokens = (
+        telegram_agent_bot_tokens_joined.split()
+        if telegram_agent_bot_tokens_joined
+        else []
+    )
+
     replacements = {}
     if telegram_customer_bot_token:
         replacements[telegram_customer_bot_token] = "__CUSTOMER_BOT_TOKEN__"
@@ -132,9 +158,28 @@ def run_all_in_one(
     except (ImportError, MissingCredentials):
         pass
 
+    try:
+        builder.build()
+    except NoStorageSpecified as exc:
+        raise UsageError(
+            "No storage specified. Consider specifying --sqlalchemy-url parameter."
+        ) from exc
+    except NoFrontendSpecified as exc:
+        raise UsageError(
+            "No frontend specified. In this setting the application is not going to do anything.\n"
+            "Consider specifying --telegram-*, --pubnub-* or --customer-shell parameters."
+        ) from exc
+
     loop = asyncio.new_event_loop()
     loop.run_until_complete(builder.start())
     loop.run_forever()
+
+
+def _read_secret_from_file(path: Optional[str]) -> Optional[str]:
+    if path is None:
+        return None
+    with open(path) as f:
+        return f.read().strip()
 
 
 if __name__ == "__main__":
