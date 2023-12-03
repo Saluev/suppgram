@@ -32,7 +32,7 @@ class EnglishTextsProvider(TextsProvider):
     def compose_customer_conversation_resolved_message(self, rating: int) -> str:
         return (
             self.telegram_customer_conversation_resolved_message_placeholder
-            + "\n\nYour rating: "
+            + "\n\nHow you rated this conversation: "
             + self.format_rating(rating)
         )
 

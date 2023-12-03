@@ -1,5 +1,5 @@
 import abc
-from typing import List, Any
+from typing import List, Any, Optional
 
 from suppgram.entities import (
     CustomerIdentification,
@@ -22,15 +22,11 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_or_create_customer(
-        self, identification: CustomerIdentification
-    ) -> Customer:
-        pass
-
-    @abc.abstractmethod
     async def create_or_update_customer(
-        self, identification: CustomerIdentification, diff: CustomerDiff
-    ):
+        self,
+        identification: CustomerIdentification,
+        diff: Optional[CustomerDiff] = None,
+    ) -> Customer:
         pass
 
     @abc.abstractmethod
@@ -38,11 +34,15 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create_agent(self, identification: AgentIdentification) -> Agent:
+    async def create_or_update_agent(
+        self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
+    ) -> Agent:
         pass
 
     @abc.abstractmethod
-    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
+    async def update_agent(
+        self, identification: AgentIdentification, diff: AgentDiff
+    ) -> Agent:
         pass
 
     @abc.abstractmethod
@@ -55,7 +55,7 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def get_or_create_workplace(
-        self, agent: Agent, identification: WorkplaceIdentification
+        self, identification: WorkplaceIdentification
     ) -> Workplace:
         pass
 
@@ -64,7 +64,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_all_tags(self) -> List[ConversationTag]:
+    async def find_all_tags(self) -> List[ConversationTag]:
         pass
 
     @abc.abstractmethod
@@ -72,7 +72,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_conversations(
+    async def find_conversations_by_ids(
         self, conversation_ids: List[Any], with_messages: bool = False
     ) -> List[Conversation]:
         pass

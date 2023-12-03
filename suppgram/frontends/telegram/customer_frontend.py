@@ -1,6 +1,7 @@
 import json
 import logging
 from enum import Enum
+from typing import cast
 
 from telegram import Update, Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -193,7 +194,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
                 chat_id=message.group.telegram_chat_id,
                 message_id=message.telegram_message_id,
                 text=self._texts.compose_customer_conversation_resolved_message(
-                    event.conversation.customer_rating
+                    cast(int, event.conversation.customer_rating)
                 ),
                 reply_markup=None,
             )

@@ -69,12 +69,17 @@ class Builder:
                 f"can't use SQLAlchemy storage — already instantiated {type(self._storage).__name__}"
             )
 
-        from suppgram.storages.sqlalchemy import SQLAlchemyStorage
+        from suppgram.storages.sqlalchemy.models import Models
+        from suppgram.storages.sqlalchemy.storage import SQLAlchemyStorage
 
         from sqlalchemy.ext.asyncio import create_async_engine
 
         self._sqlalchemy_engine = create_async_engine(sqlalchemy_url)
-        self._storage = SQLAlchemyStorage(self._sqlalchemy_engine)
+        sqlalchemy_models = Models(self._sqlalchemy_engine)
+        self._storage = SQLAlchemyStorage(
+            engine=self._sqlalchemy_engine,
+            models=sqlalchemy_models,
+        )
         return self
 
     def with_texts(self, texts: TextsProvider) -> "Builder":
@@ -329,7 +334,7 @@ class Builder:
             await self._telegram_storage.initialize()
 
         if self._telegram_owner_id:
-            await self._backend.create_agent(  # TODO upsert
+            await self._backend.create_or_update_agent(  # TODO upsert
                 AgentIdentification(telegram_user_id=self._telegram_owner_id)
             )
 

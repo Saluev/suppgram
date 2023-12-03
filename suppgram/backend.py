@@ -1,5 +1,5 @@
 import abc
-from typing import Any, List
+from typing import Any, List, Optional
 
 from suppgram.entities import (
     ConversationEvent,
@@ -36,7 +36,9 @@ class Backend(abc.ABC):
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]
 
     @abc.abstractmethod
-    async def create_agent(self, identification: AgentIdentification) -> Agent:
+    async def create_or_update_agent(
+        self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
+    ) -> Agent:
         pass
 
     @abc.abstractmethod
@@ -44,7 +46,9 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
+    async def update_agent(
+        self, identification: AgentIdentification, diff: AgentDiff
+    ) -> Agent:
         pass
 
     @abc.abstractmethod

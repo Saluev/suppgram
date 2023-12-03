@@ -115,11 +115,7 @@ class TelegramAgentFrontend(AgentFrontend):
             )
             if not should_create:
                 return self._texts.telegram_manager_permission_denied_message
-            try:
-                await self._backend.create_agent(identification)
-            except AgentAlreadyExists:
-                pass
-            await self._backend.update_agent(
+            await self._backend.create_or_update_agent(
                 identification,
                 AgentDiff(
                     telegram_first_name=update.effective_user.first_name,

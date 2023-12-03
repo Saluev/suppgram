@@ -431,21 +431,18 @@ class TelegramManagerFrontend(ManagerFrontend):
 
     async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User):
         identification = make_agent_identification(effective_user)
+        diff = AgentDiff(
+            telegram_first_name=effective_user.first_name,
+            telegram_last_name=effective_user.last_name,
+            telegram_username=effective_user.username,
+        )
         try:
-            agent = await self._backend.identify_agent(identification)
+            await self._backend.update_agent(identification, diff)
         except AgentNotFound:
             group = await self._storage.get_group(effective_chat.id)
             if TelegramGroupRole.AGENTS not in group.roles:
                 return
-            agent = await self._backend.create_agent(identification)
-        await self._backend.update_agent(
-            agent.identification,
-            AgentDiff(
-                telegram_first_name=effective_user.first_name,
-                telegram_last_name=effective_user.last_name,
-                telegram_username=effective_user.username,
-            ),
-        )
+            await self._backend.create_or_update_agent(identification, diff)
 
     async def _handle_agents_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE

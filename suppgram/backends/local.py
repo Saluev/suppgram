@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Iterable, Any
+from typing import List, Iterable, Any, Optional
 
 from suppgram.backend import Backend as BackendInterface, WorkplaceManager
 from suppgram.entities import (
@@ -57,13 +57,17 @@ class LocalBackend(BackendInterface):
         ]()
         self.on_new_message_for_agent = LocalObservable[NewMessageForAgentEvent]()
 
-    async def create_agent(self, identification: AgentIdentification) -> Agent:
-        return await self._storage.create_agent(identification)
+    async def create_or_update_agent(
+        self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
+    ) -> Agent:
+        return await self._storage.create_or_update_agent(identification, diff)
 
     async def identify_agent(self, identification: AgentIdentification) -> Agent:
         return await self._storage.get_agent(identification)
 
-    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff):
+    async def update_agent(
+        self, identification: AgentIdentification, diff: AgentDiff
+    ) -> Agent:
         return await self._storage.update_agent(identification, diff)
 
     async def create_or_update_customer(
@@ -74,16 +78,14 @@ class LocalBackend(BackendInterface):
     async def identify_customer_conversation(
         self, identification: CustomerIdentification
     ) -> Conversation:
-        customer = await self._storage.get_or_create_customer(identification)
+        customer = await self._storage.create_or_update_customer(identification)
         conversation = await self._storage.get_or_create_conversation(customer)
         return conversation
 
     async def identify_workplace(
         self, identification: WorkplaceIdentification
     ) -> Workplace:
-        agent = await self._storage.get_agent(identification.to_agent_identification())
-        workplace = await self._storage.get_or_create_workplace(agent, identification)
-        return workplace
+        return await self._storage.get_or_create_workplace(identification)
 
     def check_permission(self, agent: Agent, permission: Permission) -> bool:
         return self._sum_decisions(
@@ -108,7 +110,7 @@ class LocalBackend(BackendInterface):
         # TODO trigger event to update new conversation notifications' keyboards
 
     async def get_all_tags(self) -> List[ConversationTag]:
-        return await self._storage.get_all_tags()
+        return await self._storage.find_all_tags()
 
     async def identify_agent_conversation(
         self, identification: WorkplaceIdentification
@@ -212,7 +214,7 @@ class LocalBackend(BackendInterface):
     async def get_conversations(
         self, conversation_ids: List[Any], with_messages: bool = False
     ) -> List[Conversation]:
-        return await self._storage.get_conversations(
+        return await self._storage.find_conversations_by_ids(
             conversation_ids, with_messages=with_messages
         )
 
@@ -297,7 +299,7 @@ class LocalBackend(BackendInterface):
             extra_workplaces.extend(
                 await flat_gather(
                     self._storage.get_or_create_workplace(  # TODO session/batch
-                        agent, workplace_identification
+                        workplace_identification
                     )
                     for workplace_identification in missing_workplace_identifications
                 )

@@ -13,7 +13,7 @@ from suppgram.frontends.telegram.interfaces import (
     TelegramMessageKind,
     TelegramGroupRole,
 )
-from suppgram.storages.sqlalchemy import Base, Conversation
+from suppgram.storages.sqlalchemy.models import Base, Conversation
 
 
 class TelegramGroup(Base):
@@ -101,7 +101,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             )
             group = (await session.execute(query)).scalars().one_or_none()
             if group is None:
-                group = TelegramGroup(telegram_chat_id=telegram_chat_id)
+                group = TelegramGroup(telegram_chat_id=telegram_chat_id)  # type: ignore
                 session.add(group)
             return self._convert_group(group)
 
