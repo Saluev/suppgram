@@ -1,6 +1,6 @@
 import functools
 from itertools import zip_longest
-from typing import Callable, TypeVar, Iterable, Coroutine, List, Any
+from typing import Callable, TypeVar, Coroutine, List, Any
 
 from telegram import Update, InlineKeyboardButton
 from telegram.ext import ContextTypes
