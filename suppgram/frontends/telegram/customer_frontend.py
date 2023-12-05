@@ -17,7 +17,6 @@ from suppgram.entities import (
     MessageKind,
     Message,
     NewMessageForCustomerEvent,
-    CustomerDiff,
     Conversation,
     ConversationEvent,
 )
@@ -25,7 +24,10 @@ from suppgram.frontend import (
     CustomerFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.identification import make_customer_identification
+from suppgram.frontends.telegram.identification import (
+    make_customer_identification,
+    make_customer_diff,
+)
 from suppgram.frontends.telegram.interfaces import TelegramStorage, TelegramMessageKind
 from suppgram.texts.interface import TextsProvider
 
@@ -89,9 +91,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
         await self._telegram_app.updater.start_polling()
         await self._telegram_app.start()
 
-    async def _handle_start_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert (
             update.effective_chat
         ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
@@ -99,18 +99,10 @@ class TelegramCustomerFrontend(CustomerFrontend):
             update.effective_chat.id, self._texts.telegram_customer_start_message
         )
 
-    async def _handle_callback_query(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
-        assert (
-            update.callback_query
-        ), "callback query update should have `callback_query`"
-        assert (
-            update.effective_chat
-        ), "callback query update should have `effective_chat`"
-        assert (
-            update.effective_user
-        ), "callback query update should have `effective_user`"
+    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.callback_query, "callback query update should have `callback_query`"
+        assert update.effective_chat, "callback query update should have `effective_chat`"
+        assert update.effective_user, "callback query update should have `effective_user`"
         if not update.callback_query.data:
             # No idea how to handle this update.
             return
@@ -120,29 +112,17 @@ class TelegramCustomerFrontend(CustomerFrontend):
         if action == CallbackActionKind.RATE:
             await self._backend.rate_conversation(conversation, callback_data["r"])
         else:
-            logger.info(
-                f"Customer frontend received unsupported callback action {action!r}"
-            )
+            logger.info(f"Customer frontend received unsupported callback action {action!r}")
 
-    async def _handle_text_message(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    async def _handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.message, "update with `TEXT` filter should have `message`"
-        assert (
-            update.effective_user
-        ), "update with `ChatType.PRIVATE` filter should have `effective_user`"
+        assert update.effective_user, "update with `TEXT` filter should have `effective_user`"
         identification = make_customer_identification(update.effective_user)
         await self._backend.create_or_update_customer(
             identification,
-            CustomerDiff(
-                telegram_first_name=update.effective_user.first_name,
-                telegram_last_name=update.effective_user.last_name,
-                telegram_username=update.effective_user.username,
-            ),
+            make_customer_diff(update.effective_user),
         )
-        conversation = await self._backend.identify_customer_conversation(
-            identification
-        )
+        conversation = await self._backend.identify_customer_conversation(identification)
         await self._backend.process_message(
             conversation,
             Message(
@@ -152,9 +132,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
             ),
         )
 
-    async def _handle_new_message_for_customer_event(
-        self, event: NewMessageForCustomerEvent
-    ):
+    async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
         if not event.customer.telegram_user_id:
             return
 
@@ -218,9 +196,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
                 reply_markup=None,
             )
 
-    def _make_rate_button(
-        self, conversation: Conversation, rating: int
-    ) -> InlineKeyboardButton:
+    def _make_rate_button(self, conversation: Conversation, rating: int) -> InlineKeyboardButton:
         return InlineKeyboardButton(
             self._texts.format_rating(rating),
             callback_data=json.dumps(

@@ -50,7 +50,7 @@ class TelegramStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def add_group_role(self, telegram_chat_id: int, role: TelegramGroupRole):
+    async def add_group_roles(self, telegram_chat_id: int, *roles: TelegramGroupRole):
         pass
 
     @abc.abstractmethod

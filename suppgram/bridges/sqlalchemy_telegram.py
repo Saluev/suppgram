@@ -103,13 +103,15 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
                 session.add(group)
             return self._convert_group(group)
 
-    async def add_group_role(self, telegram_chat_id: int, role: TelegramGroupRole):
+    async def add_group_roles(self, telegram_chat_id: int, *roles: TelegramGroupRole):
+        role_values_or = reduce(operator.or_, (role.value for role in roles))
+        update_query = (
+            update(TelegramGroup)
+            .filter(TelegramGroup.telegram_chat_id == telegram_chat_id)
+            .values(roles=TelegramGroup.roles.bitwise_or(role_values_or))
+        )
         async with self._session() as session, session.begin():
-            await session.execute(
-                update(TelegramGroup)
-                .filter(TelegramGroup.telegram_chat_id == telegram_chat_id)
-                .values(roles=TelegramGroup.roles.bitwise_or(role.value))
-            )
+            await session.execute(update_query)
 
     def _convert_group(self, group: TelegramGroup) -> TelegramGroupInterface:
         roles: List[TelegramGroupRole] = []

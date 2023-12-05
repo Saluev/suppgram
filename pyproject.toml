@@ -52,3 +52,6 @@ telegram = ["python-telegram-bot~=20.6"]
 Homepage = "https://github.com/Saluev/suppgram"
 Repository = "https://github.com/Saluev/suppgram.git"
 Issues = "https://github.com/Saluev/suppgram/issues"
+
+[tool.black]
+line-length = 100

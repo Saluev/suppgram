@@ -18,7 +18,6 @@ from suppgram.entities import (
     MessageKind,
     Message,
     NewMessageForAgentEvent,
-    AgentDiff,
     Workplace,
 )
 from suppgram.errors import ConversationNotFound, AgentNotFound
@@ -30,6 +29,7 @@ from suppgram.frontends.telegram.helpers import is_chat_not_found, is_blocked_by
 from suppgram.frontends.telegram.identification import (
     make_agent_identification,
     make_workplace_identification,
+    make_agent_diff,
 )
 from suppgram.frontends.telegram.interfaces import (
     TelegramStorage,
@@ -62,9 +62,7 @@ class TelegramAgentFrontend(AgentFrontend):
             app = app_manager.get_app(token)
             app.add_handlers(
                 [
-                    CommandHandler(
-                        "start", self._handle_start_command, filters=ChatType.PRIVATE
-                    ),
+                    CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
                     CommandHandler(
                         self._RESOLVE_COMMAND,
                         self._handle_resolve_command,
@@ -97,21 +95,15 @@ class TelegramAgentFrontend(AgentFrontend):
         await flat_gather(app.updater.start_polling() for app in self._telegram_apps)
         await flat_gather(app.start() for app in self._telegram_apps)
 
-    async def _handle_start_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
-        workplace_identification = make_workplace_identification(
-            update, update.effective_user
-        )
+        workplace_identification = make_workplace_identification(update, update.effective_user)
         agent_identification = workplace_identification.to_agent_identification()
         try:
             await self._backend.identify_agent(agent_identification)
         except AgentNotFound:
-            should_create = await self._check_belongs_to_agent_groups(
-                update.effective_user.id
-            )
+            should_create = await self._check_belongs_to_agent_groups(update.effective_user.id)
             if not should_create:
                 await context.bot.send_message(
                     update.effective_chat.id,
@@ -119,12 +111,7 @@ class TelegramAgentFrontend(AgentFrontend):
                 )
                 return
             await self._backend.create_or_update_agent(
-                agent_identification,
-                AgentDiff(
-                    telegram_first_name=update.effective_user.first_name,
-                    telegram_last_name=update.effective_user.last_name,
-                    telegram_username=update.effective_user.username,
-                ),
+                agent_identification, make_agent_diff(update.effective_user)
             )
 
         await asyncio.gather(
@@ -140,14 +127,10 @@ class TelegramAgentFrontend(AgentFrontend):
         workplace_identification: WorkplaceIdentification,
         context: ContextTypes.DEFAULT_TYPE,
     ):
-        await context.bot.send_message(
-            effective_chat.id, self._texts.telegram_agent_start_message
-        )
+        await context.bot.send_message(effective_chat.id, self._texts.telegram_agent_start_message)
 
         try:
-            conversation = await self._backend.identify_agent_conversation(
-                workplace_identification
-            )
+            conversation = await self._backend.identify_agent_conversation(workplace_identification)
         except ConversationNotFound:
             pass
         else:
@@ -161,12 +144,13 @@ class TelegramAgentFrontend(AgentFrontend):
             telegram_bot_username=app.bot.username,
         )
         await flat_gather(
-            self._delete_message_if_exists(self._manager_bot, message)
-            for message in messages
+            self._delete_message_if_exists(self._manager_bot, message) for message in messages
         )
         await self._storage.delete_messages(messages)
 
-    async def _delete_message_if_exists(self, bot: Bot, message: TelegramMessage):
+    async def _delete_message_if_exists(self, bot: Optional[Bot], message: TelegramMessage):
+        if bot is None:
+            return
         try:
             await bot.delete_message(
                 chat_id=message.group.telegram_chat_id,
@@ -175,15 +159,12 @@ class TelegramAgentFrontend(AgentFrontend):
         except TelegramError:  # TODO more precise exception handling
             pass
 
-    async def _check_belongs_to_agent_groups(
-        self, telegram_user_id: int
-    ) -> List[TelegramGroup]:
+    async def _check_belongs_to_agent_groups(self, telegram_user_id: int) -> List[TelegramGroup]:
         groups = await self._storage.get_groups_by_role(TelegramGroupRole.AGENTS)
         return [
             group
             for group in await flat_gather(
-                self._check_belongs_to_group(telegram_user_id, group)
-                for group in groups
+                self._check_belongs_to_group(telegram_user_id, group) for group in groups
             )
             if group is not None
         ]
@@ -205,15 +186,9 @@ class TelegramAgentFrontend(AgentFrontend):
         except TelegramError:  # TODO more precise exception handling
             return None
 
-    async def _handle_resolve_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
-        assert (
-            update.effective_chat
-        ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
-        assert (
-            update.effective_user
-        ), "command update with `ChatType.PRIVATE` filter should have `effective_user`"
+    async def _handle_resolve_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.effective_chat, "command update should have `effective_chat`"
+        assert update.effective_user, "command update should have `effective_user`"
         try:
             agent = await self._backend.identify_agent(
                 make_agent_identification(update.effective_user)
@@ -234,16 +209,10 @@ class TelegramAgentFrontend(AgentFrontend):
 
         await self._backend.resolve_conversation(agent, conversation)
 
-    async def _handle_text_message(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
-        assert (
-            update.effective_chat
-        ), "update with `ChatType.PRIVATE` filter should have `effective_chat`"
-        assert (
-            update.effective_user
-        ), "update with `ChatType.PRIVATE` filter should have `effective_user`"
-        assert update.message, "update with `TEXT` filter should have `message`"
+    async def _handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.effective_chat, "message update should have `effective_chat`"
+        assert update.effective_user, "message update should have `effective_user`"
+        assert update.message, "message update should have `message`"
         try:
             conversation = await self._backend.identify_agent_conversation(
                 WorkplaceIdentification(
@@ -266,9 +235,7 @@ class TelegramAgentFrontend(AgentFrontend):
             ),
         )
 
-    async def _handle_new_message_for_agent_events(
-        self, events: List[NewMessageForAgentEvent]
-    ):
+    async def _handle_new_message_for_agent_events(self, events: List[NewMessageForAgentEvent]):
         for _, batch_iter in groupby(
             events, lambda event: (event.workplace.agent.id, event.workplace.id)
         ):
@@ -278,16 +245,14 @@ class TelegramAgentFrontend(AgentFrontend):
             await self._send_new_messages(workplace, messages)
 
     async def _send_new_messages(self, workplace: Workplace, messages: List[Message]):
-        if not workplace.telegram_bot_id:
+        if workplace.telegram_user_id is None or workplace.telegram_bot_id is None:
             return
 
         app = self._get_app_by_bot_id(workplace.telegram_bot_id)
         texts = self._group_messages(messages)
         try:
             for text in texts:
-                await app.bot.send_message(
-                    chat_id=workplace.agent.telegram_user_id, text=text
-                )
+                await app.bot.send_message(chat_id=workplace.telegram_user_id, text=text)
         except (BadRequest, Forbidden) as exc:
             if is_chat_not_found(exc) or is_blocked_by_user(exc):
                 await self._nudge_to_start_bot(workplace)
@@ -298,22 +263,20 @@ class TelegramAgentFrontend(AgentFrontend):
         return next(app for app in self._telegram_apps if app.bot.id == telegram_bot_id)
 
     async def _nudge_to_start_bot(self, workplace: Workplace):
-        agent_groups = await self._check_belongs_to_agent_groups(
-            workplace.telegram_user_id
-        )
+        assert workplace.telegram_user_id is not None, "should be called for Telegram workspaces"
+
+        agent_groups = await self._check_belongs_to_agent_groups(workplace.telegram_user_id)
         await flat_gather(
-            self._nudge_to_start_bot_in_group(workplace, group)
-            for group in agent_groups
+            self._nudge_to_start_bot_in_group(workplace, group) for group in agent_groups
         )
 
-    async def _nudge_to_start_bot_in_group(
-        self, workplace: Workplace, group: TelegramGroup
-    ):
+    async def _nudge_to_start_bot_in_group(self, workplace: Workplace, group: TelegramGroup):
+        assert workplace.telegram_bot_id is not None, "should be called for Telegram workspaces"
+        if self._manager_bot is None:
+            return
         app = self._get_app_by_bot_id(workplace.telegram_bot_id)
         bot_username = app.bot.username
-        text = self._texts.compose_nudge_to_start_bot_notification(
-            workplace.agent, bot_username
-        )
+        text = self._texts.compose_nudge_to_start_bot_notification(workplace.agent, bot_username)
         message = await self._manager_bot.send_message(
             chat_id=group.telegram_chat_id, text=text.text, parse_mode=text.parse_mode
         )

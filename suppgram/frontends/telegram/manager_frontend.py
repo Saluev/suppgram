@@ -25,7 +25,6 @@ from suppgram.backend import Backend
 from suppgram.entities import (
     Conversation,
     NewUnassignedMessageFromCustomerEvent,
-    AgentDiff,
     ConversationEvent,
     ConversationState,
     ConversationTag,
@@ -43,6 +42,7 @@ from suppgram.frontends.telegram.helpers import (
 from suppgram.frontends.telegram.identification import (
     make_workplace_identification,
     make_agent_identification,
+    make_agent_diff,
 )
 from suppgram.frontends.telegram.interfaces import (
     TelegramStorage,
@@ -87,24 +87,14 @@ class TelegramManagerFrontend(ManagerFrontend):
         backend.on_new_unassigned_message_from_customer.add_handler(
             self._handle_new_unassigned_message_from_customer_event
         )
-        backend.on_conversation_assignment.add_handler(
-            self._handle_conversation_assignment_event
-        )
-        backend.on_conversation_resolution.add_handler(
-            self._handle_conversation_resolution_event
-        )
-        backend.on_conversation_tag_added.add_handler(
-            self._handle_conversation_tags_event
-        )
-        backend.on_conversation_tag_removed.add_handler(
-            self._handle_conversation_tags_event
-        )
+        backend.on_conversation_assignment.add_handler(self._handle_conversation_assignment_event)
+        backend.on_conversation_resolution.add_handler(self._handle_conversation_resolution_event)
+        backend.on_conversation_tag_added.add_handler(self._handle_conversation_tags_event)
+        backend.on_conversation_tag_removed.add_handler(self._handle_conversation_tags_event)
         self._telegram_app.add_handlers(
             [
                 CallbackQueryHandler(self._handle_callback_query),
-                CommandHandler(
-                    "start", self._handle_start_command, filters=ChatType.PRIVATE
-                ),
+                CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
                 CommandHandler(
                     self._AGENTS_COMMAND,
                     self._handle_agents_command,
@@ -179,9 +169,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
             conversation_id=conversation.id,
         )
-        await self._update_new_conversation_notification(
-            message, conversation, all_tags
-        )
+        await self._update_new_conversation_notification(message, conversation, all_tags)
 
     async def _send_placeholder_message(
         self,
@@ -198,9 +186,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             conversation_id=conversation_id,
         )
 
-    async def _send_or_edit_new_conversation_notifications(
-        self, conversation: Conversation
-    ):
+    async def _send_or_edit_new_conversation_notifications(self, conversation: Conversation):
         # For this conversation, there are some notifications in some groups.
         #
         # In those groups where newer messages with non-NEW conversation
@@ -218,12 +204,8 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
         group_ids = {group.telegram_chat_id for group in groups}
         newer_messages = await self._storage.get_newer_messages_of_kind(messages)
-        newer_message_conversation_ids = {
-            message.conversation_id for message in newer_messages
-        }
-        conversations = await self._backend.get_conversations(
-            list(newer_message_conversation_ids)
-        )
+        newer_message_conversation_ids = {message.conversation_id for message in newer_messages}
+        conversations = await self._backend.get_conversations(list(newer_message_conversation_ids))
         not_new_conversation_ids = {
             conv.id for conv in conversations if conv.state != ConversationState.NEW
         }
@@ -242,9 +224,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                 messages_to_update.append(message)
                 group_ids.remove(message.group.telegram_chat_id)
 
-        groups_to_send_to = [
-            group for group in groups if group.telegram_chat_id in group_ids
-        ]
+        groups_to_send_to = [group for group in groups if group.telegram_chat_id in group_ids]
 
         all_tags = await self._backend.get_all_tags()
 
@@ -261,9 +241,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                 for group in groups_to_send_to
             ),
             flat_gather(
-                self._update_new_conversation_notification(
-                    message, conversation, all_tags
-                )
+                self._update_new_conversation_notification(message, conversation, all_tags)
                 for message in messages_to_update
             ),
         )
@@ -308,9 +286,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         ]
 
         inline_buttons = (
-            [[assign_to_me_button]]
-            if conversation.state == ConversationState.NEW
-            else []
+            [[assign_to_me_button]] if conversation.state == ConversationState.NEW else []
         )
         inline_buttons.extend(arrange_buttons(tag_buttons))
 
@@ -320,17 +296,13 @@ class TelegramManagerFrontend(ManagerFrontend):
                 message.group.telegram_chat_id,
                 message.telegram_message_id,
                 parse_mode=text.parse_mode,
-                reply_markup=InlineKeyboardMarkup(inline_buttons)
-                if inline_buttons
-                else None,
+                reply_markup=InlineKeyboardMarkup(inline_buttons) if inline_buttons else None,
             )
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 raise
 
-    async def _handle_start_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert (
             update.effective_chat
         ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
@@ -355,9 +327,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> str:
         assert update.message, "command update with `TEXT` filter should have `message`"
-        assert (
-            update.message.text
-        ), "command update with `TEXT` filter should have `message.text`"
+        assert update.message.text, "command update with `TEXT` filter should have `message.text`"
         assert update.effective_user, "command update should have `effective_user`"
         try:
             agent = await self._backend.identify_agent(
@@ -382,18 +352,10 @@ class TelegramManagerFrontend(ManagerFrontend):
         except PermissionDenied:
             return self._texts.telegram_create_tag_permission_denied_message
 
-    async def _handle_callback_query(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
-        assert (
-            update.callback_query
-        ), "callback query update should have `callback_query`"
-        assert (
-            update.effective_chat
-        ), "callback query update should have `effective_chat`"
-        assert (
-            update.effective_user
-        ), "callback query update should have `effective_user`"
+    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.callback_query, "callback query update should have `callback_query`"
+        assert update.effective_chat, "callback query update should have `effective_chat`"
+        assert update.effective_user, "callback query update should have `effective_user`"
         if not update.callback_query.data:
             # No idea how to handle this update.
             return
@@ -424,17 +386,11 @@ class TelegramManagerFrontend(ManagerFrontend):
             else:
                 await self._backend.remove_tag_from_conversation(conversation, tag)
         else:
-            logger.info(
-                f"Manager frontend received unsupported callback action {action!r}"
-            )
+            logger.info(f"Manager frontend received unsupported callback action {action!r}")
 
     async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User):
         identification = make_agent_identification(effective_user)
-        diff = AgentDiff(
-            telegram_first_name=effective_user.first_name,
-            telegram_last_name=effective_user.last_name,
-            telegram_username=effective_user.username,
-        )
+        diff = make_agent_diff(effective_user)
         try:
             await self._backend.update_agent(identification, diff)
         except AgentNotFound:
@@ -443,46 +399,34 @@ class TelegramManagerFrontend(ManagerFrontend):
                 return
             await self._backend.create_or_update_agent(identification, diff)
 
-    async def _handle_agents_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
-        assert (
-            update.effective_chat
-        ), "command update with `ChatType.GROUP` filter should have `effective_chat`"
-        assert (
-            update.effective_user
-        ), "command update with `ChatType.GROUP` filter should have `effective_user`"
+    async def _handle_agents_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.effective_chat, "command update should have `effective_chat`"
+        assert update.effective_user, "command update should have `effective_user`"
         workplace = await self._backend.identify_workplace(
             make_workplace_identification(update, update.effective_user)
         )
-        if not self._backend.check_permission(
-            workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE
-        ):
+        if not self._backend.check_permission(workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE):
             return  # TODO negative answer
         await self._storage.upsert_group(update.effective_chat.id)
-        await self._storage.add_group_role(
-            update.effective_chat.id, TelegramGroupRole.AGENTS
+        await self._storage.add_group_roles(
+            update.effective_chat.id,
+            TelegramGroupRole.AGENTS,
+            TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS,
         )
         # TODO positive answer
 
     async def _handle_send_new_conversations_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
-        assert (
-            update.effective_chat
-        ), "command update with `ChatType.GROUP` filter should have `effective_chat`"
-        assert (
-            update.effective_user
-        ), "command update with `ChatType.GROUP` filter should have `effective_user`"
+        assert update.effective_chat, "command update should have `effective_chat`"
+        assert update.effective_user, "command update should have `effective_user`"
         workplace = await self._backend.identify_workplace(
             make_workplace_identification(update, update.effective_user)
         )
-        if not self._backend.check_permission(
-            workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE
-        ):
+        if not self._backend.check_permission(workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE):
             return  # TODO negative answer
         await self._storage.upsert_group(update.effective_chat.id)
-        await self._storage.add_group_role(
+        await self._storage.add_group_roles(
             update.effective_chat.id, TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
         )
         # TODO positive answer
