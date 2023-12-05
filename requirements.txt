@@ -1,7 +1,10 @@
+SQLAlchemy~=2.0.22
 aiosqlite~=0.19.0
 click~=8.1.7
-python-telegram-bot~=20.6
-SQLAlchemy~=2.0.22
+mypy-extensions==1.0.0
+mypy==1.7.1
 pubnub~=7.3.1
-pytest~=7.4.2
 pytest-asyncio~=0.21.1
+pytest~=7.4.2
+python-telegram-bot~=20.6
+ruff==0.1.6
