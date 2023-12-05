@@ -16,7 +16,9 @@ from suppgram.logging import ConfidentialStreamHandler
 @click.command()
 @click.option(
     "--loglevel",
-    type=click.Choice(list(logging.getLevelNamesMapping().keys())),
+    type=click.Choice(
+        ["DEBUG", "INFO", "WARN", "WARNING", "ERROR", "FATAL", "CRITICAL"]
+    ),
     default="INFO",
     help="Log level",
 )

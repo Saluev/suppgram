@@ -1,6 +1,6 @@
 import logging
 from importlib import import_module
-from typing import Optional, List, Any, Iterable, cast
+from typing import Optional, List, Any, Iterable, cast, Union
 from uuid import UUID, uuid4
 
 from suppgram.backend import WorkplaceManager, Backend
@@ -353,7 +353,7 @@ class Builder:
 
     def _get_runnables(
         self,
-    ) -> Iterable[ManagerFrontend | CustomerFrontend | AgentFrontend]:
+    ) -> Iterable[Union[ManagerFrontend, CustomerFrontend, AgentFrontend]]:
         if manager_frontend := self._build_manager_frontend():
             yield manager_frontend
         yield from self._build_customer_frontends()

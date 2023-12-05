@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Union
 from uuid import UUID
 
 
@@ -261,7 +261,7 @@ class ConversationDiff:
     """
 
     state: Optional[ConversationState] = None
-    assigned_workplace_id: Optional[Any] | _SetNone = None
+    assigned_workplace_id: Union[Optional[Any], _SetNone] = None
     added_tags: Optional[List[ConversationTag]] = None
     removed_tags: Optional[List[ConversationTag]] = None
     customer_rating: Optional[int] = None
