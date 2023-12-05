@@ -8,10 +8,7 @@ import click
 from pubnub.callbacks import SubscribeCallback
 from pubnub.models.consumer.common import PNStatus
 from pubnub.models.consumer.pubsub import PNMessageResult, PNPresenceEventResult
-from pubnub.models.consumer.v3.channel import Channel
-from pubnub.models.consumer.v3.user import User
 from pubnub.pubnub import PubNub
-from pubnub.pubnub_asyncio import PubNubAsyncio
 
 from suppgram.entities import MessageKind, Message
 from suppgram.frontends.pubnub.configuration import make_pubnub_configuration

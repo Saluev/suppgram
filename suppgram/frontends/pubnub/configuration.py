@@ -30,11 +30,11 @@ def make_pubnub_configuration(pubnub_user_id: str) -> Configuration:
 
     if not pn_config.secret_key and not pn_token:
         raise MissingCredentials(
-            f"both PUBNUB_SECRET_KEY and PUBNUB_TOKEN environment variables are not set — "
-            f"the app won't have permissions to do anything.\n\n"
-            f"Provide PubNub secret key if you trust the app; otherwise, "
-            f"create access token with necessary permissions (User.get for the support user, "
-            f"Channel.read, Channel.write and Channel.join for the support channels group)."
+            "both PUBNUB_SECRET_KEY and PUBNUB_TOKEN environment variables are not set — "
+            "the app won't have permissions to do anything.\n\n"
+            "Provide PubNub secret key if you trust the app; otherwise, "
+            "create access token with necessary permissions (User.get for the support user, "
+            "Channel.read, Channel.write and Channel.join for the support channels group)."
         )
 
     return Configuration(pn_config=pn_config, pn_token=pn_token)

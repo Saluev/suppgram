@@ -54,7 +54,7 @@ T = TypeVar("T", bound=Base)
 
 
 class SQLAlchemyStorage(Storage):
-    """ Implementation of [Storage][suppgram.storage.Storage] for SQLAlchemy."""
+    """Implementation of [Storage][suppgram.storage.Storage] for SQLAlchemy."""
 
     def __init__(self, engine: AsyncEngine, models: Models):
         """
@@ -171,6 +171,12 @@ class SQLAlchemyStorage(Storage):
     ) -> WorkplaceInterface:
         agent_identification = identification.to_agent_identification()
         async with self._session() as session, session.begin():
+            query = select(self._models.agent_model).where(
+                self._models.make_agent_filter(agent_identification)
+            )
+            agent = (await session.execute(query)).scalars().one_or_none()
+            if agent is None:
+                raise AgentNotFound(agent_identification)
             query = (
                 select(self._models.workplace_model, self._models.agent_model)
                 .options(joinedload(self._models.workplace_model.agent))
@@ -178,19 +184,15 @@ class SQLAlchemyStorage(Storage):
             )
             workplace = (await session.execute(query)).scalars().one_or_none()
             if workplace is None:
-                query = select(self._models.agent_model).where(
-                    self._models.make_agent_filter(agent_identification)
-                )
-                agent = (await session.execute(query)).scalars().one_or_none()
-                if agent is None:
-                    raise AgentNotFound(agent_identification)
                 workplace = self._models.convert_to_workplace_model(
                     agent.id, identification
                 )
                 session.add(workplace)
                 await session.flush()
                 await session.refresh(workplace)
-            return self._models.convert_from_workplace_model(agent, workplace)
+            return self._models.convert_from_workplace_model(
+                self._models.convert_from_agent_model(agent), workplace
+            )
 
     async def create_tag(self, name: str, created_by: AgentInterface):
         async with self._session() as session, session.begin():

@@ -15,23 +15,9 @@ def send_text_answer(
     async def wrapped_handler(
         self: T, update: Update, context: ContextTypes.DEFAULT_TYPE
     ):
+        assert update.effective_chat
         answer = await handler(self, update, context)
         await context.bot.send_message(update.effective_chat.id, answer)
-
-    return wrapped_handler
-
-
-def send_text_answers(
-    handler: Callable[
-        [T, Update, ContextTypes.DEFAULT_TYPE], Coroutine[None, None, Iterable[str]]
-    ]
-) -> Callable[[T, Update, ContextTypes.DEFAULT_TYPE], Coroutine[None, None, None]]:
-    @functools.wraps(handler)
-    async def wrapped_handler(
-        self: T, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
-        for answer in await handler(self, update, context):
-            await context.bot.send_message(update.effective_chat.id, answer)
 
     return wrapped_handler
 

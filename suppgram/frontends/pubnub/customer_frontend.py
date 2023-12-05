@@ -59,7 +59,7 @@ class PubNubCustomerFrontend(CustomerFrontend):
         if customer.pubnub_user_id is None or customer.pubnub_channel_id is None:
             return
         converted = self._message_converter.convert_to_pubnub(event.message)
-        result = (
+        (
             await self._pubnub.publish()
             .channel(customer.pubnub_channel_id)
             .message(converted)

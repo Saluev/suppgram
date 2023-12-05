@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Any, Optional
 from uuid import UUID
 
@@ -358,5 +358,7 @@ class Models:
     ) -> ColumnElement:
         result = self.conversation_model.id.in_(conversation_ids)
         if unassigned_only:
-            result = result & (self.conversation_model.assigned_workplace_id == None)
+            result = result & (
+                self.conversation_model.assigned_workplace_id == None  # noqa
+            )
         return result

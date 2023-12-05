@@ -1,3 +1,3 @@
-from .customer_frontend import TelegramCustomerFrontend
-from .agent_frontend import TelegramAgentFrontend
-from .manager_frontend import TelegramManagerFrontend
+from .customer_frontend import TelegramCustomerFrontend  # noqa
+from .agent_frontend import TelegramAgentFrontend  # noqa
+from .manager_frontend import TelegramManagerFrontend  # noqa

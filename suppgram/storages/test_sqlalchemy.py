@@ -12,6 +12,7 @@ from suppgram.entities import (
     AgentIdentification,
 )
 from suppgram.storage import Storage
+from suppgram.storages.sqlalchemy.models import Models
 from suppgram.storages.sqlalchemy.storage import SQLAlchemyStorage
 
 pytest_plugins = ("pytest_asyncio",)
@@ -26,7 +27,7 @@ def sqlite_engine() -> Generator[AsyncEngine, None, None]:
 
 @pytest.fixture
 def storage(sqlite_engine) -> Storage:
-    storage = SQLAlchemyStorage(sqlite_engine)
+    storage = SQLAlchemyStorage(sqlite_engine, Models(sqlite_engine))
     asyncio.run(storage.initialize())
     return storage
 
@@ -43,7 +44,7 @@ async def test_get_or_create_user(storage):
 @pytest.mark.asyncio
 async def test_create_and_get_agent(storage):
     await storage.create_or_update_agent(AgentIdentification(telegram_user_id=100500))
-    agent = await storage.get_agent(AgentIdentification(telegram_user_id=100500))
+    await storage.get_agent(AgentIdentification(telegram_user_id=100500))
 
 
 @pytest.mark.asyncio

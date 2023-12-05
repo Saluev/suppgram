@@ -1,1 +1,1 @@
-from .customer_frontend import ShellCustomerFrontend
+from .customer_frontend import ShellCustomerFrontend  # noqa

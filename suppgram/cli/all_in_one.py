@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Optional, List
+from typing import Optional
 
 import click
 from click import UsageError
@@ -166,11 +166,11 @@ def run_all_in_one(
         ) from exc
     except NoFrontendSpecified as exc:
         raise UsageError(
-            "No frontend specified. In this setting the application is not going to do anything.\n"
+            "No frontend specified. In this configuration the application is not going to do anything.\n"
             "Consider specifying --telegram-*, --pubnub-* or --customer-shell parameters."
         ) from exc
 
-    loop = asyncio.new_event_loop()
+    loop = asyncio.get_event_loop()
     loop.run_until_complete(builder.start())
     loop.run_forever()
 

@@ -25,7 +25,7 @@ from suppgram.entities import (
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
-from suppgram.observer import LocalObservable, Observable
+from suppgram.observer import LocalObservable
 from suppgram.permissions import Permission, Decision, PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTextsProvider

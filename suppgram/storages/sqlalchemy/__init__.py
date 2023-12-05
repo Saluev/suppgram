@@ -1,1 +1,1 @@
-from .storage import SQLAlchemyStorage
+from .storage import SQLAlchemyStorage  # noqa

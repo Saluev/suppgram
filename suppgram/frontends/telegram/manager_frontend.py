@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from enum import Enum
-from typing import Optional, Any, List, Iterable
+from typing import Optional, Any, List
 
 from telegram import (
     Bot,
@@ -37,7 +37,6 @@ from suppgram.frontend import (
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.helpers import (
-    send_text_answers,
     send_text_answer,
     arrange_buttons,
 )

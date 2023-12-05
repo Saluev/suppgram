@@ -127,13 +127,17 @@ class EnglishTextsProvider(TextsProvider):
         ]
         lines.extend(self._format_message(message) for message in conversation.messages)
         if agent := conversation.assigned_agent:
-            agent_ref = self._format_telegram_mention(
-                telegram_user_id=agent.telegram_user_id,
-                telegram_first_name=agent.telegram_first_name,
-                telegram_last_name=None,  # less formal
-                telegram_username=agent.telegram_username,
-                format_=profile.format,
-            )
+            if agent.telegram_user_id:
+                agent_ref = self._format_telegram_mention(
+                    telegram_user_id=agent.telegram_user_id,
+                    telegram_first_name=agent.telegram_first_name,
+                    telegram_last_name=None,  # less formal
+                    telegram_username=agent.telegram_username,
+                    format_=profile.format,
+                )
+            else:
+                logger.warning(f"Can't mention {agent} — unsupported agent frontend")
+                agent_ref = f"#_{agent.id}"
             lines.extend(("", f"Assigned to {agent_ref}"))
         if conversation.tags:
             tags = [self._format_telegram_tag(tag) for tag in conversation.tags]

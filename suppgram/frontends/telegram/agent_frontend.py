@@ -19,7 +19,7 @@ from suppgram.entities import (
     NewMessageForAgentEvent,
     AgentDiff,
 )
-from suppgram.errors import ConversationNotFound, AgentNotFound, AgentAlreadyExists
+from suppgram.errors import ConversationNotFound, AgentNotFound
 from suppgram.frontend import (
     AgentFrontend,
 )

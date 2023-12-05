@@ -1,4 +1,4 @@
-from typing import TypeVar, List, Iterator, overload, MutableSequence, SupportsIndex
+from typing import TypeVar, List, Iterator, overload, SupportsIndex
 
 from suppgram.errors import DataNotFetched
 
