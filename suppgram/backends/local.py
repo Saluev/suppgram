@@ -60,7 +60,10 @@ class LocalBackend(BackendInterface):
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
     ) -> Agent:
-        return await self._storage.create_or_update_agent(identification, diff)
+        agent = await self._storage.create_or_update_agent(identification, diff)
+        existing_workplaces = await self._storage.get_agent_workplaces(agent)
+        await self._create_all_missing_workplaces(agent, existing_workplaces)
+        return agent
 
     async def identify_agent(self, identification: AgentIdentification) -> Agent:
         return await self._storage.get_agent(identification)

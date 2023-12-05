@@ -21,14 +21,20 @@ class TelegramGroup:
 class TelegramMessageKind(str, Enum):
     NEW_CONVERSATION_NOTIFICATION = "new_conversation_notification"
     RATE_CONVERSATION = "rate_conversation"
+    NUDGE_TO_START_BOT_NOTIFICATION = "nudge_to_start_bot"
 
 
 @dataclass
 class TelegramMessage:
+    id: Any
+
     group: TelegramGroup
     telegram_message_id: int
     kind: TelegramMessageKind
+
+    # Here be all possible parameters of all kinds of messages:
     conversation_id: Optional[Any]
+    telegram_bot_username: Optional[str]
 
 
 class TelegramStorage(abc.ABC):
@@ -58,13 +64,21 @@ class TelegramStorage(abc.ABC):
         telegram_message_id: int,
         kind: TelegramMessageKind,
         conversation_id: Optional[Any] = None,
+        telegram_bot_username: Optional[str] = None,
     ) -> TelegramMessage:
         pass
 
     @abc.abstractmethod
     async def get_messages(
-        self, kind: TelegramMessageKind, conversation_id: Optional[Any] = None
+        self,
+        kind: TelegramMessageKind,
+        conversation_id: Optional[Any] = None,
+        telegram_bot_username: Optional[str] = None,
     ) -> List[TelegramMessage]:
+        pass
+
+    @abc.abstractmethod
+    async def delete_messages(self, messages: List[TelegramMessage]):
         pass
 
     @abc.abstractmethod

@@ -9,6 +9,7 @@ from suppgram.entities import (
     MessageKind,
     Customer,
     ConversationTag,
+    Agent,
 )
 from suppgram.helpers import escape_markdown
 from suppgram.texts.interface import TextsProvider, Text, Format
@@ -143,6 +144,24 @@ class EnglishTextsProvider(TextsProvider):
             tags = [self._format_telegram_tag(tag) for tag in conversation.tags]
             lines.extend(("", " ".join(tags)))
         return Text(text="\n".join(lines), format=profile.format)
+
+    def compose_nudge_to_start_bot_notification(
+        self, agent: Agent, telegram_bot_username: str
+    ) -> Text:
+        if agent.telegram_user_id is None:
+            raise RuntimeError("agent without Telegram account can't /start a bot!")
+        agent_ref = self._format_telegram_mention(
+            telegram_user_id=agent.telegram_user_id,
+            telegram_first_name=agent.telegram_first_name,
+            telegram_last_name=None,  # less formal
+            telegram_username=agent.telegram_username,
+            format_=Format.TELEGRAM_MARKDOWN,
+        )
+        return Text(
+            text=f"⚠️ {agent_ref}, please open @{telegram_bot_username} and "
+            f"hit Start/Restart button to be able to communicate with the customer\\.",
+            format=Format.TELEGRAM_MARKDOWN,
+        )
 
     def _format_message(self, message: Message) -> str:
         from_ = {

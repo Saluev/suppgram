@@ -343,12 +343,13 @@ class Builder:
         if self._telegram_storage:
             await self._telegram_storage.initialize()
 
+        await flat_gather(runnable.initialize() for runnable in self._get_runnables())
+
         if self._telegram_owner_id:
-            await self._backend.create_or_update_agent(  # TODO upsert
+            await self._backend.create_or_update_agent(
                 AgentIdentification(telegram_user_id=self._telegram_owner_id)
             )
 
-        await flat_gather(runnable.initialize() for runnable in self._get_runnables())
         self._initialized = True
 
     def _get_runnables(

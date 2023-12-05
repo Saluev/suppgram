@@ -2,7 +2,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Literal, Collection
 
-from suppgram.entities import Conversation, Customer, ConversationTag, ConversationState
+from suppgram.entities import (
+    Conversation,
+    Customer,
+    ConversationTag,
+    ConversationState,
+    Agent,
+)
 
 TelegramParseMode = Optional[Literal["MarkdownV2", "HTML"]]
 
@@ -85,6 +91,11 @@ class TextsProvider:
 
     def compose_telegram_new_conversation_notification(
         self, conversation: Conversation
+    ) -> Text:
+        raise NotImplementedError
+
+    def compose_nudge_to_start_bot_notification(
+        self, agent: Agent, telegram_bot_username: str
     ) -> Text:
         raise NotImplementedError
 

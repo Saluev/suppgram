@@ -3,6 +3,7 @@ from itertools import zip_longest
 from typing import Callable, TypeVar, Coroutine, List, Any
 
 from telegram import Update, InlineKeyboardButton
+from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
 T = TypeVar("T")
@@ -27,3 +28,11 @@ def arrange_buttons(
 ) -> List[List[InlineKeyboardButton]]:
     it = iter(buttons)
     return [[b1] if b2 is None else [b1, b2] for b1, b2 in zip_longest(it, it)]
+
+
+def is_chat_not_found(exc: TelegramError) -> bool:
+    return "Chat not found" in str(exc)
+
+
+def is_blocked_by_user(exc: TelegramError) -> bool:
+    return "bot was blocked by the user" in str(exc)
