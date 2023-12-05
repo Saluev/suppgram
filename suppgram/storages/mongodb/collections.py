@@ -103,14 +103,14 @@ class Collections:
         if identification.shell_uuid is not None:
             result["shell_uuid"] = identification.shell_uuid  # MongoDB supports UUIDs
         if diff is None:
-            return result
+            return {"$set": result}
         if diff.telegram_first_name is not None:
             result["telegram_first_name"] = diff.telegram_first_name
         if diff.telegram_last_name is not None:
             result["telegram_last_name"] = diff.telegram_last_name
         if diff.telegram_username is not None:
             result["telegram_username"] = diff.telegram_username
-        return result
+        return {"$set": result}
 
     def make_agent_filter(
         self, identification: Union[AgentIdentification, WorkplaceIdentification]
@@ -127,11 +127,11 @@ class Collections:
             else identification
         )
 
-    def make_agents_filter(self, ids: Iterable[Any]) -> Document:
-        return {"_id": {"$in": [ObjectId(id) for id in ids]}}
+    def make_agents_filter(self, agent_ids: Iterable[Any]) -> Document:
+        return {"_id": {"$in": [ObjectId(id) for id in agent_ids]}}
 
-    def make_agents_filter_by_workplace_ids(self, ids: Iterable[Any]) -> Document:
-        return {"workplaces.id": {"$in": list(ids)}}
+    def make_agents_filter_by_workplace_ids(self, workplace_ids: Iterable[Any]) -> Document:
+        return {"workplaces.id": {"$in": list(workplace_ids)}}
 
     def convert_to_agent(self, agent_doc: Document) -> Agent:
         return Agent(
@@ -145,24 +145,29 @@ class Collections:
     def convert_to_agent_update(
         self, identification: AgentIdentification, diff: Optional[AgentDiff]
     ) -> Document:
-        result: MutableMapping[str, Any] = {}
+        result: MutableMapping[str, Any] = {"$set": {}, "$setOnInsert": {"workplaces": []}}
         if identification.telegram_user_id is not None:
-            result["telegram_user_id"] = identification.telegram_user_id
+            result["$set"]["telegram_user_id"] = identification.telegram_user_id
         if diff is None:
             return result
         if diff.telegram_first_name is not None:
-            result["telegram_first_name"] = diff.telegram_first_name
+            result["$set"]["telegram_first_name"] = diff.telegram_first_name
         if diff.telegram_last_name is not None:
-            result["telegram_last_name"] = diff.telegram_last_name
+            result["$set"]["telegram_last_name"] = diff.telegram_last_name
         if diff.telegram_username is not None:
-            result["telegram_username"] = diff.telegram_username
-        return {"$set": result}
+            result["$set"]["telegram_username"] = diff.telegram_username
+        return result
 
     def convert_to_workplace(
         self, identification: WorkplaceIdentification, agent_doc: Document
     ) -> Workplace:
         workplace_subdocs = agent_doc["workplaces"]
-        if identification.telegram_bot_id is not None:
+        if identification.id is not None:
+
+            def predicate(subdoc: Document):
+                return subdoc["id"] == identification.id
+
+        elif identification.telegram_bot_id is not None:
 
             def predicate(subdoc: Document):
                 return subdoc["telegram_bot_id"] == identification.telegram_bot_id
@@ -264,10 +269,12 @@ class Collections:
             if diff.assigned_workplace_id is SetNone:
                 result["$unset"] = {"assigned_agent_id": True, "assigned_workplace_id": True}
             elif diff.assigned_workplace_id is not None:
-                result["$set"].update({
-                    "assigned_agent_id": workplaces[diff.assigned_workplace_id].agent.id,
-                    "assigned_workplace_id": diff.assigned_workplace_id,
-                })
+                result["$set"].update(
+                    {
+                        "assigned_agent_id": workplaces[diff.assigned_workplace_id].agent.id,
+                        "assigned_workplace_id": diff.assigned_workplace_id,
+                    }
+                )
 
             if diff.added_tags:
                 result["$addToSet"] = {"tags": {"$each": [tag.id for tag in diff.added_tags]}}
@@ -276,6 +283,9 @@ class Collections:
                 result["$pull"] = {"tags": {"$in": [tag.id for tag in diff.removed_tags]}}
 
             # TODO probably should allow adding and removing at the same time, which MongoDB forbids
+
+            if diff.customer_rating is not None:
+                result["$set"]["customer_rating"] = diff.customer_rating
 
         return result
 
@@ -301,13 +311,13 @@ class Collections:
     ) -> Conversation:
         assigned_workplace_id = doc.get("assigned_workplace_id")
         assigned_workplace = (
-            workplaces[assigned_workplace_id] if assigned_workplace_id is not None else None
+            workplaces[str(assigned_workplace_id)] if assigned_workplace_id is not None else None
         )
         assigned_agent = assigned_workplace.agent if assigned_workplace is not None else None
         return Conversation(
             id=str(doc["_id"]),
             state=ConversationState(doc["state"]),
-            customer=customers[doc["customer_id"]],
+            customer=customers[str(doc["customer_id"])],
             tags=[tags[tag_id] for tag_id in doc["tag_ids"]],
             assigned_agent=assigned_agent,
             assigned_workplace=assigned_workplace,
@@ -321,6 +331,7 @@ class Collections:
             ]
             if "messages" in doc
             else UnavailableList[Message](),
+            customer_rating=doc.get("customer_rating"),
         )
 
     def make_message_update(self, message: Message) -> Document:

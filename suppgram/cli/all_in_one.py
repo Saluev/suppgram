@@ -16,14 +16,14 @@ from suppgram.logging import ConfidentialStreamHandler
 @click.command()
 @click.option(
     "--loglevel",
-    type=click.Choice(
-        ["DEBUG", "INFO", "WARN", "WARNING", "ERROR", "FATAL", "CRITICAL"]
-    ),
+    type=click.Choice(["DEBUG", "INFO", "WARN", "WARNING", "ERROR", "FATAL", "CRITICAL"]),
     default="INFO",
     help="Log level",
 )
+@click.option("--sqlalchemy-uri", default=None, help="SQLAlchemy connection URI")
+@click.option("--mongodb-uri", default=None, help="MongoDB connection URI")
 @click.option(
-    "--sqlalchemy-url", default=None, help="URL for SQLAlchemy's `create_engine()`"
+    "--mongodb-database", "mongodb_database_name", default=None, help="MongoDB database name"
 )
 @click.option(
     "--texts",
@@ -86,7 +86,9 @@ from suppgram.logging import ConfidentialStreamHandler
 )
 def run_all_in_one(
     loglevel: str,
-    sqlalchemy_url: Optional[str],
+    sqlalchemy_uri: Optional[str],
+    mongodb_uri: Optional[str],
+    mongodb_database_name: Optional[str],
     texts_class_path: str,
     telegram_customer_bot_token_file: Optional[str],
     telegram_manager_bot_token_file: Optional[str],
@@ -109,9 +111,7 @@ def run_all_in_one(
         "TELEGRAM_AGENT_BOT_TOKENS"
     ) or _read_secret_from_file(telegram_agent_bot_tokens_file)
     telegram_agent_bot_tokens = (
-        telegram_agent_bot_tokens_joined.split()
-        if telegram_agent_bot_tokens_joined
-        else []
+        telegram_agent_bot_tokens_joined.split() if telegram_agent_bot_tokens_joined else []
     )
 
     replacements = {}
@@ -129,8 +129,21 @@ def run_all_in_one(
 
     builder = Builder()
 
-    if sqlalchemy_url:
-        builder = builder.with_sqlalchemy_storage(sqlalchemy_url)
+    if sqlalchemy_uri:
+        builder = builder.with_sqlalchemy_storage(sqlalchemy_uri)
+
+    if mongodb_uri or mongodb_database_name:
+        if not mongodb_uri:
+            raise UsageError(
+                "MongoDB database name is specified but URI is not. "
+                "Consider specifying --mongodb-uri parameter."
+            )
+        if not mongodb_database_name:
+            raise UsageError(
+                "MongoDB URI is specified but database name is not. "
+                "Consider specifying --mongodb-database parameter."
+            )
+        builder = builder.with_mongodb_storage(mongodb_uri, mongodb_database_name)
 
     if texts_class_path:
         builder = builder.with_texts_class_path(texts_class_path)

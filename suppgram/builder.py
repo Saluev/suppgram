@@ -25,6 +25,8 @@ class Builder:
 
         self._storage: Optional[Storage] = None
         self._sqlalchemy_engine: Optional[Any] = None
+        self._mongodb_client: Optional[Any] = None
+        self._mongodb_database: Optional[Any] = None
 
         self._texts: Optional[TextsProvider] = None
 
@@ -64,7 +66,7 @@ class Builder:
         self._storage = storage
         return self
 
-    def with_sqlalchemy_storage(self, sqlalchemy_url: str) -> "Builder":
+    def with_sqlalchemy_storage(self, sqlalchemy_uri: str) -> "Builder":
         if self._storage is not None:
             raise ValueError(
                 f"can't use SQLAlchemy storage — already instantiated {type(self._storage).__name__}"
@@ -75,12 +77,31 @@ class Builder:
 
         from sqlalchemy.ext.asyncio import create_async_engine
 
-        self._sqlalchemy_engine = create_async_engine(sqlalchemy_url)
-        sqlalchemy_models = Models(self._sqlalchemy_engine)
+        self._sqlalchemy_engine = create_async_engine(sqlalchemy_uri)
+        sqlalchemy_models = Models(engine=self._sqlalchemy_engine)
         self._storage = SQLAlchemyStorage(
             engine=self._sqlalchemy_engine,
             models=sqlalchemy_models,
         )
+        return self
+
+    def with_mongodb_storage(self, mongodb_uri: str, mongodb_database_name: str) -> "Builder":
+        if self._storage is not None:
+            raise ValueError(
+                f"can't use MongoDB storage — already instantiated {type(self._storage).__name__}"
+            )
+
+        from motor.core import AgnosticDatabase
+        from motor.motor_asyncio import AsyncIOMotorClient
+        from suppgram.storages.mongodb.collections import Collections
+        from suppgram.storages.mongodb.storage import MongoDBStorage
+
+        self._mongodb_client = AsyncIOMotorClient(mongodb_uri)
+        self._mongodb_database = cast(
+            AgnosticDatabase, self._mongodb_client.get_database(mongodb_database_name)
+        )
+        mongodb_collections = Collections(database=self._mongodb_database)
+        self._storage = MongoDBStorage(client=self._mongodb_client, collections=mongodb_collections)
         return self
 
     def with_texts(self, texts: TextsProvider) -> "Builder":
@@ -103,6 +124,14 @@ class Builder:
         self._texts = texts_class()
         return self
 
+    def with_telegram_storage(self, telegram_storage: Any) -> "Builder":
+        from suppgram.frontends.telegram.interfaces import TelegramStorage
+
+        if not isinstance(telegram_storage, TelegramStorage):
+            raise TypeError(f"{telegram_storage} is not a valid TelegramStorage implementation")
+        self._telegram_storage = telegram_storage
+        return self
+
     def with_telegram_manager_frontend(
         self, telegram_manager_bot_token: str, telegram_owner_id: Optional[int] = None
     ) -> "Builder":
@@ -110,9 +139,7 @@ class Builder:
         self._telegram_owner_id = telegram_owner_id
         return self
 
-    def with_telegram_customer_frontend(
-        self, telegram_customer_bot_token: str
-    ) -> "Builder":
+    def with_telegram_customer_frontend(self, telegram_customer_bot_token: str) -> "Builder":
         self._telegram_customer_bot_token = telegram_customer_bot_token
         return self
 
@@ -139,9 +166,7 @@ class Builder:
         self._pubnub_channel_group = pubnub_channel_group
         return self
 
-    def with_telegram_agent_frontend(
-        self, telegram_agent_bot_tokens: List[str]
-    ) -> "Builder":
+    def with_telegram_agent_frontend(self, telegram_agent_bot_tokens: List[str]) -> "Builder":
         self._telegram_agent_bot_tokens = telegram_agent_bot_tokens
         return self
 
@@ -179,10 +204,14 @@ class Builder:
         if self._telegram_storage is not None:
             return self._telegram_storage
         self._build_storage()
-        if self._sqlalchemy_engine:
+        if self._sqlalchemy_engine is not None:
             from suppgram.bridges.sqlalchemy_telegram import SQLAlchemyTelegramBridge
 
             self._telegram_storage = SQLAlchemyTelegramBridge(self._sqlalchemy_engine)
+        elif self._mongodb_database is not None:
+            from suppgram.bridges.mongodb_telegram import MongoDBTelegramBridge
+
+            self._telegram_storage = MongoDBTelegramBridge(self._mongodb_database)
         else:
             raise NoStorageSpecified()
         return self._telegram_storage
@@ -272,9 +301,7 @@ class Builder:
 
             logger.info("Initializing shell customer frontend")
             self._customer_frontends.append(
-                ShellCustomerFrontend(
-                    backend=self._build_backend(), texts=self._build_texts()
-                )
+                ShellCustomerFrontend(backend=self._build_backend(), texts=self._build_texts())
             )
 
         if self._pubnub_configuration:
@@ -288,9 +315,7 @@ class Builder:
             self._customer_frontends.append(
                 PubNubCustomerFrontend(
                     backend=self._build_backend(),
-                    message_converter=cast(
-                        MessageConverter, self._pubnub_message_converter
-                    ),
+                    message_converter=cast(MessageConverter, self._pubnub_message_converter),
                     pubnub_channel_group=cast(str, self._pubnub_channel_group),
                     pubnub_configuration=self._pubnub_configuration,
                 )

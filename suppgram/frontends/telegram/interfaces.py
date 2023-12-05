@@ -85,4 +85,5 @@ class TelegramStorage(abc.ABC):
     async def get_newer_messages_of_kind(
         self, messages: List[TelegramMessage]
     ) -> List[TelegramMessage]:
+        # "Newer" as in "with greater Telegram IDs".
         pass
