@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Mapping
 
 from motor.core import AgnosticClient
 from pymongo import ReturnDocument
@@ -17,9 +17,9 @@ from suppgram.entities import (
     CustomerIdentification,
     CustomerDiff,
 )
-from suppgram.errors import AgentNotFound, WorkplaceNotFound
+from suppgram.errors import AgentNotFound, WorkplaceNotFound, ConversationNotFound
 from suppgram.storage import Storage
-from suppgram.storages.mongodb.collections import Collections
+from suppgram.storages.mongodb.collections import Collections, Document
 
 
 class MongoDBStorage(Storage):
@@ -36,6 +36,11 @@ class MongoDBStorage(Storage):
             filter_, update, upsert=True, return_document=ReturnDocument.AFTER
         )
         return self._collections.convert_to_customer(doc)
+
+    async def find_customers_by_ids(self, customer_ids: List[Any]) -> List[Customer]:
+        filter_ = self._collections.make_customers_filter(customer_ids)
+        docs = await self._collections.customer_collection.find(filter_).to_list(None)
+        return [self._collections.convert_to_customer(doc) for doc in docs]
 
     async def get_agent(self, identification: AgentIdentification) -> Agent:
         filter_ = self._collections.make_agent_filter(identification)
@@ -64,29 +69,42 @@ class MongoDBStorage(Storage):
 
     async def get_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         filter_ = self._collections.make_agent_filter(identification)
-        doc = await self._collections.agent_collection.find_one(filter_)
-        if doc is None:
+        agent_doc = await self._collections.agent_collection.find_one(filter_)
+        if agent_doc is None:
             raise WorkplaceNotFound(identification)
-        return self._collections.convert_to_workplace(identification, doc)
+        return self._collections.convert_to_workplace(identification, agent_doc)
+
+    async def find_workplaces_by_ids(self, workplace_ids: List[Any]) -> List[Workplace]:
+        workplace_ids_set = set(workplace_ids)
+        filter_ = self._collections.make_agents_filter_by_workplace_ids(workplace_ids)
+        agent_docs = await self._collections.agent_collection.find(filter_).to_list(None)
+        # TODO Agents here will be copied as many times as many of their
+        #      workplaces are fetched. Might optimize a bit if got spare time.
+        return [
+            workplace
+            for agent_doc in agent_docs
+            for workplace in self._collections.convert_to_workspaces(agent_doc)
+            if workplace.id in workplace_ids_set
+        ]
 
     async def get_agent_workplaces(self, agent: Agent) -> List[Workplace]:
         filter_ = self._collections.make_agent_filter(agent.identification)
-        doc = await self._collections.agent_collection.find_one(filter_)
-        if doc is None:
+        agent_doc = await self._collections.agent_collection.find_one(filter_)
+        if agent_doc is None:
             raise AgentNotFound(agent.identification)
-        return self._collections.convert_to_workspaces(doc)
+        return self._collections.convert_to_workspaces(agent_doc)
 
     async def get_or_create_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         filter_ = self._collections.make_agent_filter(identification)
-        doc = await self._collections.agent_collection.find_one(filter_)
-        if doc is None:
+        agent_doc = await self._collections.agent_collection.find_one(filter_)
+        if agent_doc is None:
             raise AgentNotFound(identification.to_agent_identification())
-        agent_id = doc["_id"]
+        agent_id = agent_doc["_id"]
         update = self._collections.convert_to_workspace_update(agent_id, identification)
-        doc = await self._collections.agent_collection.find_one_and_update(
+        agent_doc = await self._collections.agent_collection.find_one_and_update(
             filter_, update, return_document=ReturnDocument.AFTER
         )
-        return self._collections.convert_to_workplace(identification, doc)
+        return self._collections.convert_to_workplace(identification, agent_doc)
 
     async def create_tag(self, name: str, created_by: Agent):
         doc = self._collections.convert_to_tag_document(name, created_by)
@@ -104,31 +122,76 @@ class MongoDBStorage(Storage):
         return [self._collections.convert_to_tag(doc, agent_by_id) for doc in docs]
 
     async def get_or_create_conversation(self, customer: Customer) -> Conversation:
-        filter_ = self._collections.make_conversation_filter(customer)
-        update = self._collections.make_conversation_update(customer)
+        filter_ = self._collections.make_conversation_filter_by_customer(customer)
+        update = self._collections.make_conversation_update(customer=customer)
         doc = await self._collections.conversation_collection.find_one_and_update(
-            filter_, update, upsert=True, return_document=ReturnDocument.AFTER
+            filter_,
+            update,
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
         )
-        related_ids = self._collections.extract_conversation_related_ids(doc)
-        customer = await self.create_or_update_customer(related_ids.customer_identification)
-        assigned_workplace: Optional[Workplace] = None
-        if related_ids.assigned_workplace_id is not None:
-            pass  # TODO
-        raise NotImplementedError
-        _ = assigned_workplace
+        return await self._convert_single_conversation(doc)
 
     async def find_conversations_by_ids(
         self, conversation_ids: List[Any], with_messages: bool = False
     ) -> List[Conversation]:
-        raise NotImplementedError
+        filter_ = self._collections.make_conversations_filter(conversation_ids)
+        projection = self._collections.make_conversation_projection(with_messages=with_messages)
+        docs = await self._collections.conversation_collection.find(
+            filter_, projection=projection
+        ).to_list(None)
+        related_ids = [self._collections.extract_conversation_related_ids(doc) for doc in docs]
+        customer_ids = [r.customer_id for r in related_ids]
+        customers = {
+            customer.id: customer for customer in await self.find_customers_by_ids(customer_ids)
+        }
+        workplace_ids = [
+            r.assigned_workplace_id for r in related_ids if r.assigned_workplace_id is not None
+        ]
+        workplaces = {
+            workplace.id: workplace
+            for workplace in await self.find_workplaces_by_ids(workplace_ids)
+        }
+        tags = {tag.id: tag for tag in await self.find_all_tags()}
+        return [
+            self._collections.convert_to_conversation(doc, customers, workplaces, tags)
+            for doc in docs
+        ]
 
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
-        raise NotImplementedError
+        workplaces: Mapping[Any, Workplace] = {}
+        if (identification := diff.assigned_workplace_identification) is not None:
+            workplace = await self.get_workplace(identification)
+            workplaces = {workplace.id: workplace}
+        filter_ = self._collections.make_conversation_filter(id, unassigned_only=unassigned_only)
+        update = self._collections.make_conversation_update(diff=diff, workplaces=workplaces)
+        await self._collections.conversation_collection.update_one(filter_, update)
 
     async def get_agent_conversation(self, identification: WorkplaceIdentification) -> Conversation:
-        raise NotImplementedError
+        workplace_id = identification.id
+        if workplace_id is None:
+            workplace = await self.get_workplace(identification)
+            workplace_id = workplace.id
+        filter_ = self._collections.make_agent_conversation_filter(workplace_id)
+        doc = await self._collections.conversation_collection.find_one(filter_)
+        if doc is None:
+            raise ConversationNotFound()
+        return await self._convert_single_conversation(doc)
+
+    async def _convert_single_conversation(self, conv_doc: Document) -> Conversation:
+        related_ids = self._collections.extract_conversation_related_ids(conv_doc)
+        customer = await self.create_or_update_customer(related_ids.customer_identification)
+        customers = {customer.id: customer}
+        workplaces: Mapping[Any, Workplace] = {}
+        if (workplace_identification := related_ids.assigned_workplace_identification) is not None:
+            assigned_workplace = await self.get_workplace(workplace_identification)
+            workplaces = {assigned_workplace.id: assigned_workplace}
+        tags = {tag.id: tag for tag in await self.find_all_tags()}
+        return self._collections.convert_to_conversation(conv_doc, customers, workplaces, tags)
 
     async def save_message(self, conversation: Conversation, message: Message):
-        raise NotImplementedError
+        filter_ = self._collections.make_conversation_filter(conversation.id, unassigned_only=False)
+        update = self._collections.make_message_update(message)
+        await self._collections.conversation_collection.update_one(filter_, update)

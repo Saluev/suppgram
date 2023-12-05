@@ -190,7 +190,7 @@ class Models:
 
     def convert_to_agent_model(self, identification: AgentIdentification) -> Any:
         return self.agent_model(
-            id=identification.id,
+            id=identification.id,  # TODO is it needed?..
             telegram_user_id=identification.telegram_user_id,
         )
 
@@ -309,6 +309,8 @@ class Models:
     def make_workplace_filter(self, identification: WorkplaceIdentification) -> ColumnElement:
         workplace_model = self.workplace_model
         agent_model = self.agent_model
+        if identification.id is not None:
+            return workplace_model.id == identification.id
         if identification.telegram_user_id is not None:
             return (
                 (workplace_model.telegram_bot_id == identification.telegram_bot_id)

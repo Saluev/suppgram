@@ -128,15 +128,21 @@ class AgentDiff:
 class WorkplaceIdentification:
     """Subset of [Workplace][suppgram.entities.Workplace] fields allowing to uniquely identify the workplace."""
 
-    telegram_user_id: Optional[int]
-    telegram_bot_id: Optional[int]
+    id: Optional[Any] = None
+
+    telegram_user_id: Optional[int] = None
+    telegram_bot_id: Optional[int] = None
 
     def to_agent_identification(self) -> AgentIdentification:
-        return AgentIdentification(telegram_user_id=self.telegram_user_id)
+        if self.telegram_user_id is not None:
+            return AgentIdentification(telegram_user_id=self.telegram_user_id)
+        raise RuntimeError(
+            ".to_agent_identification() should not be called for already existing workplaces with IDs"
+        )
 
 
 @dataclass(frozen=True)
-class Workplace(WorkplaceIdentification):
+class Workplace:
     """
     Describes support agent's workplace.
 
@@ -153,7 +159,17 @@ class Workplace(WorkplaceIdentification):
     """
 
     id: Any
+
+    telegram_user_id: Optional[int]
+    telegram_bot_id: Optional[int]
+
     agent: Agent
+
+    @property
+    def identification(self) -> WorkplaceIdentification:
+        return WorkplaceIdentification(
+            id=self.id, telegram_user_id=self.telegram_user_id, telegram_bot_id=self.telegram_bot_id
+        )
 
 
 class MessageKind(str, Enum):
@@ -271,6 +287,12 @@ class ConversationDiff:
     added_tags: Optional[List[ConversationTag]] = None
     removed_tags: Optional[List[ConversationTag]] = None
     customer_rating: Optional[int] = None
+
+    @property
+    def assigned_workplace_identification(self) -> Optional[WorkplaceIdentification]:
+        if self.assigned_workplace_id in (None, SetNone):
+            return None
+        return WorkplaceIdentification(id=self.assigned_workplace_id)
 
 
 @dataclass(frozen=True)

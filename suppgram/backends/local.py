@@ -68,9 +68,7 @@ class LocalBackend(BackendInterface):
     async def identify_agent(self, identification: AgentIdentification) -> Agent:
         return await self._storage.get_agent(identification)
 
-    async def update_agent(
-        self, identification: AgentIdentification, diff: AgentDiff
-    ) -> Agent:
+    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
         return await self._storage.update_agent(identification, diff)
 
     async def create_or_update_customer(
@@ -85,15 +83,12 @@ class LocalBackend(BackendInterface):
         conversation = await self._storage.get_or_create_conversation(customer)
         return conversation
 
-    async def identify_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> Workplace:
+    async def identify_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         return await self._storage.get_or_create_workplace(identification)
 
     def check_permission(self, agent: Agent, permission: Permission) -> bool:
         return self._sum_decisions(
-            checker.check_permission(agent, permission)
-            for checker in self._permission_checkers
+            checker.check_permission(agent, permission) for checker in self._permission_checkers
         )
 
     def _sum_decisions(self, decisions: Iterable[Decision]) -> bool:
@@ -128,9 +123,7 @@ class LocalBackend(BackendInterface):
         else:
             await self._process_internal_message(conversation, message)
 
-    async def _process_message_from_user(
-        self, conversation: Conversation, message: Message
-    ):
+    async def _process_message_from_user(self, conversation: Conversation, message: Message):
         await self._storage.save_message(conversation, message)
         conversation.messages.append(message)
         if len(conversation.messages) == 1:
@@ -145,14 +138,10 @@ class LocalBackend(BackendInterface):
             )
         else:
             await self.on_new_unassigned_message_from_customer.trigger(
-                NewUnassignedMessageFromCustomerEvent(
-                    message=message, conversation=conversation
-                )
+                NewUnassignedMessageFromCustomerEvent(message=message, conversation=conversation)
             )
 
-    async def _process_message_from_agent(
-        self, conversation: Conversation, message: Message
-    ):
+    async def _process_message_from_agent(self, conversation: Conversation, message: Message):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
             NewMessageForCustomerEvent(
@@ -162,9 +151,7 @@ class LocalBackend(BackendInterface):
             )
         )
 
-    async def _process_internal_message(
-        self, conversation: Conversation, message: Message
-    ):
+    async def _process_internal_message(self, conversation: Conversation, message: Message):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
             NewMessageForCustomerEvent(
@@ -182,13 +169,9 @@ class LocalBackend(BackendInterface):
                 )
             )
 
-    async def assign_agent(
-        self, assigner: Agent, assignee: Agent, conversation_id: Any
-    ):
+    async def assign_agent(self, assigner: Agent, assignee: Agent, conversation_id: Any):
         permission = (
-            Permission.ASSIGN_TO_SELF
-            if assigner == assignee
-            else Permission.ASSIGN_TO_OTHERS
+            Permission.ASSIGN_TO_SELF if assigner == assignee else Permission.ASSIGN_TO_OTHERS
         )
         if not self.check_permission(assigner, permission):
             raise PermissionDenied("not allowed to assign conversation to this agent")
@@ -196,20 +179,14 @@ class LocalBackend(BackendInterface):
         workplace = await self._choose_workplace(assignee)
         await self._storage.update_conversation(
             conversation_id,
-            ConversationDiff(
-                state=ConversationState.ASSIGNED, assigned_workplace_id=workplace.id
-            ),
+            ConversationDiff(state=ConversationState.ASSIGNED, assigned_workplace_id=workplace.id),
             unassigned_only=True,
         )
-        conversation = await self._storage.get_agent_conversation(workplace)
-        await self.on_conversation_assignment.trigger(
-            ConversationEvent(conversation=conversation)
-        )
+        conversation = await self._storage.get_agent_conversation(workplace.identification)
+        await self.on_conversation_assignment.trigger(ConversationEvent(conversation=conversation))
         await self.on_new_message_for_agent.trigger_batch(
             [
-                NewMessageForAgentEvent(
-                    agent=assignee, workplace=workplace, message=message
-                )
+                NewMessageForAgentEvent(agent=assignee, workplace=workplace, message=message)
                 for message in conversation.messages
             ]
         )
@@ -221,20 +198,14 @@ class LocalBackend(BackendInterface):
             conversation_ids, with_messages=with_messages
         )
 
-    async def add_tag_to_conversation(
-        self, conversation: Conversation, tag: ConversationTag
-    ):
-        await self._storage.update_conversation(
-            conversation.id, ConversationDiff(added_tags=[tag])
-        )
+    async def add_tag_to_conversation(self, conversation: Conversation, tag: ConversationTag):
+        await self._storage.update_conversation(conversation.id, ConversationDiff(added_tags=[tag]))
         conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_tag_added.trigger(
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
 
-    async def remove_tag_from_conversation(
-        self, conversation: Conversation, tag: ConversationTag
-    ):
+    async def remove_tag_from_conversation(self, conversation: Conversation, tag: ConversationTag):
         await self._storage.update_conversation(
             conversation.id, ConversationDiff(removed_tags=[tag])
         )
@@ -248,15 +219,11 @@ class LocalBackend(BackendInterface):
             conversation.id, ConversationDiff(customer_rating=rating)
         )
         conversation = await self.get_conversation(conversation.id)
-        await self.on_conversation_rated.trigger(
-            ConversationEvent(conversation=conversation)
-        )
+        await self.on_conversation_rated.trigger(ConversationEvent(conversation=conversation))
 
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         if resolver != conversation.assigned_agent:
-            raise PermissionDenied(
-                "not allowed to resolve conversations of other agents"
-            )
+            raise PermissionDenied("not allowed to resolve conversations of other agents")
 
         # TODO processing message and updating conversation should be in a single transaction
         await self.process_message(
@@ -265,9 +232,7 @@ class LocalBackend(BackendInterface):
         )
         await self._storage.update_conversation(
             conversation.id,
-            ConversationDiff(
-                state=ConversationState.RESOLVED, assigned_workplace_id=SetNone
-            ),
+            ConversationDiff(state=ConversationState.RESOLVED, assigned_workplace_id=SetNone),
         )
         conversation = Conversation(  # TODO just fetch?..
             id=conversation.id,
@@ -276,19 +241,13 @@ class LocalBackend(BackendInterface):
             messages=conversation.messages,
             tags=conversation.tags,
         )
-        await self.on_conversation_resolution.trigger(
-            ConversationEvent(conversation=conversation)
-        )
+        await self.on_conversation_resolution.trigger(ConversationEvent(conversation=conversation))
 
     async def _choose_workplace(self, agent: Agent) -> Workplace:
         existing_workplaces = await self._storage.get_agent_workplaces(agent)
-        extra_workplaces = await self._create_all_missing_workplaces(
-            agent, existing_workplaces
-        )
+        extra_workplaces = await self._create_all_missing_workplaces(agent, existing_workplaces)
         all_workplaces = existing_workplaces + extra_workplaces
-        available_workplaces = await self._filter_all_available_workplaces(
-            all_workplaces
-        )
+        available_workplaces = await self._filter_all_available_workplaces(all_workplaces)
         return available_workplaces[0]  # TODO handle index out of range
 
     async def _create_all_missing_workplaces(
@@ -314,7 +273,5 @@ class LocalBackend(BackendInterface):
     ) -> List[Workplace]:
         available_workplaces: List[Workplace] = []
         for manager in self._workplace_managers:
-            available_workplaces.extend(
-                manager.filter_available_workplaces(all_workplaces)
-            )
+            available_workplaces.extend(manager.filter_available_workplaces(all_workplaces))
         return available_workplaces

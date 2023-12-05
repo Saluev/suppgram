@@ -99,9 +99,8 @@ class TelegramAgentFrontend(AgentFrontend):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
         workplace_identification = make_workplace_identification(update, update.effective_user)
-        agent_identification = workplace_identification.to_agent_identification()
         try:
-            await self._backend.identify_agent(agent_identification)
+            await self._backend.identify_workplace(workplace_identification)
         except AgentNotFound:
             should_create = await self._check_belongs_to_agent_groups(update.effective_user.id)
             if not should_create:
@@ -110,6 +109,7 @@ class TelegramAgentFrontend(AgentFrontend):
                     self._texts.telegram_manager_permission_denied_message,
                 )
                 return
+            agent_identification = workplace_identification.to_agent_identification()
             await self._backend.create_or_update_agent(
                 agent_identification, make_agent_diff(update.effective_user)
             )

@@ -4,6 +4,7 @@ from typing import Any, Mapping, Optional, List, Union, MutableMapping, Set, Ite
 from bson import ObjectId, CodecOptions
 from motor.core import AgnosticDatabase
 
+from suppgram.containers import UnavailableList
 from suppgram.entities import (
     Agent,
     AgentIdentification,
@@ -16,6 +17,11 @@ from suppgram.entities import (
     Customer,
     FINAL_STATES,
     ConversationState,
+    Conversation,
+    Message,
+    MessageKind,
+    ConversationDiff,
+    SetNone,
 )
 from suppgram.errors import (
     AgentEmptyIdentification,
@@ -35,6 +41,12 @@ class ConversationRelatedIDs(NamedTuple):
     @property
     def customer_identification(self) -> CustomerIdentification:
         return CustomerIdentification(id=self.customer_id)
+
+    @property
+    def assigned_workplace_identification(self) -> Optional[WorkplaceIdentification]:
+        if self.assigned_workplace_id is None:
+            return None
+        return WorkplaceIdentification(id=self.assigned_workplace_id)
 
 
 class Collections:
@@ -64,6 +76,9 @@ class Collections:
         if identification.shell_uuid is not None:
             return {"shell_uuid": identification.shell_uuid}  # MongoDB supports UUIDs
         raise CustomerEmptyIdentification(identification)
+
+    def make_customers_filter(self, ids: Iterable[Any]) -> Document:
+        return {"_id": {"$in": [ObjectId(id) for id in ids]}}
 
     def convert_to_customer(self, doc: Document) -> Customer:
         return Customer(
@@ -102,6 +117,8 @@ class Collections:
     ) -> Document:
         if isinstance(identification, AgentIdentification) and identification.id is not None:
             return {"_id": ObjectId(identification.id)}
+        if isinstance(identification, WorkplaceIdentification) and identification.id is not None:
+            return {"workplaces.id": identification.id}
         if identification.telegram_user_id is not None:
             return {"telegram_user_id": identification.telegram_user_id}
         raise AgentEmptyIdentification(
@@ -112,6 +129,9 @@ class Collections:
 
     def make_agents_filter(self, ids: Iterable[Any]) -> Document:
         return {"_id": {"$in": [ObjectId(id) for id in ids]}}
+
+    def make_agents_filter_by_workplace_ids(self, ids: Iterable[Any]) -> Document:
+        return {"workplaces.id": {"$in": list(ids)}}
 
     def convert_to_agent(self, agent_doc: Document) -> Agent:
         return Agent(
@@ -206,27 +226,110 @@ class Collections:
             created_by=agent,
         )
 
-    def make_conversation_filter(self, customer: Customer) -> Document:
+    def make_conversation_filter_by_customer(self, customer: Customer) -> Document:
         return {"customer_id": ObjectId(customer.id), "state": {"$nin": FINAL_STATES}}
 
-    def make_conversation_update(self, customer: Customer) -> Document:
-        return {
-            "$setOnInsert": {
-                "state": ConversationState.NEW,
-                "customer_id": ObjectId(customer.id),
-                "tag_ids": [],
-                "messages": [],
-            }
-        }
-
-    def extract_conversation_related_ids(self, conv_doc: Document) -> ConversationRelatedIDs:
-        return ConversationRelatedIDs(
-            customer_id=str(conv_doc["customer_id"]),
-            assigned_agent_id=str(conv_doc["assigned_agent_id"])
-            if "assigned_agent_id" in conv_doc
-            else None,
-            assigned_workplace_id=conv_doc.get("assigned_workplace_id"),
-        )
+    def make_conversation_filter(self, id: Any, unassigned_only: bool) -> Document:
+        result: MutableMapping[str, Any] = {"_id": ObjectId(id)}
+        if unassigned_only:
+            result["assigned_workplace_id"] = None
+        return result
 
     def make_conversations_filter(self, ids: Iterable[Any]) -> Document:
         return {"_id": {"$in": [ObjectId(id) for id in ids]}}
+
+    def make_agent_conversation_filter(self, workplace_id: Any) -> Document:
+        return {"assigned_workplace_id": workplace_id}
+
+    def make_conversation_update(
+        self,
+        customer: Optional[Customer] = None,
+        diff: Optional[ConversationDiff] = None,
+        workplaces: Mapping[Any, Workplace] = {},
+    ) -> Document:
+        result: MutableMapping[str, Any] = {"$set": {}, "$setOnInsert": {}}
+        if customer is not None:
+            result["$setOnInsert"].update(
+                {
+                    "state": ConversationState.NEW,
+                    "customer_id": ObjectId(customer.id),
+                    "tag_ids": [],
+                    "messages": [],
+                }
+            )
+        if diff is not None:
+            if diff.state is not None:
+                result["$set"]["state"] = diff.state
+
+            if diff.assigned_workplace_id is SetNone:
+                result["$unset"] = {"assigned_agent_id": True, "assigned_workplace_id": True}
+            elif diff.assigned_workplace_id is not None:
+                result["$set"].update({
+                    "assigned_agent_id": workplaces[diff.assigned_workplace_id].agent.id,
+                    "assigned_workplace_id": diff.assigned_workplace_id,
+                })
+
+            if diff.added_tags:
+                result["$addToSet"] = {"tags": {"$each": [tag.id for tag in diff.added_tags]}}
+
+            if diff.removed_tags is not None:
+                result["$pull"] = {"tags": {"$in": [tag.id for tag in diff.removed_tags]}}
+
+            # TODO probably should allow adding and removing at the same time, which MongoDB forbids
+
+        return result
+
+    def extract_conversation_related_ids(self, conv_doc: Document) -> ConversationRelatedIDs:
+        assigned_agent_id = conv_doc.get("assigned_agent_id")
+        return ConversationRelatedIDs(
+            customer_id=str(conv_doc["customer_id"]),
+            assigned_agent_id=str(assigned_agent_id) if assigned_agent_id is not None else None,
+            assigned_workplace_id=conv_doc.get("assigned_workplace_id"),
+        )
+
+    def make_conversation_projection(self, with_messages: bool) -> Document:
+        if not with_messages:
+            return {"messages": False}
+        return {}
+
+    def convert_to_conversation(
+        self,
+        doc: Document,
+        customers: Mapping[Any, Customer],
+        workplaces: Mapping[Any, Workplace],
+        tags: Mapping[Any, ConversationTag],
+    ) -> Conversation:
+        assigned_workplace_id = doc.get("assigned_workplace_id")
+        assigned_workplace = (
+            workplaces[assigned_workplace_id] if assigned_workplace_id is not None else None
+        )
+        assigned_agent = assigned_workplace.agent if assigned_workplace is not None else None
+        return Conversation(
+            id=str(doc["_id"]),
+            state=ConversationState(doc["state"]),
+            customer=customers[doc["customer_id"]],
+            tags=[tags[tag_id] for tag_id in doc["tag_ids"]],
+            assigned_agent=assigned_agent,
+            assigned_workplace=assigned_workplace,
+            messages=[
+                Message(
+                    kind=MessageKind(message_doc["kind"]),
+                    time_utc=message_doc["time_utc"],
+                    text=message_doc.get("text"),
+                )
+                for message_doc in doc["messages"]
+            ]
+            if "messages" in doc
+            else UnavailableList[Message](),
+        )
+
+    def make_message_update(self, message: Message) -> Document:
+        return {
+            "$push": {
+                "messages": {
+                    "kind": message.kind,
+                    "time_utc": message.time_utc,
+                    "text": message.text,
+                }
+            }
+        }
