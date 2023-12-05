@@ -273,9 +273,8 @@ class ConversationDiff:
 
     Attributes:
         state: new state of the conversation.
-        assigned_workplace_id: ID of the workplace newly assigned to the conversation.
-
-                               Note that workplaces have many-to-one relationship with
+        assigned_workplace_id: ID of the [workplace][suppgram.entities.Workplace] newly assigned to the
+                               conversation. Note that workplaces have many-to-one relationship with
                                [agents][suppgram.entities.Agent], thus agent ID is not necessary here.
         added_tags: list of tags to add to the conversation.
         removed_tags: list of tags to remove from the conversation.

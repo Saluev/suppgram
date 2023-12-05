@@ -21,6 +21,8 @@ class Storage(abc.ABC):
     """
     Storage encapsulates functionality related to storing data persistently in a database,
     allowing to integrate Suppgram into systems with various tech stacks.
+
+    Basically implements Repository design pattern.
     """
 
     async def initialize(self):
@@ -52,9 +54,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def update_agent(
-        self, identification: AgentIdentification, diff: AgentDiff
-    ) -> Agent:
+    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
         pass
 
     @abc.abstractmethod
@@ -66,9 +66,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_or_create_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> Workplace:
+    async def get_or_create_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         pass
 
     @abc.abstractmethod
@@ -96,9 +94,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_agent_conversation(
-        self, identification: WorkplaceIdentification
-    ) -> Conversation:
+    async def get_agent_conversation(self, identification: WorkplaceIdentification) -> Conversation:
         pass
 
     @abc.abstractmethod

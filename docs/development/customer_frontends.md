@@ -6,7 +6,7 @@
       show_root_heading: true
       show_source: false
 
-<br/>
+<hr/>
 
 ::: suppgram.frontends.telegram.TelegramCustomerFrontend
     handler: python
@@ -14,7 +14,7 @@
       show_root_heading: true
       show_source: false
 
-<br/>
+<hr/>
 
 ::: suppgram.frontends.pubnub.PubNubCustomerFrontend
     handler: python
@@ -22,7 +22,7 @@
       show_root_heading: true
       show_source: false
 
-<br/>
+<hr/>
 
 ::: suppgram.frontends.shell.ShellCustomerFrontend
     handler: python

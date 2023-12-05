@@ -23,8 +23,15 @@ from suppgram.storages.mongodb.collections import Collections, Document
 
 
 class MongoDBStorage(Storage):
-    def __init__(self, client: AgnosticClient, collections: Collections):
-        self._client = client
+    """Implementation of [Storage][suppgram.storage.Storage] for MongoDB
+    via [Motor](https://motor.readthedocs.io/) library."""
+
+    def __init__(self, collections: Collections):
+        """
+        Parameters:
+            collections: object storing collection names and conversion routines. Allows using custom
+                         collection names, can be subclassed to customize BSON documents structure.
+        """
         self._collections = collections
 
     async def create_or_update_customer(

@@ -11,19 +11,23 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.CustomerIdentification
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.CustomerDiff
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
+<hr/>
 ## Agents
 
 ::: suppgram.entities.Agent
@@ -31,34 +35,40 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.AgentIdentification
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.AgentDiff
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
-
-## Agent workplaces
+<hr/>
+## Workplaces
 
 ::: suppgram.entities.Workplace
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.WorkplaceIdentification
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
+<hr/>
 ## Conversations
 
 ::: suppgram.entities.Conversation
@@ -66,12 +76,14 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.ConversationDiff
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.ConversationState
     handler: python
@@ -79,12 +91,14 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
       show_root_heading: true
       show_source: false
       show_if_no_docstring: true
+      heading_level: 3
 
 ::: suppgram.entities.Message
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3
 
 ::: suppgram.entities.MessageKind
     handler: python
@@ -92,9 +106,11 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
       show_root_heading: true
       show_source: false
       show_if_no_docstring: true
+      heading_level: 3
 
 ::: suppgram.entities.ConversationTag
     handler: python
     options:
       show_root_heading: true
       show_source: false
+      heading_level: 3

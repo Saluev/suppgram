@@ -101,7 +101,7 @@ class Builder:
             AgnosticDatabase, self._mongodb_client.get_database(mongodb_database_name)
         )
         mongodb_collections = Collections(database=self._mongodb_database)
-        self._storage = MongoDBStorage(client=self._mongodb_client, collections=mongodb_collections)
+        self._storage = MongoDBStorage(collections=mongodb_collections)
         return self
 
     def with_texts(self, texts: TextsProvider) -> "Builder":

@@ -50,17 +50,34 @@ class ConversationRelatedIDs(NamedTuple):
 
 
 class Collections:
-    def __init__(self, database: AgnosticDatabase):
+    """Abstraction layer over MongoDB database and collection names and BSON documents structure."""
+
+    def __init__(
+        self,
+        database: AgnosticDatabase,
+        customer_collection_name: str = "suppgram_customers",
+        agent_collection_name: str = "suppgram_agents",
+        conversation_collection_name: str = "suppgram_conversations",
+        conversation_tag_collection_name: str = "suppgram_conversation_tags",
+    ):
+        """
+        Parameters:
+            database: asyncio-compatible Motor MongoDB database to store data in
+            customer_collection_name: name of MongoDB collection to store customers in
+            agent_collection_name: name of MongoDB collection to store agents and workplaces in
+            conversation_collection_name: name of MongoDB collection to store conversations and messages in
+            conversation_tag_collection_name: name of MongoDB collection to store conversation tags in
+        """
         codec_options: CodecOptions = CodecOptions(tz_aware=True, tzinfo=timezone.utc)
-        self.customer_collection = database.get_collection("suppgram_customers", codec_options)
-        self.agent_collection = database.get_collection("suppgram_agents", codec_options)
+        self.customer_collection = database.get_collection(customer_collection_name, codec_options)
+        self.agent_collection = database.get_collection(agent_collection_name, codec_options)
         # Workplaces are stored within agents.
         self.conversation_collection = database.get_collection(
-            "suppgram_conversations", codec_options
+            conversation_collection_name, codec_options
         )
         # Messages are stored within conversations.
         self.conversation_tag_collection = database.get_collection(
-            "suppgram_conversation_tags", codec_options
+            conversation_tag_collection_name, codec_options
         )
 
     def make_customer_filter(self, identification: CustomerIdentification) -> Document:

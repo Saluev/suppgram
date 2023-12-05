@@ -120,6 +120,10 @@ class ConversationMessage(Base):
 
 
 class Models:
+    """Abstraction layer over SQLAlchemy models.
+
+    Default models are declared in `suppgram.storages.mongodb.collections` package."""
+
     def __init__(
         self,
         engine: AsyncEngine,
@@ -131,6 +135,16 @@ class Models:
         conversation_tag_model: Any = ConversationTag,
         conversation_tag_association_table: Optional[Table] = association_table,
     ):
+        """
+        Parameters:
+            engine: asynchronous SQLAlchemy engine
+            customer_model: SQLAlchemy model for customers
+            agent_model: SQLAlchemy model for agents
+            workplace_model: SQLAlchemy model for workplaces
+            conversation_model: SQLAlchemy model for conversations
+            conversation_message_model: SQLAlchemy model for messages
+            conversation_tag_model: SQLAlchemy model for conversation tags
+        """
         self._engine = engine
         self.customer_model = customer_model
         self.agent_model = agent_model
