@@ -55,6 +55,7 @@ class Customer:
     telegram_username: Optional[str] = None
 
     shell_uuid: Optional[UUID] = None
+
     pubnub_user_id: Optional[str] = None
     pubnub_channel_id: Optional[str] = None
 
@@ -191,6 +192,11 @@ class ConversationState(str, Enum):
     NEW = "new"
     ASSIGNED = "assigned"
     RESOLVED = "resolved"
+
+
+FINAL_STATES = [ConversationState.RESOLVED]
+""" List of states in which the conversation is not considered
+ ready to accept new messages from the customer. """
 
 
 @dataclass(frozen=True)

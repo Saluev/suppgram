@@ -35,6 +35,7 @@ dev = [
     "pytest-asyncio~=0.21.1",
     "ruff~=0.1.6",
 ]
+mongodb = ["motor~=3.3.2"]
 pubnub = [
     "aioconsole~=0.6.2",
     "pubnub~=7.3.1",

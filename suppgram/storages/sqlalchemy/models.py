@@ -30,7 +30,9 @@ from suppgram.entities import (
     Conversation as ConversationInterface,
     CustomerDiff,
     AgentDiff,
+    FINAL_STATES,
 )
+from suppgram.errors import AgentEmptyIdentification, WorkplaceEmptyIdentification
 
 Base = declarative_base()
 
@@ -47,9 +49,7 @@ class Customer(Base):
         String, nullable=True
     )  # TODO unique together with channel
     pubnub_channel_id: Mapped[str] = mapped_column(String, nullable=True)
-    conversations: Mapped[List["Conversation"]] = relationship(
-        back_populates="customer"
-    )
+    conversations: Mapped[List["Conversation"]] = relationship(back_populates="customer")
 
 
 class Agent(Base):
@@ -71,18 +71,14 @@ class Workplace(Base):
     agent_id: Mapped[int] = mapped_column(ForeignKey(Agent.id))
     agent: Mapped[Agent] = relationship(back_populates="workplaces")
     telegram_bot_id: Mapped[int] = mapped_column(Integer)
-    conversations: Mapped[List["Conversation"]] = relationship(
-        back_populates="assigned_workplace"
-    )
+    conversations: Mapped[List["Conversation"]] = relationship(back_populates="assigned_workplace")
 
 
 class ConversationTag(Base):
     __tablename__ = "suppgram_conversation_tags"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    created_at_utc: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=False)
     created_by: Mapped[Agent] = relationship(back_populates="created_conversation_tags")
     # `back_populates` is not really needed, but without it mypy terminates with an exception...
@@ -91,9 +87,7 @@ class ConversationTag(Base):
 association_table = Table(
     "suppgram_conversation_tag_associations",
     Base.metadata,
-    Column(
-        "conversation_id", ForeignKey("suppgram_conversations.id"), primary_key=True
-    ),
+    Column("conversation_id", ForeignKey("suppgram_conversations.id"), primary_key=True),
     Column(
         "conversation_tag_id",
         ForeignKey("suppgram_conversation_tags.id"),
@@ -108,16 +102,10 @@ class Conversation(Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id), nullable=False)
     customer: Mapped[Customer] = relationship(back_populates="conversations")
     tags: Mapped[List[ConversationTag]] = relationship(secondary=association_table)
-    assigned_workplace_id: Mapped[int] = mapped_column(
-        ForeignKey(Workplace.id), nullable=True
-    )
+    assigned_workplace_id: Mapped[int] = mapped_column(ForeignKey(Workplace.id), nullable=True)
     assigned_workplace: Mapped[Workplace] = relationship(back_populates="conversations")
-    state: Mapped[ConversationState] = mapped_column(
-        Enum(ConversationState), nullable=False
-    )
-    messages: Mapped[List["ConversationMessage"]] = relationship(
-        back_populates="conversation"
-    )
+    state: Mapped[ConversationState] = mapped_column(Enum(ConversationState), nullable=False)
+    messages: Mapped[List["ConversationMessage"]] = relationship(back_populates="conversation")
     customer_rating: Mapped[int] = mapped_column(Integer, nullable=True)
 
 
@@ -269,9 +257,7 @@ class Models:
         assigned_agent: Optional[AgentInterface] = None
         assigned_workplace: Optional[WorkplaceInterface] = None
         if conversation.assigned_workplace:
-            assigned_agent = self.convert_from_agent_model(
-                conversation.assigned_workplace.agent
-            )
+            assigned_agent = self.convert_from_agent_model(conversation.assigned_workplace.agent)
             assigned_workplace = self.convert_from_workplace_model(
                 assigned_agent, conversation.assigned_workplace
             )
@@ -282,18 +268,13 @@ class Models:
             tags=[self.convert_from_tag_model(tag) for tag in conversation.tags],
             assigned_agent=assigned_agent,
             assigned_workplace=assigned_workplace,
-            messages=[
-                self.convert_from_message_model(message)
-                for message in conversation.messages
-            ]
+            messages=[self.convert_from_message_model(message) for message in conversation.messages]
             if with_messages
             else UnavailableList[ConversaionMessageInterface](),
             customer_rating=conversation.customer_rating,
         )
 
-    def make_customer_filter(
-        self, identification: CustomerIdentification
-    ) -> ColumnElement:
+    def make_customer_filter(self, identification: CustomerIdentification) -> ColumnElement:
         model = self.customer_model
 
         if identification.id is not None:
@@ -323,27 +304,25 @@ class Models:
         if identification.telegram_user_id is not None:
             return model.telegram_user_id == identification.telegram_user_id
 
-        raise ValueError(
-            f"received agent identification {identification} without supported non-null fields"
-        )
+        raise AgentEmptyIdentification(identification)
 
-    def make_workplace_filter(
-        self, identification: WorkplaceIdentification
-    ) -> ColumnElement:
+    def make_workplace_filter(self, identification: WorkplaceIdentification) -> ColumnElement:
         workplace_model = self.workplace_model
         agent_model = self.agent_model
-        return (
-            (workplace_model.telegram_bot_id == identification.telegram_bot_id)
-            & (workplace_model.agent_id == self.agent_model.id)
-            & (agent_model.telegram_user_id == identification.telegram_user_id)
-        )
+        if identification.telegram_user_id is not None:
+            return (
+                (workplace_model.telegram_bot_id == identification.telegram_bot_id)
+                & (workplace_model.agent_id == self.agent_model.id)
+                & (agent_model.telegram_user_id == identification.telegram_user_id)
+            )
+        raise WorkplaceEmptyIdentification(identification)
 
     def make_agent_workplaces_filter(self, agent: AgentInterface) -> ColumnElement:
         return self.workplace_model.agent_id == agent.id
 
     def make_customer_conversation_filter(self, customer: CustomerInterface):
         return (self.conversation_model.customer_id == customer.id) & (
-            ~self.conversation_model.state.in_([ConversationState.RESOLVED])
+            ~self.conversation_model.state.in_(FINAL_STATES)
         )
 
     def make_agent_conversation_filter(
@@ -358,7 +337,5 @@ class Models:
     ) -> ColumnElement:
         result = self.conversation_model.id.in_(conversation_ids)
         if unassigned_only:
-            result = result & (
-                self.conversation_model.assigned_workplace_id == None  # noqa
-            )
+            result = result & (self.conversation_model.assigned_workplace_id == None)  # noqa
         return result

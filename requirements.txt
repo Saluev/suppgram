@@ -1,6 +1,8 @@
 SQLAlchemy~=2.0.22
+aioconsole~=0.6.2
 aiosqlite~=0.19.0
 click~=8.1.7
+motor~=3.3.2
 mypy-extensions==1.0.0
 mypy==1.7.1
 pubnub~=7.3.1
