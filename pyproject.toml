@@ -14,7 +14,7 @@ maintainers = [
 description = "Minimalistic support system with Telegram-based UI"
 readme = "README.md"
 license = {text = "MIT License"}
-requires-python = ">=3.11"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -29,15 +29,23 @@ dev = [
     "mkdocs~=1.5.3",
     "mkdocstrings~=0.24.0",
     "mkdocstrings-python~=1.7.5",
+    "mypy~=1.7.1",
+    "mypy-extensions~=1.0.0",
     "pytest~=7.4.2",
     "pytest-asyncio~=0.21.1",
+    "ruff~=0.1.6",
 ]
 pubnub = [
     "aioconsole~=0.6.2",
     "pubnub~=7.3.1",
 ]
 shell = ["aioconsole~=0.6.2"]
-sqlalchemy = ["SQLAlchemy~=2.0.22"]
+sqlalchemy = [
+    "aiosqlite~=0.19.0",
+    "asyncpg~=0.29.0",
+    "SQLAlchemy~=2.0.22",
+]
+sqlalchemy_slim = ["SQLAlchemy~=2.0.22"]
 telegram = ["python-telegram-bot~=20.6"]
 
 [project.urls]
