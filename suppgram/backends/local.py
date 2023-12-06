@@ -184,12 +184,6 @@ class LocalBackend(BackendInterface):
         )
         conversation = await self._storage.get_agent_conversation(workplace.identification)
         await self.on_conversation_assignment.trigger(ConversationEvent(conversation=conversation))
-        await self.on_new_message_for_agent.trigger_batch(
-            [
-                NewMessageForAgentEvent(agent=assignee, workplace=workplace, message=message)
-                for message in conversation.messages
-            ]
-        )
 
     async def get_conversations(
         self, conversation_ids: List[Any], with_messages: bool = False

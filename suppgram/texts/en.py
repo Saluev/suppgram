@@ -85,9 +85,9 @@ class EnglishTextsProvider(TextsProvider):
 
         full_name = (
             f"{customer.telegram_first_name or ''} {customer.telegram_last_name or ''}".strip()
-            or "Anonymous"
+            or "anonymous"
         )
-        lines = [full_name]
+        lines = [f"Customer: {full_name}"]
         contacts = []
         if customer.telegram_user_id:
             contacts.append(
@@ -111,7 +111,7 @@ class EnglishTextsProvider(TextsProvider):
         lines = [
             f"{emoji} Conversation in status #{conversation.state.upper()}",
             "",
-            f"Customer: {profile.text}",
+            profile.text,
             "",
         ]
         lines.extend(self._format_message(message) for message in conversation.messages)

@@ -19,6 +19,8 @@ from suppgram.entities import (
     Message,
     NewMessageForAgentEvent,
     Workplace,
+    ConversationEvent,
+    Customer,
 )
 from suppgram.errors import ConversationNotFound, AgentNotFound
 from suppgram.frontend import (
@@ -39,7 +41,7 @@ from suppgram.frontends.telegram.interfaces import (
     TelegramMessage,
 )
 from suppgram.helpers import flat_gather
-from suppgram.texts.interface import TextsProvider
+from suppgram.texts.interface import TextsProvider, Format
 
 
 class TelegramAgentFrontend(AgentFrontend):
@@ -75,6 +77,7 @@ class TelegramAgentFrontend(AgentFrontend):
         self._manager_bot: Optional[Bot] = (
             app_manager.get_app(manager_bot_token).bot if manager_bot_token else None
         )
+        self._backend.on_conversation_assignment.add_handler(self._handle_conversation_assignment)
         self._backend.on_new_message_for_agent.add_batch_handler(
             self._handle_new_message_for_agent_events
         )
@@ -235,6 +238,14 @@ class TelegramAgentFrontend(AgentFrontend):
             ),
         )
 
+    async def _handle_conversation_assignment(self, event: ConversationEvent):
+        conversation = event.conversation
+        assert (
+            conversation.assigned_workplace
+        ), "conversation should have assigned workplace upon conversation assignment event"
+        await self._send_customer_profile(conversation.assigned_workplace, conversation.customer)
+        await self._send_new_messages(conversation.assigned_workplace, conversation.messages)
+
     async def _handle_new_message_for_agent_events(self, events: List[NewMessageForAgentEvent]):
         for _, batch_iter in groupby(
             events, lambda event: (event.workplace.agent.id, event.workplace.id)
@@ -243,6 +254,17 @@ class TelegramAgentFrontend(AgentFrontend):
             workplace = batch[0].workplace
             messages = [event.message for event in batch]
             await self._send_new_messages(workplace, messages)
+
+    async def _send_customer_profile(self, workplace: Workplace, customer: Customer):
+        if workplace.telegram_user_id is None or workplace.telegram_bot_id is None:
+            return
+        app = self._get_app_by_bot_id(workplace.telegram_bot_id)
+        profile = self._texts.compose_customer_profile(
+            customer, Format.get_formats_supported_by_telegram()
+        )
+        await app.bot.send_message(
+            chat_id=workplace.telegram_user_id, text=profile.text, parse_mode=profile.parse_mode
+        )
 
     async def _send_new_messages(self, workplace: Workplace, messages: List[Message]):
         if workplace.telegram_user_id is None or workplace.telegram_bot_id is None:
