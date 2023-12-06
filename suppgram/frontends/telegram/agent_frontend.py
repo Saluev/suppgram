@@ -354,7 +354,9 @@ class TelegramAgentFrontend(AgentFrontend):
         if not messages:
             return []
         formatted_messages = self._format_previous_messages(messages)
-        pages = self._paginate_formatted_messages(formatted_messages, max_page_length=1000)
+        pages = self._paginate_formatted_messages(
+            formatted_messages, max_page_lines=15, max_page_chars=1000
+        )
         return list(pages)
 
     def _format_previous_messages(self, messages: Iterable[Message]) -> Iterable[str]:
@@ -362,12 +364,12 @@ class TelegramAgentFrontend(AgentFrontend):
             yield self._texts.format_history_message(message)
 
     def _paginate_formatted_messages(
-        self, messages: Iterable[str], max_page_length: int = 4000
+        self, messages: Iterable[str], max_page_lines: int = 4000, max_page_chars: int = 4000
     ) -> Iterable[str]:
         title = self._texts.message_history_title
         parts, parts_length = [title], len(title)
         for message in messages:
-            if parts_length + 1 + len(message) > max_page_length:
+            if parts_length + 1 + len(message) > max_page_chars or len(parts) >= max_page_lines:
                 yield "\n".join(parts)
                 parts, parts_length = [title], len(title)
             parts.append(message)
