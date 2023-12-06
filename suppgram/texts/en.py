@@ -18,26 +18,26 @@ logger = logging.getLogger(__name__)
 
 
 class EnglishTextsProvider(TextsProvider):
-    telegram_customer_start_message = "Welcome to support service! Please describe your problem."
+    telegram_customer_start_message = "👋 Welcome to support service! Please describe your problem."
     telegram_customer_conversation_resolved_message_placeholder = (
-        "Conversation was marked as resolved. "
+        "✅ Conversation was marked as resolved. "
         "You can always start a new conversation by writing to this chat!"
     )
     telegram_customer_conversation_resolved_message = (
         telegram_customer_conversation_resolved_message_placeholder + "\n\n"
-        "Please rate your experience with the support agent:"
+        "⭐️ Please rate your experience with the support agent:"
     )
 
     def compose_customer_conversation_resolved_message(self, rating: int) -> str:
         return (
             self.telegram_customer_conversation_resolved_message_placeholder
-            + "\n\nHow you rated this conversation: "
+            + "\n\n⭐️ How you rated this conversation: "
             + self.format_rating(rating)
         )
 
-    telegram_manager_start_message = "Welcome to the support admin bot!"
+    telegram_manager_start_message = "🛠️ Welcome to the support admin bot!"
     telegram_manager_permission_denied_message = (
-        "You don't have permission to access manager functionality."
+        "🚫 You don't have permission to access manager functionality."
     )
     telegram_agents_command_description = "Make all members of this group support agents."
     telegram_send_new_conversations_command_description = (
@@ -45,12 +45,14 @@ class EnglishTextsProvider(TextsProvider):
     )
 
     telegram_create_tag_command_description = "Create new tag to label conversations with"
-    telegram_create_tag_permission_denied_message = "You don't have permission to create new tags."
-    telegram_create_tag_usage_message = (
-        "Please specify new tag name after command:\n\n    /create_tag urgent"
+    telegram_create_tag_permission_denied_message = (
+        "🚫 You don't have permission to create new tags."
     )
-    telegram_tag_successfully_created_message = "New tag has been successfully created."
-    telegram_tag_already_exists_message = "Tag with this name already exists!"
+    telegram_create_tag_usage_message = (
+        "🧑‍🏫 Please specify new tag name after command:\n\n    /create_tag urgent"
+    )
+    telegram_tag_successfully_created_message = "✅ New tag has been successfully created."
+    telegram_tag_already_exists_message = "⚠️ Tag with this name already exists!"
 
     def compose_add_tag_button_text(self, tag: ConversationTag) -> str:
         return f"☐ {tag.name}"
@@ -58,20 +60,20 @@ class EnglishTextsProvider(TextsProvider):
     def compose_remove_tag_button_text(self, tag: ConversationTag) -> str:
         return f"☑ {tag.name}"
 
-    telegram_agent_start_message = "Welcome to the support agent bot!"
+    telegram_agent_start_message = "👷 Welcome to the support agent bot!"
     telegram_agent_permission_denied_message = (
-        "You don't have permission to access support agent functionality."
+        "🚫 You don't have permission to access support agent functionality."
     )
     telegram_workplace_is_not_assigned_message = (
-        "This chat is not assigned to any ongoing " "conversation with a customer right now."
+        "📭 This chat is not assigned to any ongoing " "conversation with a customer right now."
     )
     telegram_resolve_command_description = (
         "Mark conversation resolved and stop messaging with the customer."
     )
     telegram_agent_conversation_resolved_message = (
-        "Conversation was marked as resolved. " "This chat is no longer assigned to a customer."
+        "✅ Conversation was marked as resolved. " "This chat is no longer assigned to a customer."
     )
-    telegram_new_conversation_notification_placeholder = "New conversation!"
+    telegram_new_conversation_notification_placeholder = f"❗️ New conversation!"
 
     # TODO move logic to base class, keep only string templates here
     def compose_customer_profile(
