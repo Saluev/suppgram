@@ -3,9 +3,6 @@ from typing import (
     Any,
     TypeVar,
     Optional,
-    Mapping,
-    Collection,
-    MutableMapping,
 )
 
 from sqlalchemy import (
@@ -33,7 +30,6 @@ from suppgram.entities import (
     ConversationState,
     AgentDiff,
     ConversationDiff,
-    SetNone,
     CustomerDiff,
 )
 from suppgram.errors import (
@@ -95,7 +91,7 @@ class SQLAlchemyStorage(Storage):
 
     async def get_agent(self, identification: AgentIdentification) -> AgentInterface:
         async with self._session() as session:
-            query = select(self._models.agent_model).filter(
+            query = select(self._models.agent_model).where(
                 self._models.make_agent_filter(identification)
             )
             agent = (await session.execute(query)).scalars().one_or_none()
@@ -127,7 +123,7 @@ class SQLAlchemyStorage(Storage):
     ) -> AgentInterface:
         filter_ = self._models.make_agent_filter(identification)
         async with self._session() as session, session.begin():
-            select_query = select(self._models.agent_model).filter(filter_).with_for_update()
+            select_query = select(self._models.agent_model).where(filter_).with_for_update()
             agent = (await session.execute(select_query)).scalars().one_or_none()
             if agent is None:
                 raise AgentNotFound(identification)
@@ -137,7 +133,7 @@ class SQLAlchemyStorage(Storage):
 
     async def get_workplace(self, identification: WorkplaceIdentification) -> WorkplaceInterface:
         async with self._session() as session:
-            query = select(self._models.workplace_model).filter(
+            query = select(self._models.workplace_model).where(
                 self._models.make_workplace_filter(identification)
             )
             workplace = (await session.execute(query)).scalars().one_or_none()
@@ -147,7 +143,7 @@ class SQLAlchemyStorage(Storage):
 
     async def get_agent_workplaces(self, agent: AgentInterface) -> List[WorkplaceInterface]:
         async with self._session() as session:
-            query = select(self._models.workplace_model).filter(
+            query = select(self._models.workplace_model).where(
                 self._models.make_agent_workplaces_filter(agent)
             )
             workplaces = (await session.execute(query)).scalars().all()
@@ -170,7 +166,7 @@ class SQLAlchemyStorage(Storage):
             query = (
                 select(self._models.workplace_model, self._models.agent_model)
                 .options(joinedload(self._models.workplace_model.agent))
-                .filter(self._models.make_workplace_filter(identification))
+                .where(self._models.make_workplace_filter(identification))
             )
             workplace = (await session.execute(query)).scalars().one_or_none()
             if workplace is None:
@@ -211,7 +207,7 @@ class SQLAlchemyStorage(Storage):
                     ),
                     selectinload(self._models.conversation_model.messages),
                 )
-                .filter(self._models.make_customer_conversation_filter(customer))
+                .where(self._models.make_customer_conversation_filter(customer))
             )
             conv: Optional[Conversation] = (
                 (await session.execute(select_query)).scalars().one_or_none()
@@ -266,7 +262,7 @@ class SQLAlchemyStorage(Storage):
             query = (
                 select(self._models.conversation_model)
                 .options(*options)
-                .filter(self._models.make_conversations_filter(conversation_ids))
+                .where(self._models.make_conversations_filter(conversation_ids))
             )
             convs = (await session.execute(query)).scalars().all()
             return [
@@ -279,19 +275,17 @@ class SQLAlchemyStorage(Storage):
     ):
         async with self._session() as session, session.begin():
             filter_ = self._models.make_conversations_filter([id])
-            query = select(self._models.conversation_model).filter(filter_)
+            query = select(self._models.conversation_model).where(filter_)
             conv = (await session.execute(query)).scalars().one_or_none()
             if conv is None:
                 raise ConversationNotFound()
 
-            if update_values := self._make_update_values(
-                diff, exclude_fields=["added_tags", "removed_tags"]
-            ):
+            if update_values := self._models.make_conversation_update_values(diff):
                 filter_ = self._models.make_conversations_filter(
                     [id], unassigned_only=unassigned_only
                 )
                 update_query = (
-                    update(self._models.conversation_model).filter(filter_).values(**update_values)
+                    update(self._models.conversation_model).where(filter_).values(**update_values)
                 )
                 result = await session.execute(update_query)
                 if unassigned_only and result.rowcount == 0:
@@ -331,7 +325,7 @@ class SQLAlchemyStorage(Storage):
                         self._models.workplace_model,
                         self._models.agent_model,
                     )
-                    .filter(self._models.make_agent_conversation_filter(identification))
+                    .where(self._models.make_agent_conversation_filter(identification))
                     .options(*options)
                 )
                 conv = (await session.execute(query)).scalars().one()
@@ -351,16 +345,3 @@ class SQLAlchemyStorage(Storage):
                     text=message.text,
                 )
             )
-
-    # TODO move to Models too, and maybe prefer updating model attributes with diffs?
-    def _make_update_values(
-        self, diff_dc: Any, exclude_fields: Collection[str] = ()
-    ) -> Mapping[str, Any]:
-        result: MutableMapping[str, Any] = {}
-        for k, v in diff_dc.__dict__.items():
-            if k in exclude_fields or v is None:
-                continue
-            if v is SetNone:
-                v = None
-            result[k] = v
-        return result

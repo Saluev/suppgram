@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Mapping, MutableMapping
 from uuid import UUID
 
 from sqlalchemy import (
@@ -31,6 +31,8 @@ from suppgram.entities import (
     CustomerDiff,
     AgentDiff,
     FINAL_STATES,
+    ConversationDiff,
+    SetNone,
 )
 from suppgram.errors import AgentEmptyIdentification, WorkplaceEmptyIdentification
 
@@ -354,4 +356,20 @@ class Models:
         result = self.conversation_model.id.in_(conversation_ids)
         if unassigned_only:
             result = result & (self.conversation_model.assigned_workplace_id == None)  # noqa
+        return result
+
+    def make_conversation_update_values(self, diff: ConversationDiff) -> Mapping[str, Any]:
+        result: MutableMapping[str, Any] = {}
+
+        if diff.state is not None:
+            result["state"] = diff.state
+
+        if diff.assigned_workplace_id is SetNone:
+            result["assigned_workplace_id"] = None
+        elif diff.assigned_workplace_id is not None:
+            result["assigned_workplace_id"] = diff.assigned_workplace_id
+
+        if diff.customer_rating is not None:
+            result["customer_rating"] = diff.customer_rating
+
         return result

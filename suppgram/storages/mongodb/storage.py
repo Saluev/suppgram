@@ -1,6 +1,5 @@
 from typing import Any, List, Optional, Mapping
 
-from motor.core import AgnosticClient
 from pymongo import ReturnDocument
 
 from suppgram.entities import (

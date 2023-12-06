@@ -203,7 +203,14 @@ class Message:
 
 
 class ConversationState(str, Enum):
-    """Enumeration describing current state of a [conversation][suppgram.entities.Conversation]."""
+    """
+    Enumeration describing current state of a [conversation][suppgram.entities.Conversation].
+
+    Attributes:
+        NEW: newly created conversation waiting for an agent to be assigned
+        ASSIGNED: in-progress conversation with an assigned agent
+        RESOLVED: conversation resolved by an agent
+    """
 
     NEW = "new"
     ASSIGNED = "assigned"

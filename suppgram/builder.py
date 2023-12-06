@@ -85,7 +85,9 @@ class Builder:
         )
         return self
 
-    def with_mongodb_storage(self, mongodb_uri: str, mongodb_database_name: str) -> "Builder":
+    def with_mongodb_storage(
+        self, mongodb_uri: str, mongodb_database_name: Optional[str]
+    ) -> "Builder":
         if self._storage is not None:
             raise ValueError(
                 f"can't use MongoDB storage — already instantiated {type(self._storage).__name__}"
@@ -98,7 +100,10 @@ class Builder:
 
         self._mongodb_client = AsyncIOMotorClient(mongodb_uri)
         self._mongodb_database = cast(
-            AgnosticDatabase, self._mongodb_client.get_database(mongodb_database_name)
+            AgnosticDatabase,
+            self._mongodb_client.get_default_database()
+            if mongodb_database_name is None
+            else self._mongodb_client.get_database(mongodb_database_name),
         )
         mongodb_collections = Collections(database=self._mongodb_database)
         self._storage = MongoDBStorage(collections=mongodb_collections)

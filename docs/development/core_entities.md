@@ -90,7 +90,6 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
     options:
       show_root_heading: true
       show_source: false
-      show_if_no_docstring: true
       heading_level: 3
 
 ::: suppgram.entities.Message

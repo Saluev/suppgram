@@ -20,10 +20,23 @@ from suppgram.logging import ConfidentialStreamHandler
     default="INFO",
     help="Log level",
 )
-@click.option("--sqlalchemy-uri", default=None, help="SQLAlchemy connection URI")
-@click.option("--mongodb-uri", default=None, help="MongoDB connection URI")
 @click.option(
-    "--mongodb-database", "mongodb_database_name", default=None, help="MongoDB database name"
+    "--sqlalchemy-uri",
+    envvar="SQLALCHEMY_URI",
+    default=None,
+    help="SQLAlchemy connection URI. Alternatively, environment variable SQLALCHEMY_URI may be used",
+)
+@click.option(
+    "--mongodb-uri",
+    envvar="MONGODB_URI",
+    default=None,
+    help="MongoDB connection URI. Alternatively, environment variable MONGODB_URI may be used",
+)
+@click.option(
+    "--mongodb-database",
+    "mongodb_database_name",
+    default=None,
+    help="MongoDB database name. If not specified, will connect to the default database specified in the URI",
 )
 @click.option(
     "--texts",
@@ -132,17 +145,7 @@ def run_all_in_one(
     if sqlalchemy_uri:
         builder = builder.with_sqlalchemy_storage(sqlalchemy_uri)
 
-    if mongodb_uri or mongodb_database_name:
-        if not mongodb_uri:
-            raise UsageError(
-                "MongoDB database name is specified but URI is not. "
-                "Consider specifying --mongodb-uri parameter."
-            )
-        if not mongodb_database_name:
-            raise UsageError(
-                "MongoDB URI is specified but database name is not. "
-                "Consider specifying --mongodb-database parameter."
-            )
+    if mongodb_uri is not None:
         builder = builder.with_mongodb_storage(mongodb_uri, mongodb_database_name)
 
     if texts_class_path:
