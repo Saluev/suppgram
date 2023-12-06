@@ -200,7 +200,7 @@ class SQLAlchemyStorage(Storage):
                     ),
                     selectinload(self._models.conversation_model.messages),
                 )
-                .where(self._models.make_customer_conversation_filter(customer))
+                .where(self._models.make_current_customer_conversation_filter(customer))
             )
             conv = (await session.execute(select_query)).scalars().one_or_none()
             assigned_agent: Optional[Agent] = None
@@ -300,7 +300,7 @@ class SQLAlchemyStorage(Storage):
             async with self._session() as session:
                 filter_ = self._models.make_workplace_conversation_filter(identification)
                 options = self._models.make_conversation_options(with_messages=True)
-                query = (
+                select_query = (
                     select(
                         self._models.conversation_model,
                         self._models.workplace_model,
@@ -309,16 +309,33 @@ class SQLAlchemyStorage(Storage):
                     .where(filter_)
                     .options(*options)
                 )
-                conv = (await session.execute(query)).scalars().one()
+                conv = (await session.execute(select_query)).scalars().one()
                 return self._models.convert_from_conversation_model(conv, with_messages=True)
         except NoResultFound as exc:
             raise ConversationNotFound() from exc
+
+    async def find_customer_conversations(
+        self, customer: Customer, with_messages: bool = False
+    ) -> List[Conversation]:
+        async with self._session() as session:
+            filter_ = self._models.make_customer_conversations_filter(customer.identification)
+            options = self._models.make_conversation_options(with_messages=with_messages)
+            select_query = (
+                select(self._models.conversation_model, self._models.customer_model)
+                .where(filter_)
+                .options(*options)
+            )
+            convs = (await session.execute(select_query)).scalars().all()
+            return [
+                self._models.convert_from_conversation_model(conv, with_messages=with_messages)
+                for conv in convs
+            ]
 
     async def find_agent_conversations(
         self, agent: Agent, with_messages: bool = False
     ) -> List[Conversation]:
         async with self._session() as session:
-            filter_ = self._models.make_agent_conversation_filter(agent.identification)
+            filter_ = self._models.make_agent_conversations_filter(agent.identification)
             options = self._models.make_conversation_options(with_messages=with_messages)
             select_query = (
                 select(

@@ -146,7 +146,7 @@ class MongoDBStorage(Storage):
         docs = await self._collections.conversation_collection.find(
             filter_, projection=projection
         ).to_list(None)
-        return await self._convert_mutliple_conversations(docs)
+        return await self._convert_multiple_conversations(docs)
 
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
@@ -170,15 +170,25 @@ class MongoDBStorage(Storage):
             raise ConversationNotFound()
         return await self._convert_single_conversation(doc)
 
-    async def find_agent_conversations(
-        self, agent: Agent, with_messages: bool = False
+    async def find_customer_conversations(
+        self, customer: Customer, with_messages: bool = False
     ) -> List[Conversation]:
-        filter_ = self._collections.make_agent_conversation_filter(agent.id)
+        filter_ = self._collections.make_customer_conversations_filter(customer.id)
         projection = self._collections.make_conversation_projection(with_messages=with_messages)
         docs = await self._collections.conversation_collection.find(
             filter_, projection=projection
         ).to_list(None)
-        return await self._convert_mutliple_conversations(docs)
+        return await self._convert_multiple_conversations(docs, customers={customer.id: customer})
+
+    async def find_agent_conversations(
+        self, agent: Agent, with_messages: bool = False
+    ) -> List[Conversation]:
+        filter_ = self._collections.make_agent_conversations_filter(agent.id)
+        projection = self._collections.make_conversation_projection(with_messages=with_messages)
+        docs = await self._collections.conversation_collection.find(
+            filter_, projection=projection
+        ).to_list(None)
+        return await self._convert_multiple_conversations(docs)
 
     async def _convert_single_conversation(self, conv_doc: Document) -> Conversation:
         related_ids = self._collections.extract_conversation_related_ids(conv_doc)
@@ -191,14 +201,15 @@ class MongoDBStorage(Storage):
         tags = {tag.id: tag for tag in await self.find_all_tags()}
         return self._collections.convert_to_conversation(conv_doc, customers, workplaces, tags)
 
-    async def _convert_mutliple_conversations(
-        self, conv_docs: List[Document]
+    async def _convert_multiple_conversations(
+        self, conv_docs: List[Document], customers: Mapping[Any, Customer] = {}
     ) -> List[Conversation]:
         related_ids = [self._collections.extract_conversation_related_ids(doc) for doc in conv_docs]
-        customer_ids = [r.customer_id for r in related_ids]
-        customers = {
-            customer.id: customer for customer in await self.find_customers_by_ids(customer_ids)
-        }
+        if not customers:
+            customer_ids = [r.customer_id for r in related_ids]
+            customers = {
+                customer.id: customer for customer in await self.find_customers_by_ids(customer_ids)
+            }
         workplace_ids = [
             r.assigned_workplace_id for r in related_ids if r.assigned_workplace_id is not None
         ]

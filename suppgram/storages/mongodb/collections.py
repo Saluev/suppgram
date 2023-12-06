@@ -260,7 +260,10 @@ class Collections:
     def make_conversations_filter(self, ids: Iterable[Any]) -> Document:
         return {"_id": {"$in": [ObjectId(id) for id in ids]}}
 
-    def make_agent_conversation_filter(self, agent_id: Any) -> Document:
+    def make_customer_conversations_filter(self, customer_id: Any) -> Document:
+        return {"customer_id": customer_id}
+
+    def make_agent_conversations_filter(self, agent_id: Any) -> Document:
         return {"assigned_agent_id": agent_id}
 
     def make_workplace_conversation_filter(self, workplace_id: Any) -> Document:

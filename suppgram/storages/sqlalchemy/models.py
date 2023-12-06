@@ -346,7 +346,7 @@ class Models:
     def make_agent_workplaces_filter(self, agent: AgentInterface) -> ColumnElement:
         return self.workplace_model.agent_id == agent.id
 
-    def make_customer_conversation_filter(self, customer: CustomerInterface):
+    def make_current_customer_conversation_filter(self, customer: CustomerInterface):
         return (self.conversation_model.customer_id == customer.id) & (
             ~self.conversation_model.state.in_(FINAL_STATES)
         )
@@ -358,7 +358,14 @@ class Models:
             self.conversation_model.assigned_workplace_id == Workplace.id
         )
 
-    def make_agent_conversation_filter(self, identification: AgentIdentification) -> ColumnElement:
+    def make_customer_conversations_filter(
+        self, identification: CustomerIdentification
+    ) -> ColumnElement:
+        return self.make_customer_filter(identification) & (
+            self.conversation_model.customer_id == self.customer_model.id
+        )
+
+    def make_agent_conversations_filter(self, identification: AgentIdentification) -> ColumnElement:
         return (
             self.make_agent_filter(identification)
             & (self.conversation_model.assigned_workplace_id == self.workplace_model.id)
