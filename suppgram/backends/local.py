@@ -22,6 +22,7 @@ from suppgram.entities import (
     CustomerDiff,
     ConversationTag,
     ConversationTagEvent,
+    Customer,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
@@ -72,9 +73,9 @@ class LocalBackend(BackendInterface):
         return await self._storage.update_agent(identification, diff)
 
     async def create_or_update_customer(
-        self, identification: CustomerIdentification, diff: CustomerDiff
-    ):
-        await self._storage.create_or_update_customer(identification, diff)
+        self, identification: CustomerIdentification, diff: Optional[CustomerDiff] = None
+    ) -> Customer:
+        return await self._storage.create_or_update_customer(identification, diff)
 
     async def identify_customer_conversation(
         self, identification: CustomerIdentification
@@ -191,6 +192,9 @@ class LocalBackend(BackendInterface):
         return await self._storage.find_conversations_by_ids(
             conversation_ids, with_messages=with_messages
         )
+
+    async def get_customer_conversations(self, customer: Customer) -> List[Conversation]:
+        return await self._storage.find_customer_conversations(customer, with_messages=True)
 
     async def add_tag_to_conversation(self, conversation: Conversation, tag: ConversationTag):
         await self._storage.update_conversation(conversation.id, ConversationDiff(added_tags=[tag]))

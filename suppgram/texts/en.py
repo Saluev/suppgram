@@ -73,7 +73,7 @@ class EnglishTextsProvider(TextsProvider):
     telegram_agent_conversation_resolved_message = (
         "✅ Conversation was marked as resolved. " "This chat is no longer assigned to a customer."
     )
-    telegram_new_conversation_notification_placeholder = f"❗️ New conversation!"
+    telegram_new_conversation_notification_placeholder = "❗️ New conversation!"
 
     # TODO move logic to base class, keep only string templates here
     def compose_customer_profile(
@@ -89,7 +89,7 @@ class EnglishTextsProvider(TextsProvider):
             f"{customer.telegram_first_name or ''} {customer.telegram_last_name or ''}".strip()
             or "anonymous"
         )
-        lines = [f"Customer: {full_name}"]
+        lines = [f"👤 Customer: {full_name}"]
         contacts = []
         if customer.telegram_user_id:
             contacts.append(
@@ -203,3 +203,15 @@ class EnglishTextsProvider(TextsProvider):
         if not tag_name:
             tag_name = f"tag_{tag.id}"  # assuming that database IDs are safe
         return f"#{tag_name}"
+
+    message_history_title = "🗂️ Message history\n"
+
+    def format_history_message(self, message: Message) -> str:
+        if message.kind == MessageKind.FROM_CUSTOMER:
+            return f"👤 Customer: {message.text}"
+        if message.kind == MessageKind.FROM_AGENT:
+            return f"🧑‍💼 Agent: {message.text}"
+        if message.kind == MessageKind.RESOLVED:
+            return "✅ Conversation was resolved."
+        logger.warning(f"Unsupported message kind: {message.kind.value!r}")
+        return str(message.kind.value)

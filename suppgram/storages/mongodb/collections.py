@@ -261,10 +261,10 @@ class Collections:
         return {"_id": {"$in": [ObjectId(id) for id in ids]}}
 
     def make_customer_conversations_filter(self, customer_id: Any) -> Document:
-        return {"customer_id": customer_id}
+        return {"customer_id": ObjectId(customer_id)}
 
     def make_agent_conversations_filter(self, agent_id: Any) -> Document:
-        return {"assigned_agent_id": agent_id}
+        return {"assigned_agent_id": ObjectId(agent_id)}
 
     def make_workplace_conversation_filter(self, workplace_id: Any) -> Document:
         return {"assigned_workplace_id": workplace_id}

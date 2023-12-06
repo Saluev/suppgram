@@ -17,6 +17,7 @@ from suppgram.entities import (
     CustomerDiff,
     ConversationTag,
     ConversationTagEvent,
+    Customer,
 )
 from suppgram.observer import Observable
 from suppgram.permissions import Permission
@@ -49,8 +50,8 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     async def create_or_update_customer(
-        self, identification: CustomerIdentification, diff: CustomerDiff
-    ):
+        self, identification: CustomerIdentification, diff: Optional[CustomerDiff] = None
+    ) -> Customer:
         pass
 
     @abc.abstractmethod
@@ -96,6 +97,10 @@ class Backend(abc.ABC):
     async def get_conversations(
         self, conversation_ids: List[Any], with_messages: bool = False
     ) -> List[Conversation]:
+        pass
+
+    @abc.abstractmethod
+    async def get_customer_conversations(self, customer: Customer) -> List[Conversation]:
         pass
 
     @abc.abstractmethod

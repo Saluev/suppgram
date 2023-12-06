@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import FrozenSet, Any, Optional, List
 
+from suppgram.entities import CustomerIdentification
+
 
 class TelegramGroupRole(int, Enum):
     # Group for notifications on new unassigned conversations.
@@ -22,19 +24,30 @@ class TelegramMessageKind(str, Enum):
     NEW_CONVERSATION_NOTIFICATION = "new_conversation_notification"
     RATE_CONVERSATION = "rate_conversation"
     NUDGE_TO_START_BOT_NOTIFICATION = "nudge_to_start_bot"
+    CUSTOMER_MESSAGE_HISTORY = "customer_message_history"
 
 
 @dataclass
 class TelegramMessage:
     id: Any
 
+    telegram_bot_id: int
     group: TelegramGroup
     telegram_message_id: int
     kind: TelegramMessageKind
 
     # Here be all possible parameters of all kinds of messages:
+    customer_id: Optional[Any]
     conversation_id: Optional[Any]
     telegram_bot_username: Optional[str]
+
+    @property
+    def customer_identification(self) -> CustomerIdentification:
+        if self.customer_id is None:
+            raise ValueError(
+                f"no customer ID in message {self.telegram_message_id} in group {self.group.telegram_chat_id}"
+            )
+        return CustomerIdentification(id=self.customer_id)
 
 
 class TelegramStorage(abc.ABC):
@@ -60,12 +73,18 @@ class TelegramStorage(abc.ABC):
     @abc.abstractmethod
     async def insert_message(
         self,
+        telegram_bot_id: int,
         group: TelegramGroup,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> TelegramMessage:
+        pass
+
+    @abc.abstractmethod
+    async def get_message(self, group: TelegramGroup, telegram_message_id: int) -> TelegramMessage:
         pass
 
     @abc.abstractmethod

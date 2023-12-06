@@ -1,5 +1,5 @@
 from datetime import timezone
-from typing import List, Optional, Any, Iterable, Mapping, cast, MutableMapping
+from typing import List, Optional, Any, Iterable, Mapping, MutableMapping
 
 from bson import CodecOptions, ObjectId
 from motor.core import AgnosticDatabase
@@ -28,7 +28,9 @@ class MongoDBTelegramBridge(TelegramStorage):
 
     async def get_group(self, telegram_chat_id: int) -> TelegramGroup:
         filter_ = self._make_group_filter(telegram_chat_id)
-        doc = cast(Document, await self._group_collection.find_one(filter_))
+        doc = await self._group_collection.find_one(filter_)
+        if doc is None:
+            raise ValueError(f"couldn't find Telegram group {telegram_chat_id}")
         return self._convert_to_group(doc)
 
     async def find_groups_by_ids(self, telegram_chat_ids: List[int]) -> List[TelegramGroup]:
@@ -77,22 +79,36 @@ class MongoDBTelegramBridge(TelegramStorage):
 
     async def insert_message(
         self,
+        telegram_bot_id: int,
         group: TelegramGroup,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> TelegramMessage:
         doc = {
             "_id": self._compose_message_id(group.telegram_chat_id, telegram_message_id),
+            "telegram_bot_id": telegram_bot_id,
             "kind": kind,
         }
+        if customer_id is not None:
+            doc["customer_id"] = ObjectId(customer_id)
         if conversation_id is not None:
             doc["conversation_id"] = ObjectId(conversation_id)
         if telegram_bot_username is not None:
             doc["telegram_bot_username"] = telegram_bot_username
         await self._message_collection.insert_one(doc)
         return self._convert_to_message(doc, {group.telegram_chat_id: group})
+
+    async def get_message(self, group: TelegramGroup, telegram_message_id: int) -> TelegramMessage:
+        filter_ = {"_id": self._compose_message_id(group.telegram_chat_id, telegram_message_id)}
+        doc = await self._message_collection.find_one(filter_)
+        if doc is None:
+            raise ValueError(
+                f"couldn't find Telegram message {telegram_message_id} in group {group.telegram_chat_id}"
+            )
+        return self._convert_to_message(doc, groups={group.telegram_chat_id: group})
 
     async def get_messages(
         self,
@@ -149,9 +165,11 @@ class MongoDBTelegramBridge(TelegramStorage):
         telegram_message_id = doc["_id"]["m"]
         return TelegramMessage(
             id=f"{telegram_chat_id}_{telegram_message_id}",
+            telegram_bot_id=doc["telegram_bot_id"],
             group=groups[telegram_chat_id],
             telegram_message_id=telegram_message_id,
             kind=TelegramMessageKind(doc["kind"]),
-            conversation_id=str(doc.get("conversation_id")),
+            customer_id=str(doc["customer_id"]) if "customer_id" in doc else None,
+            conversation_id=str(doc["conversation_id"]) if "conversation_id" in doc else None,
             telegram_bot_username=doc.get("telegram_bot_username"),
         )

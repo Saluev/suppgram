@@ -22,7 +22,7 @@ from suppgram.frontends.telegram.interfaces import (
     TelegramMessageKind,
     TelegramGroupRole,
 )
-from suppgram.storages.sqlalchemy.models import Base, Conversation
+from suppgram.storages.sqlalchemy.models import Base, Conversation, Customer
 
 
 class TelegramGroup(Base):
@@ -38,14 +38,12 @@ class TelegramMessage(Base):
     group_id: Mapped[int] = mapped_column(
         ForeignKey(TelegramGroup.telegram_chat_id), nullable=False
     )
+    telegram_bot_id: Mapped[int] = mapped_column(Integer, nullable=False)
     group: Mapped[TelegramGroup] = relationship(back_populates="messages")
     telegram_message_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    kind: Mapped[TelegramMessageKind] = mapped_column(
-        Enum(TelegramMessageKind), nullable=False
-    )
-    conversation_id: Mapped[int] = mapped_column(
-        ForeignKey(Conversation.id), nullable=True
-    )
+    kind: Mapped[TelegramMessageKind] = mapped_column(Enum(TelegramMessageKind), nullable=False)
+    customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id), nullable=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey(Conversation.id), nullable=True)
     telegram_bot_username: Mapped[str] = mapped_column(String, nullable=True)
 
 
@@ -74,9 +72,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, tables=tables_to_create)
 
-    async def get_groups_by_role(
-        self, role: TelegramGroupRole
-    ) -> List[TelegramGroupInterface]:
+    async def get_groups_by_role(self, role: TelegramGroupRole) -> List[TelegramGroupInterface]:
         select_query = select(self._group_model).filter(
             self._group_model.roles.bitwise_and(role.value) != 0
         )
@@ -127,17 +123,21 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
 
     async def insert_message(
         self,
+        telegram_bot_id: int,
         group: TelegramGroupInterface,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> TelegramMessageInterface:
         async with self._session() as session, session.begin():
             message = self._message_model(
+                telegram_bot_id=telegram_bot_id,
                 group_id=group.telegram_chat_id,
                 telegram_message_id=telegram_message_id,
                 kind=kind,
+                customer_id=customer_id,
                 conversation_id=conversation_id,
                 telegram_bot_username=telegram_bot_username,
             )
@@ -145,6 +145,21 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             await session.flush()
             await session.refresh(message)
             return self._convert_message(message, group)
+
+    async def get_message(
+        self, group: TelegramGroupInterface, telegram_message_id: int
+    ) -> TelegramMessageInterface:
+        filter_ = (self._message_model.group_id == group.telegram_chat_id) & (
+            self._message_model.telegram_message_id == telegram_message_id
+        )
+        select_query = (
+            select(self._message_model)
+            .options(joinedload(self._message_model.group))
+            .where(filter_)
+        )
+        async with self._session() as session:
+            msg = (await session.execute(select_query)).scalars().one()
+            return self._convert_message(msg, self._convert_group(msg.group))
 
     async def get_messages(
         self,
@@ -156,9 +171,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
         if conversation_id:
             filter_ = filter_ & (self._message_model.conversation_id == conversation_id)
         if telegram_bot_username:
-            filter_ = filter_ & (
-                self._message_model.telegram_bot_username == telegram_bot_username
-            )
+            filter_ = filter_ & (self._message_model.telegram_bot_username == telegram_bot_username)
         select_query = (
             select(self._message_model)
             .options(joinedload(self._message_model.group))
@@ -166,16 +179,11 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
         )
         async with self._session() as session:
             msgs = (await session.execute(select_query)).scalars().all()
-            return [
-                self._convert_message(msg, self._convert_group(msg.group))
-                for msg in msgs
-            ]
+            return [self._convert_message(msg, self._convert_group(msg.group)) for msg in msgs]
 
     async def delete_messages(self, messages: List[TelegramMessageInterface]):
         message_ids = [message.id for message in messages]
-        delete_query = delete(self._message_model).where(
-            self._message_model.id.in_(message_ids)
-        )
+        delete_query = delete(self._message_model).where(self._message_model.id.in_(message_ids))
         async with self._session() as session, session.begin():
             await session.execute(delete_query)
 
@@ -195,14 +203,9 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
                 .filter(filter)
             )
             msgs = (await session.execute(select_query)).scalars().all()
-            return [
-                self._convert_message(msg, self._convert_group(msg.group))
-                for msg in msgs
-            ]
+            return [self._convert_message(msg, self._convert_group(msg.group)) for msg in msgs]
 
-    def _filter_newer_messages_of_kind(
-        self, message: TelegramMessageInterface
-    ) -> ColumnElement:
+    def _filter_newer_messages_of_kind(self, message: TelegramMessageInterface) -> ColumnElement:
         return (
             (self._message_model.kind == message.kind)
             & (self._message_model.group_id == message.group.telegram_chat_id)
@@ -214,9 +217,11 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
     ) -> TelegramMessageInterface:
         return TelegramMessageInterface(
             id=msg.id,
+            telegram_bot_id=msg.telegram_bot_id,
             group=group,
             telegram_message_id=msg.telegram_message_id,
             kind=msg.kind,
+            customer_id=msg.customer_id,
             conversation_id=msg.conversation_id,
             telegram_bot_username=msg.telegram_bot_username,
         )

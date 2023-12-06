@@ -8,6 +8,7 @@ from suppgram.entities import (
     ConversationTag,
     ConversationState,
     Agent,
+    Message,
 )
 
 TelegramParseMode = Optional[Literal["MarkdownV2", "HTML"]]
@@ -25,9 +26,7 @@ class Format(str, Enum):
             return "MarkdownV2"
         if self == Format.TELEGRAM_HTML:
             return "HTML"
-        raise ValueError(
-            f"text format {self.value!r} is not directly supported by Telegram"
-        )
+        raise ValueError(f"text format {self.value!r} is not directly supported by Telegram")
 
     @classmethod
     def get_formats_supported_by_telegram(cls) -> Collection["Format"]:
@@ -89,9 +88,7 @@ class TextsProvider:
         ConversationState.RESOLVED: "✅",
     }
 
-    def compose_telegram_new_conversation_notification(
-        self, conversation: Conversation
-    ) -> Text:
+    def compose_telegram_new_conversation_notification(self, conversation: Conversation) -> Text:
         raise NotImplementedError
 
     def compose_nudge_to_start_bot_notification(
@@ -100,6 +97,11 @@ class TextsProvider:
         raise NotImplementedError
 
     telegram_assign_to_me_button_text: str
+
+    message_history_title: str
+
+    def format_history_message(self, message: Message) -> str:
+        raise NotImplementedError
 
     def format_rating(self, rating: int) -> str:
         return "★" * rating + "☆" * (5 - rating)

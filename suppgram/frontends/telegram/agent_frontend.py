@@ -1,14 +1,25 @@
 import asyncio
+import json
+import logging
+from enum import Enum
 from itertools import groupby
 from typing import List, Iterable, Optional
 
-from telegram import Update, BotCommand, Bot, Chat
+from telegram import (
+    Update,
+    BotCommand,
+    Bot,
+    Chat,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from telegram.error import TelegramError, BadRequest, Forbidden
 from telegram.ext import (
     MessageHandler,
     ContextTypes,
     CommandHandler,
     Application,
+    CallbackQueryHandler,
 )
 from telegram.ext.filters import TEXT, ChatType
 
@@ -21,6 +32,7 @@ from suppgram.entities import (
     Workplace,
     ConversationEvent,
     Customer,
+    FINAL_STATES,
 )
 from suppgram.errors import ConversationNotFound, AgentNotFound
 from suppgram.frontend import (
@@ -42,6 +54,12 @@ from suppgram.frontends.telegram.interfaces import (
 )
 from suppgram.helpers import flat_gather
 from suppgram.texts.interface import TextsProvider, Format
+
+logger = logging.getLogger(__name__)
+
+
+class CallbackActionKind(str, Enum):
+    PAGE = "page"
 
 
 class TelegramAgentFrontend(AgentFrontend):
@@ -71,6 +89,7 @@ class TelegramAgentFrontend(AgentFrontend):
                         filters=ChatType.PRIVATE,
                     ),
                     MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
+                    CallbackQueryHandler(self._handle_callback_query),
                 ]
             )
             self._telegram_apps.append(app)
@@ -238,13 +257,36 @@ class TelegramAgentFrontend(AgentFrontend):
             ),
         )
 
+    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.callback_query, "callback query update should have `callback_query`"
+        assert update.effective_chat, "callback query update should have `effective_chat`"
+        assert update.effective_user, "callback query update should have `effective_user`"
+        if not update.callback_query.data:
+            # No idea how to handle this update.
+            return
+        callback_data = json.loads(update.callback_query.data)
+        action = callback_data.get("a")
+        if action is None:
+            return
+        if action == CallbackActionKind.PAGE:
+            group = await self._storage.get_group(callback_data["c"])
+            message = await self._storage.get_message(group, callback_data["m"])
+            customer = await self._backend.create_or_update_customer(
+                message.customer_identification,
+            )
+            await self._update_previous_conversations_message(customer, message, callback_data["p"])
+        else:
+            logger.info(f"Agent frontend received unsupported callback action {action!r}")
+
     async def _handle_conversation_assignment(self, event: ConversationEvent):
         conversation = event.conversation
+        workplace = conversation.assigned_workplace
         assert (
-            conversation.assigned_workplace
+            workplace
         ), "conversation should have assigned workplace upon conversation assignment event"
-        await self._send_customer_profile(conversation.assigned_workplace, conversation.customer)
-        await self._send_new_messages(conversation.assigned_workplace, conversation.messages)
+        await self._send_customer_profile(workplace, conversation.customer)
+        await self._send_previous_conversations_message(workplace, conversation.customer)
+        await self._send_new_messages(workplace, conversation.messages)
 
     async def _handle_new_message_for_agent_events(self, events: List[NewMessageForAgentEvent]):
         for _, batch_iter in groupby(
@@ -264,6 +306,118 @@ class TelegramAgentFrontend(AgentFrontend):
         )
         await app.bot.send_message(
             chat_id=workplace.telegram_user_id, text=profile.text, parse_mode=profile.parse_mode
+        )
+
+    async def _send_previous_conversations_message(self, workplace: Workplace, customer: Customer):
+        if workplace.telegram_bot_id is None or workplace.telegram_user_id is None:
+            return
+        pages = await self._compose_previous_conversations_message_texts(customer)
+        if not pages:
+            return
+        app = self._get_app_by_bot_id(workplace.telegram_bot_id)
+        message = await app.bot.send_message(chat_id=workplace.telegram_user_id, text=pages[0])
+        group = await self._storage.upsert_group(workplace.telegram_user_id)
+        tmessage = await self._storage.insert_message(
+            workplace.telegram_bot_id,
+            group,
+            message.message_id,
+            TelegramMessageKind.CUSTOMER_MESSAGE_HISTORY,
+            customer_id=customer.id,
+        )
+        if (keyboard := self._make_pagination(tmessage, len(pages), 0)) is not None:
+            await app.bot.edit_message_reply_markup(
+                chat_id=message.chat_id, message_id=message.message_id, reply_markup=keyboard
+            )
+
+    async def _update_previous_conversations_message(
+        self, customer: Customer, message: TelegramMessage, page_idx: int
+    ):
+        app = self._get_app_by_bot_id(message.telegram_bot_id)
+        pages = await self._compose_previous_conversations_message_texts(customer)
+        if not (0 <= page_idx < len(pages)):
+            return
+        keyboard = self._make_pagination(message, len(pages), page_idx)
+        await app.bot.edit_message_text(
+            pages[page_idx],
+            message.group.telegram_chat_id,
+            message.telegram_message_id,
+            reply_markup=keyboard,
+        )
+
+    async def _compose_previous_conversations_message_texts(self, customer: Customer) -> List[str]:
+        conversations = await self._backend.get_customer_conversations(customer)
+        previous_conversations = [conv for conv in conversations if conv.state in FINAL_STATES]
+        messages = sorted(
+            [message for conv in previous_conversations for message in conv.messages],
+            key=lambda m: m.time_utc,
+        )
+        if not messages:
+            return []
+        formatted_messages = self._format_previous_messages(messages)
+        pages = self._paginate_formatted_messages(formatted_messages, max_page_length=1000)
+        return list(pages)
+
+    def _format_previous_messages(self, messages: Iterable[Message]) -> Iterable[str]:
+        for message in messages:
+            yield self._texts.format_history_message(message)
+
+    def _paginate_formatted_messages(
+        self, messages: Iterable[str], max_page_length: int = 4000
+    ) -> Iterable[str]:
+        title = self._texts.message_history_title
+        parts, parts_length = [title], len(title)
+        for message in messages:
+            if parts_length + 1 + len(message) > max_page_length:
+                yield "\n".join(parts)
+                parts, parts_length = [title], len(title)
+            parts.append(message)
+            parts_length += 1 + len(message)
+        if len(parts) > 1:
+            yield "\n".join(parts)
+
+    def _make_pagination(
+        self, message: TelegramMessage, number_of_pages: int, current_page_idx: int
+    ) -> Optional[InlineKeyboardMarkup]:
+        if number_of_pages <= 1:
+            return None
+
+        if number_of_pages <= 5:
+            min_page_idx, max_page_idx = 0, number_of_pages
+        elif current_page_idx < 2:
+            min_page_idx, max_page_idx = 0, 5
+        elif current_page_idx + 3 >= number_of_pages:
+            min_page_idx, max_page_idx = number_of_pages - 5, number_of_pages
+        else:
+            min_page_idx, max_page_idx = current_page_idx - 2, current_page_idx + 3
+
+        buttons: List[InlineKeyboardButton] = []
+        for page_idx in range(min_page_idx, max_page_idx):
+            text = str(page_idx + 1)
+            if page_idx == current_page_idx:
+                buttons.append(InlineKeyboardButton(text=f"〈{text}〉", callback_data="{}"))
+                continue
+            if 0 < min_page_idx == page_idx:
+                text = "«"
+            if page_idx + 1 == max_page_idx < number_of_pages:
+                text = "»"
+            buttons.append(self._make_pagination_button(message, text, page_idx))
+
+        return InlineKeyboardMarkup(inline_keyboard=[buttons])
+
+    def _make_pagination_button(
+        self, message: TelegramMessage, text: str, page_idx: int
+    ) -> InlineKeyboardButton:
+        return InlineKeyboardButton(
+            text=text,
+            callback_data=json.dumps(
+                {
+                    "a": CallbackActionKind.PAGE,
+                    "c": message.group.telegram_chat_id,
+                    "m": message.telegram_message_id,
+                    "p": page_idx,
+                },
+                separators=(",", ":"),
+            ),
         )
 
     async def _send_new_messages(self, workplace: Workplace, messages: List[Message]):
@@ -303,6 +457,7 @@ class TelegramAgentFrontend(AgentFrontend):
             chat_id=group.telegram_chat_id, text=text.text, parse_mode=text.parse_mode
         )
         await self._storage.insert_message(
+            workplace.telegram_bot_id,
             group,
             message.message_id,
             TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION,
@@ -310,8 +465,8 @@ class TelegramAgentFrontend(AgentFrontend):
         )
 
     def _group_messages(self, messages: Iterable[Message]) -> List[str]:
-        # TODO actual grouping to reduce number of messages
         # TODO differentiation of previous agents' messages
+        # TODO actual grouping to reduce number of messages
         result: List[str] = []
         for message in messages:
             if message.text:

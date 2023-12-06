@@ -180,6 +180,7 @@ class TelegramManagerFrontend(ManagerFrontend):
     ) -> TelegramMessage:
         message = await self._telegram_bot.send_message(group.telegram_chat_id, text)
         return await self._storage.insert_message(
+            self._telegram_bot.id,
             group,
             message.message_id,
             kind,

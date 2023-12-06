@@ -169,10 +169,11 @@ class TelegramCustomerFrontend(CustomerFrontend):
         )
         group = await self._storage.upsert_group(event.customer.telegram_user_id)
         await self._storage.insert_message(
+            self._telegram_bot.id,
             group,
             message.message_id,
             TelegramMessageKind.RATE_CONVERSATION,
-            event.conversation.id,
+            conversation_id=event.conversation.id,
         )
         await self._telegram_bot.edit_message_text(
             chat_id=event.customer.telegram_user_id,
@@ -198,7 +199,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
 
     def _make_rate_button(self, conversation: Conversation, rating: int) -> InlineKeyboardButton:
         return InlineKeyboardButton(
-            self._texts.format_rating(rating),
+            text=self._texts.format_rating(rating),
             callback_data=json.dumps(
                 {"a": CallbackActionKind.RATE, "c": conversation.id, "r": rating},
                 separators=(",", ":"),
