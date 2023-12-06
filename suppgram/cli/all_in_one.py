@@ -180,7 +180,7 @@ def run_all_in_one(
         builder.build()
     except NoStorageSpecified as exc:
         raise UsageError(
-            "No storage specified. Consider specifying --sqlalchemy-url parameter."
+            "No storage specified. Consider specifying --sqlalchemy-uri or --mongodb-uri parameters."
         ) from exc
     except NoFrontendSpecified as exc:
         raise UsageError(

@@ -30,9 +30,7 @@ class Backend(abc.ABC):
     on_conversation_tag_removed: Observable[ConversationTagEvent]
     on_conversation_rated: Observable[ConversationEvent]
     on_new_message_for_customer: Observable[NewMessageForCustomerEvent]
-    on_new_unassigned_message_from_customer: Observable[
-        NewUnassignedMessageFromCustomerEvent
-    ]
+    on_new_unassigned_message_from_customer: Observable[NewUnassignedMessageFromCustomerEvent]
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]
 
     @abc.abstractmethod
@@ -46,9 +44,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def update_agent(
-        self, identification: AgentIdentification, diff: AgentDiff
-    ) -> Agent:
+    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
         pass
 
     @abc.abstractmethod
@@ -64,9 +60,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def identify_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> Workplace:
+    async def identify_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         pass
 
     @abc.abstractmethod
@@ -92,9 +86,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def assign_agent(
-        self, assigner: Agent, assignee: Agent, conversation_id: Any
-    ):
+    async def assign_agent(self, assigner: Agent, assignee: Agent, conversation_id: Any):
         pass
 
     async def get_conversation(self, conversation_id: Any) -> Conversation:
@@ -107,15 +99,11 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def add_tag_to_conversation(
-        self, conversation: Conversation, tag: ConversationTag
-    ):
+    async def add_tag_to_conversation(self, conversation: Conversation, tag: ConversationTag):
         pass
 
     @abc.abstractmethod
-    async def remove_tag_from_conversation(
-        self, conversation: Conversation, tag: ConversationTag
-    ):
+    async def remove_tag_from_conversation(self, conversation: Conversation, tag: ConversationTag):
         pass
 
     @abc.abstractmethod
@@ -137,7 +125,5 @@ class WorkplaceManager(abc.ABC):
     ) -> List[WorkplaceIdentification]:
         pass
 
-    def filter_available_workplaces(
-        self, workplaces: List[Workplace]
-    ) -> List[Workplace]:
+    def filter_and_rank_available_workplaces(self, workplaces: List[Workplace]) -> List[Workplace]:
         return workplaces

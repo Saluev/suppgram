@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class EnglishTextsProvider(TextsProvider):
-    telegram_customer_start_message = (
-        "Welcome to support service! Please describe your problem."
-    )
+    telegram_customer_start_message = "Welcome to support service! Please describe your problem."
     telegram_customer_conversation_resolved_message_placeholder = (
         "Conversation was marked as resolved. "
         "You can always start a new conversation by writing to this chat!"
@@ -41,19 +39,13 @@ class EnglishTextsProvider(TextsProvider):
     telegram_manager_permission_denied_message = (
         "You don't have permission to access manager functionality."
     )
-    telegram_agents_command_description = (
-        "Make all members of this group support agents."
-    )
+    telegram_agents_command_description = "Make all members of this group support agents."
     telegram_send_new_conversations_command_description = (
         "Send notifications about new conversations to this group."
     )
 
-    telegram_create_tag_command_description = (
-        "Create new tag to label conversations with"
-    )
-    telegram_create_tag_permission_denied_message = (
-        "You don't have permission to create new tags."
-    )
+    telegram_create_tag_command_description = "Create new tag to label conversations with"
+    telegram_create_tag_permission_denied_message = "You don't have permission to create new tags."
     telegram_create_tag_usage_message = (
         "Please specify new tag name after command:\n\n    /create_tag urgent"
     )
@@ -71,15 +63,13 @@ class EnglishTextsProvider(TextsProvider):
         "You don't have permission to access support agent functionality."
     )
     telegram_workplace_is_not_assigned_message = (
-        "This chat is not assigned to any ongoing "
-        "conversation with a customer right now."
+        "This chat is not assigned to any ongoing " "conversation with a customer right now."
     )
     telegram_resolve_command_description = (
         "Mark conversation resolved and stop messaging with the customer."
     )
     telegram_agent_conversation_resolved_message = (
-        "Conversation was marked as resolved. "
-        "This chat is no longer assigned to a customer."
+        "Conversation was marked as resolved. " "This chat is no longer assigned to a customer."
     )
     telegram_new_conversation_notification_placeholder = "New conversation!"
 
@@ -103,8 +93,8 @@ class EnglishTextsProvider(TextsProvider):
             contacts.append(
                 self._format_telegram_mention(
                     telegram_user_id=customer.telegram_user_id,
-                    telegram_first_name=customer.telegram_first_name,
-                    telegram_last_name=customer.telegram_last_name,
+                    telegram_first_name="Telegram",
+                    telegram_last_name=None,
                     telegram_username=customer.telegram_username,
                     format_=format_,
                 )
@@ -112,9 +102,7 @@ class EnglishTextsProvider(TextsProvider):
         lines.append("Contacts: " + ", ".join(contacts))
         return Text(text="\n".join(lines), format=format_)
 
-    def compose_telegram_new_conversation_notification(
-        self, conversation: Conversation
-    ) -> Text:
+    def compose_telegram_new_conversation_notification(self, conversation: Conversation) -> Text:
         profile = self.compose_customer_profile(
             conversation.customer,
             allowed_formats=Format.get_formats_supported_by_telegram(),

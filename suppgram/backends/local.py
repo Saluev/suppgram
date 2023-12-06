@@ -247,7 +247,7 @@ class LocalBackend(BackendInterface):
         existing_workplaces = await self._storage.get_agent_workplaces(agent)
         extra_workplaces = await self._create_all_missing_workplaces(agent, existing_workplaces)
         all_workplaces = existing_workplaces + extra_workplaces
-        available_workplaces = await self._filter_all_available_workplaces(all_workplaces)
+        available_workplaces = await self._filter_all_available_workplaces(agent, all_workplaces)
         return available_workplaces[0]  # TODO handle index out of range
 
     async def _create_all_missing_workplaces(
@@ -269,9 +269,22 @@ class LocalBackend(BackendInterface):
         return extra_workplaces
 
     async def _filter_all_available_workplaces(
-        self, all_workplaces: List[Workplace]
+        self, agent: Agent, all_workplaces: List[Workplace]
     ) -> List[Workplace]:
         available_workplaces: List[Workplace] = []
         for manager in self._workplace_managers:
-            available_workplaces.extend(manager.filter_available_workplaces(all_workplaces))
-        return available_workplaces
+            available_workplaces.extend(
+                manager.filter_and_rank_available_workplaces(all_workplaces)
+            )
+        agent_conversations = await self._storage.find_agent_conversations(agent)
+        busy_workplace_ids = {
+            conv.assigned_workplace.id
+            for conv in agent_conversations
+            if conv.assigned_workplace  # it can't be None, but for the sake of typing let's check
+        }
+        free_workplaces = [
+            workplace
+            for workplace in available_workplaces
+            if workplace.id not in busy_workplace_ids
+        ]
+        return free_workplaces

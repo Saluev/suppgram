@@ -98,5 +98,11 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def find_agent_conversations(
+        self, agent: Agent, with_messages: bool = False
+    ) -> List[Conversation]:
+        pass
+
+    @abc.abstractmethod
     async def save_message(self, conversation: Conversation, message: Message):
         pass

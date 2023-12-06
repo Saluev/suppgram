@@ -18,19 +18,19 @@ from sqlalchemy.orm import (
 )
 
 from suppgram.entities import (
-    CustomerIdentification,
-    Customer as CustomerInterface,
-    Agent as AgentInterface,
-    WorkplaceIdentification,
-    Workplace as WorkplaceInterface,
-    Message as ConversaionMessageInterface,
-    ConversationTag as ConversationTagInterface,
-    Conversation as ConversationInterface,
-    AgentIdentification,
-    ConversationState,
+    Agent,
     AgentDiff,
+    AgentIdentification,
+    Conversation,
     ConversationDiff,
+    ConversationState,
+    ConversationTag,
+    Customer,
     CustomerDiff,
+    CustomerIdentification,
+    Message,
+    Workplace,
+    WorkplaceIdentification,
 )
 from suppgram.errors import (
     ConversationNotFound,
@@ -42,7 +42,6 @@ from suppgram.storage import Storage
 from suppgram.storages.sqlalchemy.models import (
     Base,
     association_table,
-    Conversation,
     Models,
 )
 
@@ -72,7 +71,7 @@ class SQLAlchemyStorage(Storage):
         self,
         identification: CustomerIdentification,
         diff: Optional[CustomerDiff] = None,
-    ) -> CustomerInterface:
+    ) -> Customer:
         filter_ = self._models.make_customer_filter(identification)
         async with self._session() as session, session.begin():
             select_query = select(self._models.customer_model).where(filter_).with_for_update()
@@ -89,7 +88,7 @@ class SQLAlchemyStorage(Storage):
                 session.add(customer)
             return self._models.convert_from_customer_model(customer)
 
-    async def get_agent(self, identification: AgentIdentification) -> AgentInterface:
+    async def get_agent(self, identification: AgentIdentification) -> Agent:
         async with self._session() as session:
             query = select(self._models.agent_model).where(
                 self._models.make_agent_filter(identification)
@@ -101,7 +100,7 @@ class SQLAlchemyStorage(Storage):
 
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
-    ) -> AgentInterface:
+    ) -> Agent:
         filter_ = self._models.make_agent_filter(identification)
         async with self._session() as session, session.begin():
             select_query = select(self._models.agent_model).where(filter_).with_for_update()
@@ -118,9 +117,7 @@ class SQLAlchemyStorage(Storage):
                 session.add(agent)
             return self._models.convert_from_agent_model(agent)
 
-    async def update_agent(
-        self, identification: AgentIdentification, diff: AgentDiff
-    ) -> AgentInterface:
+    async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
         filter_ = self._models.make_agent_filter(identification)
         async with self._session() as session, session.begin():
             select_query = select(self._models.agent_model).where(filter_).with_for_update()
@@ -131,7 +128,7 @@ class SQLAlchemyStorage(Storage):
             session.add(agent)
             return self._models.convert_from_agent_model(agent)
 
-    async def get_workplace(self, identification: WorkplaceIdentification) -> WorkplaceInterface:
+    async def get_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         async with self._session() as session:
             query = select(self._models.workplace_model).where(
                 self._models.make_workplace_filter(identification)
@@ -141,7 +138,7 @@ class SQLAlchemyStorage(Storage):
                 raise WorkplaceNotFound(identification)
             return workplace
 
-    async def get_agent_workplaces(self, agent: AgentInterface) -> List[WorkplaceInterface]:
+    async def get_agent_workplaces(self, agent: Agent) -> List[Workplace]:
         async with self._session() as session:
             query = select(self._models.workplace_model).where(
                 self._models.make_agent_workplaces_filter(agent)
@@ -152,9 +149,7 @@ class SQLAlchemyStorage(Storage):
                 for workplace in workplaces
             ]
 
-    async def get_or_create_workplace(
-        self, identification: WorkplaceIdentification
-    ) -> WorkplaceInterface:
+    async def get_or_create_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         agent_identification = identification.to_agent_identification()
         async with self._session() as session, session.begin():
             query = select(self._models.agent_model).where(
@@ -178,12 +173,12 @@ class SQLAlchemyStorage(Storage):
                 self._models.convert_from_agent_model(agent), workplace
             )
 
-    async def create_tag(self, name: str, created_by: AgentInterface):
+    async def create_tag(self, name: str, created_by: Agent):
         async with self._session() as session, session.begin():
             tag = self._models.make_tag_model(name, created_by)
             session.add(tag)
 
-    async def find_all_tags(self) -> List[ConversationTagInterface]:
+    async def find_all_tags(self) -> List[ConversationTag]:
         async with self._session() as session:
             query = select(self._models.conversation_tag_model).options(
                 joinedload(self._models.conversation_tag_model.created_by)
@@ -191,9 +186,7 @@ class SQLAlchemyStorage(Storage):
             tags = (await session.execute(query)).scalars().all()
             return [self._models.convert_from_tag_model(tag) for tag in tags]
 
-    async def get_or_create_conversation(
-        self, customer: CustomerInterface
-    ) -> ConversationInterface:
+    async def get_or_create_conversation(self, customer: Customer) -> Conversation:
         async with self._session() as session, session.begin():
             select_query = (
                 select(self._models.conversation_model)
@@ -209,11 +202,9 @@ class SQLAlchemyStorage(Storage):
                 )
                 .where(self._models.make_customer_conversation_filter(customer))
             )
-            conv: Optional[Conversation] = (
-                (await session.execute(select_query)).scalars().one_or_none()
-            )
-            assigned_agent: Optional[AgentInterface] = None
-            assigned_workplace: Optional[WorkplaceInterface] = None
+            conv = (await session.execute(select_query)).scalars().one_or_none()
+            assigned_agent: Optional[Agent] = None
+            assigned_workplace: Optional[Workplace] = None
             if conv is None:
                 conv = self._models.conversation_model(
                     customer_id=customer.id,
@@ -234,7 +225,7 @@ class SQLAlchemyStorage(Storage):
                     )
                 messages = [self._models.convert_from_message_model(msg) for msg in conv.messages]
                 tags = [self._models.convert_from_tag_model(tag) for tag in conv.tags]
-            return ConversationInterface(
+            return Conversation(
                 id=conv.id,
                 state=conv.state,
                 customer=customer,
@@ -246,7 +237,7 @@ class SQLAlchemyStorage(Storage):
 
     async def find_conversations_by_ids(
         self, conversation_ids: List[Any], with_messages: bool = False
-    ) -> List[ConversationInterface]:
+    ) -> List[Conversation]:
         async with self._session() as session:
             options = [
                 joinedload(self._models.conversation_model.customer),
@@ -304,28 +295,18 @@ class SQLAlchemyStorage(Storage):
                 delete_query = association_table.delete().where(filter_)
                 await session.execute(delete_query)
 
-    async def get_agent_conversation(
-        self, identification: WorkplaceIdentification
-    ) -> ConversationInterface:
+    async def get_agent_conversation(self, identification: WorkplaceIdentification) -> Conversation:
         try:
-            async with self._session() as session, session.begin():
-                options = [
-                    joinedload(self._models.conversation_model.customer),
-                    selectinload(self._models.conversation_model.tags).joinedload(
-                        self._models.conversation_tag_model.created_by
-                    ),
-                    selectinload(self._models.conversation_model.messages),
-                    joinedload(self._models.conversation_model.assigned_workplace).joinedload(
-                        self._models.workplace_model.agent
-                    ),
-                ]
+            async with self._session() as session:
+                filter_ = self._models.make_workplace_conversation_filter(identification)
+                options = self._models.make_conversation_options(with_messages=True)
                 query = (
                     select(
                         self._models.conversation_model,
                         self._models.workplace_model,
                         self._models.agent_model,
                     )
-                    .where(self._models.make_agent_conversation_filter(identification))
+                    .where(filter_)
                     .options(*options)
                 )
                 conv = (await session.execute(query)).scalars().one()
@@ -333,9 +314,28 @@ class SQLAlchemyStorage(Storage):
         except NoResultFound as exc:
             raise ConversationNotFound() from exc
 
-    async def save_message(
-        self, conversation: ConversationInterface, message: ConversaionMessageInterface
-    ):
+    async def find_agent_conversations(
+        self, agent: Agent, with_messages: bool = False
+    ) -> List[Conversation]:
+        async with self._session() as session:
+            filter_ = self._models.make_agent_conversation_filter(agent.identification)
+            options = self._models.make_conversation_options(with_messages=with_messages)
+            select_query = (
+                select(
+                    self._models.conversation_model,
+                    self._models.workplace_model,
+                    self._models.agent_model,
+                )
+                .where(filter_)
+                .options(*options)
+            )
+            convs = (await session.execute(select_query)).scalars().all()
+            return [
+                self._models.convert_from_conversation_model(conv, with_messages=with_messages)
+                for conv in convs
+            ]
+
+    async def save_message(self, conversation: Conversation, message: Message):
         async with self._session() as session, session.begin():
             session.add(
                 self._models.conversation_message_model(

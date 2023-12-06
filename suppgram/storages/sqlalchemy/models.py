@@ -13,7 +13,15 @@ from sqlalchemy import (
     ColumnElement,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    declarative_base,
+    Mapped,
+    mapped_column,
+    relationship,
+    joinedload,
+    selectinload,
+)
+from sqlalchemy.orm.interfaces import LoaderOption
 
 from suppgram.containers import UnavailableList
 from suppgram.entities import (
@@ -343,11 +351,18 @@ class Models:
             ~self.conversation_model.state.in_(FINAL_STATES)
         )
 
-    def make_agent_conversation_filter(
+    def make_workplace_conversation_filter(
         self, identification: WorkplaceIdentification
     ) -> ColumnElement:
         return self.make_workplace_filter(identification) & (
             self.conversation_model.assigned_workplace_id == Workplace.id
+        )
+
+    def make_agent_conversation_filter(self, identification: AgentIdentification) -> ColumnElement:
+        return (
+            self.make_agent_filter(identification)
+            & (self.conversation_model.assigned_workplace_id == self.workplace_model.id)
+            & (self.workplace_model.agent_id == self.agent_model.id)
         )
 
     def make_conversations_filter(
@@ -356,6 +371,20 @@ class Models:
         result = self.conversation_model.id.in_(conversation_ids)
         if unassigned_only:
             result = result & (self.conversation_model.assigned_workplace_id == None)  # noqa
+        return result
+
+    def make_conversation_options(self, with_messages: bool) -> List[LoaderOption]:
+        result: List[LoaderOption] = [
+            joinedload(self.conversation_model.customer),
+            selectinload(self.conversation_model.tags).joinedload(
+                self.conversation_tag_model.created_by
+            ),
+            joinedload(self.conversation_model.assigned_workplace).joinedload(
+                self.workplace_model.agent
+            ),
+        ]
+        if with_messages:
+            result.append(selectinload(self.conversation_model.messages))
         return result
 
     def make_conversation_update_values(self, diff: ConversationDiff) -> Mapping[str, Any]:
