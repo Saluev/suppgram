@@ -14,7 +14,6 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import (
     joinedload,
-    selectinload,
 )
 
 from suppgram.entities import (

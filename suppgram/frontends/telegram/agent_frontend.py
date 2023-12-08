@@ -367,13 +367,18 @@ class TelegramAgentFrontend(AgentFrontend):
         self, messages: Iterable[str], max_page_lines: int = 4000, max_page_chars: int = 4000
     ) -> Iterable[str]:
         title = self._texts.message_history_title
-        parts, parts_length = [title], len(title)
+        parts, parts_length, parts_newlines = [title], len(title), title.count("\n")
         for message in messages:
-            if parts_length + 1 + len(message) > max_page_chars or len(parts) >= max_page_lines:
+            message_newlines = message.count("\n")
+            if (
+                parts_length + 1 + len(message) > max_page_chars
+                or parts_newlines + 1 + message_newlines + 1 >= max_page_lines
+            ):
                 yield "\n".join(parts)
-                parts, parts_length = [title], len(title)
+                parts, parts_length, parts_newlines = [title], len(title), title.count("\n")
             parts.append(message)
             parts_length += 1 + len(message)
+            parts_newlines += message_newlines
         if len(parts) > 1:
             yield "\n".join(parts)
 
