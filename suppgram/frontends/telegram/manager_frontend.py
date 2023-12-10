@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from enum import Enum
 from typing import Optional, Any, List
 
 from telegram import (
@@ -35,6 +34,7 @@ from suppgram.frontend import (
     ManagerFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.callback_actions import CallbackActionKind
 from suppgram.frontends.telegram.helpers import (
     send_text_answer,
     arrange_buttons,
@@ -56,12 +56,6 @@ from suppgram.permissions import Permission
 from suppgram.texts.interface import TextsProvider
 
 logger = logging.getLogger(__name__)
-
-
-class CallbackActionKind(str, Enum):
-    ASSIGN_TO_ME = "assign_to_me"
-    ADD_CONVERSATION_TAG = "add_tag"
-    REMOVE_CONVERSATION_TAG = "remove_tag"
 
 
 class TelegramManagerFrontend(ManagerFrontend):

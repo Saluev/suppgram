@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from enum import Enum
 from itertools import groupby
 from typing import List, Iterable, Optional
 
@@ -10,8 +9,6 @@ from telegram import (
     BotCommand,
     Bot,
     Chat,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
 )
 from telegram.error import TelegramError, BadRequest, Forbidden
 from telegram.ext import (
@@ -39,7 +36,13 @@ from suppgram.frontend import (
     AgentFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.helpers import is_chat_not_found, is_blocked_by_user
+from suppgram.frontends.telegram.callback_actions import CallbackActionKind
+from suppgram.frontends.telegram.helpers import (
+    is_chat_not_found,
+    is_blocked_by_user,
+    make_pagination_keyboard,
+    paginate_texts,
+)
 from suppgram.frontends.telegram.identification import (
     make_agent_identification,
     make_workplace_identification,
@@ -56,10 +59,6 @@ from suppgram.helpers import flat_gather
 from suppgram.texts.interface import TextsProvider, Format
 
 logger = logging.getLogger(__name__)
-
-
-class CallbackActionKind(str, Enum):
-    PAGE = "page"
 
 
 class TelegramAgentFrontend(AgentFrontend):
@@ -324,7 +323,7 @@ class TelegramAgentFrontend(AgentFrontend):
             TelegramMessageKind.CUSTOMER_MESSAGE_HISTORY,
             customer_id=customer.id,
         )
-        if (keyboard := self._make_pagination(tmessage, len(pages), 0)) is not None:
+        if (keyboard := make_pagination_keyboard(tmessage, len(pages), 0)) is not None:
             await app.bot.edit_message_reply_markup(
                 chat_id=message.chat_id, message_id=message.message_id, reply_markup=keyboard
             )
@@ -336,7 +335,7 @@ class TelegramAgentFrontend(AgentFrontend):
         pages = await self._compose_previous_conversations_message_texts(customer)
         if not (0 <= page_idx < len(pages)):
             return
-        keyboard = self._make_pagination(message, len(pages), page_idx)
+        keyboard = make_pagination_keyboard(message, len(pages), page_idx)
         await app.bot.edit_message_text(
             pages[page_idx],
             message.group.telegram_chat_id,
@@ -354,77 +353,21 @@ class TelegramAgentFrontend(AgentFrontend):
         if not messages:
             return []
         formatted_messages = self._format_previous_messages(messages)
-        pages = self._paginate_formatted_messages(
-            formatted_messages, max_page_lines=15, max_page_chars=1000
-        )
+        pages = self._paginate_formatted_messages(formatted_messages)
         return list(pages)
 
     def _format_previous_messages(self, messages: Iterable[Message]) -> Iterable[str]:
         for message in messages:
             yield self._texts.format_history_message(message)
 
-    def _paginate_formatted_messages(
-        self, messages: Iterable[str], max_page_lines: int = 4000, max_page_chars: int = 4000
-    ) -> Iterable[str]:
-        title = self._texts.message_history_title
-        parts, parts_length, parts_newlines = [title], len(title), title.count("\n")
-        for message in messages:
-            message_newlines = message.count("\n")
-            if (
-                parts_length + 1 + len(message) > max_page_chars
-                or parts_newlines + 1 + message_newlines + 1 >= max_page_lines
-            ):
-                yield "\n".join(parts)
-                parts, parts_length, parts_newlines = [title], len(title), title.count("\n")
-            parts.append(message)
-            parts_length += 1 + len(message)
-            parts_newlines += message_newlines
-        if len(parts) > 1:
-            yield "\n".join(parts)
-
-    def _make_pagination(
-        self, message: TelegramMessage, number_of_pages: int, current_page_idx: int
-    ) -> Optional[InlineKeyboardMarkup]:
-        if number_of_pages <= 1:
-            return None
-
-        if number_of_pages <= 5:
-            min_page_idx, max_page_idx = 0, number_of_pages
-        elif current_page_idx < 2:
-            min_page_idx, max_page_idx = 0, 5
-        elif current_page_idx + 3 >= number_of_pages:
-            min_page_idx, max_page_idx = number_of_pages - 5, number_of_pages
-        else:
-            min_page_idx, max_page_idx = current_page_idx - 2, current_page_idx + 3
-
-        buttons: List[InlineKeyboardButton] = []
-        for page_idx in range(min_page_idx, max_page_idx):
-            text = str(page_idx + 1)
-            if page_idx == current_page_idx:
-                buttons.append(InlineKeyboardButton(text=f"〈{text}〉", callback_data="{}"))
-                continue
-            if 0 < min_page_idx == page_idx:
-                text = "«"
-            if page_idx + 1 == max_page_idx < number_of_pages:
-                text = "»"
-            buttons.append(self._make_pagination_button(message, text, page_idx))
-
-        return InlineKeyboardMarkup(inline_keyboard=[buttons])
-
-    def _make_pagination_button(
-        self, message: TelegramMessage, text: str, page_idx: int
-    ) -> InlineKeyboardButton:
-        return InlineKeyboardButton(
-            text=text,
-            callback_data=json.dumps(
-                {
-                    "a": CallbackActionKind.PAGE,
-                    "c": message.group.telegram_chat_id,
-                    "m": message.telegram_message_id,
-                    "p": page_idx,
-                },
-                separators=(",", ":"),
-            ),
+    def _paginate_formatted_messages(self, messages: Iterable[str]) -> Iterable[str]:
+        yield from paginate_texts(
+            prefix=self._texts.message_history_title,
+            texts=messages,
+            suffix="",
+            delimiter="\n",
+            max_page_lines=15,
+            max_page_chars=1000,
         )
 
     async def _send_new_messages(self, workplace: Workplace, messages: List[Message]):

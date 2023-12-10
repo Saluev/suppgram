@@ -1,6 +1,5 @@
 import json
 import logging
-from enum import Enum
 from typing import cast
 
 from telegram import Update, Bot, InlineKeyboardMarkup, InlineKeyboardButton
@@ -24,6 +23,7 @@ from suppgram.frontend import (
     CustomerFrontend,
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
+from suppgram.frontends.telegram.callback_actions import CallbackActionKind
 from suppgram.frontends.telegram.identification import (
     make_customer_identification,
     make_customer_diff,
@@ -32,10 +32,6 @@ from suppgram.frontends.telegram.interfaces import TelegramStorage, TelegramMess
 from suppgram.texts.interface import TextsProvider
 
 logger = logging.getLogger(__name__)
-
-
-class CallbackActionKind(str, Enum):
-    RATE = "rate"
 
 
 class TelegramCustomerFrontend(CustomerFrontend):
