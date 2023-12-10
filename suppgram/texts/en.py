@@ -1,6 +1,5 @@
 import html
 import logging
-import re
 from typing import Optional, Collection
 
 from suppgram.entities import (
@@ -190,15 +189,6 @@ class EnglishTextsProvider(TextsProvider):
             return f'<a href="{url}">{escaped_name}</a>'
 
         raise ValueError(f"text format {format_.value!r} is not supported")
-
-    def _format_telegram_tag(self, tag: ConversationTag) -> str:
-        tag_name = tag.name
-        tag_name = re.sub(r"\s+", "_", tag_name)
-        tag_name = re.sub(r"\W+", "", tag_name)
-        tag_name = tag_name.strip("_")
-        if not tag_name:
-            tag_name = f"tag_{tag.id}"  # assuming that database IDs are safe
-        return f"#{tag_name}"
 
     message_history_title = "🗂️ Message history\n"
 

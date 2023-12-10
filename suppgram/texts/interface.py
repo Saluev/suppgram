@@ -1,7 +1,9 @@
+import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Literal, Collection
 
+from suppgram.emoji import EMOJI_SEQUENCE
 from suppgram.entities import (
     Conversation,
     Customer,
@@ -98,6 +100,17 @@ class TextsProvider:
         raise NotImplementedError
 
     telegram_assign_to_me_button_text: str
+
+    _TAG_REGEX = re.compile(rf"^\s*({EMOJI_SEQUENCE}*)(.*?)({EMOJI_SEQUENCE}*)\s*$")
+
+    def _format_telegram_tag(self, tag: ConversationTag) -> str:
+        prefix, tag_name, suffix = self._TAG_REGEX.match(tag.name).groups()
+        tag_name = re.sub(r"\s+", "_", tag_name)
+        tag_name = re.sub(r"\W+", "", tag_name)
+        tag_name = tag_name.strip("_")
+        if not tag_name:
+            tag_name = f"tag_{tag.id}"  # assuming that database IDs are safe
+        return f"{prefix}#{tag_name}{suffix}"
 
     message_history_title: str
 
