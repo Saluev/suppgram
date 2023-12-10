@@ -18,6 +18,7 @@ from suppgram.entities import (
     ConversationTag,
     ConversationTagEvent,
     Customer,
+    TagEvent,
 )
 from suppgram.observer import Observable
 from suppgram.permissions import Permission
@@ -33,6 +34,7 @@ class Backend(abc.ABC):
     on_new_message_for_customer: Observable[NewMessageForCustomerEvent]
     on_new_unassigned_message_from_customer: Observable[NewUnassignedMessageFromCustomerEvent]
     on_new_message_for_agent: Observable[NewMessageForAgentEvent]
+    on_tag_created: Observable[TagEvent]
 
     @abc.abstractmethod
     async def create_or_update_agent(
@@ -69,7 +71,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create_tag(self, name: str, created_by: Agent):
+    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
         pass
 
     @abc.abstractmethod

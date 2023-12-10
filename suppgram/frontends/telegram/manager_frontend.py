@@ -28,6 +28,7 @@ from suppgram.entities import (
     ConversationState,
     ConversationTag,
     ConversationTagEvent,
+    TagEvent,
 )
 from suppgram.errors import AgentNotFound, PermissionDenied
 from suppgram.frontend import (
@@ -85,6 +86,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         backend.on_conversation_resolution.add_handler(self._handle_conversation_resolution_event)
         backend.on_conversation_tag_added.add_handler(self._handle_conversation_tags_event)
         backend.on_conversation_tag_removed.add_handler(self._handle_conversation_tags_event)
+        backend.on_tag_created.add_handler(self._handle_tag_event)
         self._telegram_app.add_handlers(
             [
                 CallbackQueryHandler(self._handle_callback_query),
@@ -150,6 +152,24 @@ class TelegramManagerFrontend(ManagerFrontend):
 
     async def _handle_conversation_tags_event(self, event: ConversationTagEvent):
         await self._send_or_edit_new_conversation_notifications(event.conversation)
+
+    async def _handle_tag_event(self, _: TagEvent):
+        # Refresh keyboards for all NEW conversations.
+        messages = await self._storage.get_messages(
+            kind=TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION
+        )
+        conversation_ids = list(
+            {message.conversation_id for message in messages if message.conversation_id is not None}
+        )
+        conversations = await self._backend.get_conversations(conversation_ids)
+        conv_by_id = {conv.id: conv for conv in conversations}
+        all_tags = await self._backend.get_all_tags()
+        await flat_gather(
+            self._update_new_conversation_notification(message, conv, all_tags, keyboard_only=True)
+            for message in messages
+            for conv in (conv_by_id[message.conversation_id],)
+            if conv.state == ConversationState.NEW
+        )
 
     async def _send_new_conversation_notification(
         self,
@@ -246,9 +266,8 @@ class TelegramManagerFrontend(ManagerFrontend):
         message: TelegramMessage,
         conversation: Conversation,
         all_tags: List[ConversationTag],
+        keyboard_only: bool = False,
     ):
-        text = self._texts.compose_telegram_new_conversation_notification(conversation)
-
         assign_to_me_button = InlineKeyboardButton(
             self._texts.telegram_assign_to_me_button_text,
             callback_data=json.dumps(
@@ -285,6 +304,19 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
         inline_buttons.extend(arrange_buttons(tag_buttons))
 
+        if keyboard_only:
+            try:
+                await self._telegram_bot.edit_message_reply_markup(
+                    message.group.telegram_chat_id,
+                    message.telegram_message_id,
+                    reply_markup=InlineKeyboardMarkup(inline_buttons) if inline_buttons else None,
+                )
+                return
+            except BadRequest as exc:
+                if "Message is not modified" not in str(exc):
+                    raise
+
+        text = self._texts.compose_telegram_new_conversation_notification(conversation)
         try:
             await self._telegram_bot.edit_message_text(
                 text.text,

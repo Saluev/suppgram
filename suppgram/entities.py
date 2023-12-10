@@ -332,3 +332,8 @@ class NewMessageForAgentEvent:
     agent: Agent
     workplace: Workplace
     message: Message
+
+
+@dataclass(frozen=True)
+class TagEvent:
+    tag: ConversationTag

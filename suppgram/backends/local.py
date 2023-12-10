@@ -23,6 +23,7 @@ from suppgram.entities import (
     ConversationTag,
     ConversationTagEvent,
     Customer,
+    TagEvent,
 )
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
@@ -57,6 +58,7 @@ class LocalBackend(BackendInterface):
             NewUnassignedMessageFromCustomerEvent
         ]()
         self.on_new_message_for_agent = LocalObservable[NewMessageForAgentEvent]()
+        self.on_tag_created = LocalObservable[TagEvent]()
 
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
@@ -102,11 +104,12 @@ class LocalBackend(BackendInterface):
                 has_been_denied = True
         return has_been_allowed and not has_been_denied
 
-    async def create_tag(self, name: str, created_by: Agent):
+    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
         if not self.check_permission(created_by, Permission.CREATE_TAGS):
             raise PermissionDenied("not allowed to create new tags")
-        return await self._storage.create_tag(name=name, created_by=created_by)
-        # TODO trigger event to update new conversation notifications' keyboards
+        tag = await self._storage.create_tag(name=name, created_by=created_by)
+        await self.on_tag_created.trigger(TagEvent(tag=tag))
+        return tag
 
     async def get_all_tags(self) -> List[ConversationTag]:
         return await self._storage.find_all_tags()

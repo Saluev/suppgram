@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from itertools import groupby
-from typing import List, Iterable, Optional
+from typing import List, Iterable, Optional, Callable, Awaitable, Mapping
 
 from telegram import (
     Update,
@@ -30,6 +30,8 @@ from suppgram.entities import (
     ConversationEvent,
     Customer,
     FINAL_STATES,
+    Agent,
+    Conversation,
 )
 from suppgram.errors import ConversationNotFound, AgentNotFound
 from suppgram.frontend import (
@@ -98,6 +100,7 @@ class TelegramAgentFrontend(AgentFrontend):
                 ]
             )
             self._telegram_apps.append(app)
+        self._telegram_app_by_bot_id: Mapping[int, Application] = {}
         self._manager_bot: Optional[Bot] = (
             app_manager.get_app(manager_bot_token).bot if manager_bot_token else None
         )
@@ -218,29 +221,19 @@ class TelegramAgentFrontend(AgentFrontend):
             return None
 
     async def _handle_postpone_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        assert update.effective_chat, "command update should have `effective_chat`"
-        assert update.effective_user, "command update should have `effective_user`"
-        try:
-            agent = await self._backend.identify_agent(
-                make_agent_identification(update.effective_user)
-            )
-        except AgentNotFound:
-            answer = self._texts.telegram_manager_permission_denied_message
-            await context.bot.send_message(update.effective_chat.id, answer)
-            return
-
-        try:
-            conversation = await self._backend.identify_agent_conversation(
-                make_workplace_identification(update, update.effective_user)
-            )
-        except ConversationNotFound:
-            answer = self._texts.telegram_workplace_is_not_assigned_message
-            await context.bot.send_message(update.effective_chat.id, answer)
-            return
-
-        await self._backend.postpone_conversation(agent, conversation)
+        await self._handle_conversation_command(
+            update, context, self._backend.postpone_conversation
+        )
 
     async def _handle_resolve_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._handle_conversation_command(update, context, self._backend.resolve_conversation)
+
+    async def _handle_conversation_command(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        command: Callable[[Agent, Conversation], Awaitable[None]],
+    ):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
         try:
@@ -261,7 +254,7 @@ class TelegramAgentFrontend(AgentFrontend):
             await context.bot.send_message(update.effective_chat.id, answer)
             return
 
-        await self._backend.resolve_conversation(agent, conversation)
+        await command(agent, conversation)
 
     async def _handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.effective_chat, "message update should have `effective_chat`"
@@ -284,7 +277,7 @@ class TelegramAgentFrontend(AgentFrontend):
             conversation,
             Message(
                 kind=MessageKind.FROM_AGENT,
-                time_utc=update.message.date,  # TODO utc?
+                time_utc=update.message.date,
                 text=update.message.text,
             ),
         )
@@ -419,7 +412,9 @@ class TelegramAgentFrontend(AgentFrontend):
             raise
 
     def _get_app_by_bot_id(self, telegram_bot_id: int) -> Application:
-        return next(app for app in self._telegram_apps if app.bot.id == telegram_bot_id)
+        if not self._telegram_app_by_bot_id:
+            self._telegram_app_by_bot_id = {app.bot.id: app for app in self._telegram_apps}
+        return self._telegram_app_by_bot_id[telegram_bot_id]
 
     async def _nudge_to_start_bot(self, workplace: Workplace):
         assert workplace.telegram_user_id is not None, "should be called for Telegram workspaces"
