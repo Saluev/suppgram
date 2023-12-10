@@ -1,3 +1,4 @@
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -12,6 +13,8 @@ from suppgram.entities import (
     Agent,
     Message,
 )
+
+logger = logging.getLogger(__name__)
 
 TelegramParseMode = Optional[Literal["MarkdownV2", "HTML"]]
 
@@ -104,7 +107,12 @@ class TextsProvider:
     _TAG_REGEX = re.compile(rf"^\s*({EMOJI_SEQUENCE}*)(.*?)({EMOJI_SEQUENCE}*)\s*$")
 
     def _format_telegram_tag(self, tag: ConversationTag) -> str:
-        prefix, tag_name, suffix = self._TAG_REGEX.match(tag.name).groups()
+        match = self._TAG_REGEX.match(tag.name)
+        if match is not None:
+            prefix, tag_name, suffix = match.groups()
+        else:
+            logger.warning(f"Couldn't match tag {tag.name!r} against emoji regex")
+            prefix, tag_name, suffix = "", tag.name, ""
         tag_name = re.sub(r"\s+", "_", tag_name)
         tag_name = re.sub(r"\W+", "", tag_name)
         tag_name = tag_name.strip("_")

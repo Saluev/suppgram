@@ -184,8 +184,9 @@ class Models:
             await conn.run_sync(Base.metadata.create_all, tables=tables_to_create)
 
     def convert_to_customer_model(self, identification: CustomerIdentification) -> Any:
+        if identification.id is not None:
+            raise ValueError("can't create customer with predefined ID")
         return self.customer_model(
-            id=identification.id,
             telegram_user_id=identification.telegram_user_id,
             shell_uuid=identification.shell_uuid,
             pubnub_user_id=identification.pubnub_user_id,
@@ -213,8 +214,9 @@ class Models:
         )
 
     def convert_to_agent_model(self, identification: AgentIdentification) -> Any:
+        if identification.id is not None:
+            raise ValueError("can't create agent with predefined ID")
         return self.agent_model(
-            id=identification.id,  # TODO is it needed?..
             telegram_user_id=identification.telegram_user_id,
         )
 
@@ -251,6 +253,16 @@ class Models:
             telegram_user_id=agent.telegram_user_id,
             telegram_bot_id=workplace.telegram_bot_id,
             agent=agent,
+        )
+
+    def convert_to_message_model(
+        self, conversation_id: Any, message: ConversaionMessageInterface
+    ) -> Any:
+        return self.conversation_message_model(
+            conversation_id=conversation_id,
+            kind=message.kind,
+            time_utc=message.time_utc,
+            text=message.text,
         )
 
     def convert_from_message_model(
@@ -334,7 +346,9 @@ class Models:
         workplace_model = self.workplace_model
         agent_model = self.agent_model
         if identification.id is not None:
-            return workplace_model.id == identification.id
+            return (workplace_model.id == identification.id) & (
+                workplace_model.agent_id == agent_model.id
+            )
         if identification.telegram_user_id is not None:
             return (
                 (workplace_model.telegram_bot_id == identification.telegram_bot_id)

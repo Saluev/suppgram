@@ -88,9 +88,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
         await self._telegram_app.start()
 
     async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        assert (
-            update.effective_chat
-        ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
+        assert update.effective_chat, "command update should have `effective_chat`"
         await context.bot.send_message(
             update.effective_chat.id, self._texts.telegram_customer_start_message
         )
@@ -123,7 +121,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
             conversation,
             Message(
                 kind=MessageKind.FROM_CUSTOMER,
-                time_utc=update.message.date,  # TODO utc?
+                time_utc=update.message.date,
                 text=update.message.text,
             ),
         )

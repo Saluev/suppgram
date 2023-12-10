@@ -1,3 +1,18 @@
+"""
+Regular expressions for matching emoji sequences.
+
+For parsing single emoji, use either
+
+    re.match(EMOJI_SEQUENCE, string)
+    # or
+    EMOJI_REGEXP.match(string)
+
+To match multiple emojis or custom patterns, insert `EMOJI_SEQUENCE` into pattern:
+
+    re.match(rf"{EMOJI_SEQUENCE}+\s*...", string)
+"""
+import re
+
 # https://www.unicode.org/Public/emoji/12.1/emoji-data.txt
 EMOJI_CHARACTER = (
     "["
@@ -683,4 +698,8 @@ EMOJI_CORE_SEQUENCE = (
 EMOJI_ZWJ_ELEMENT = f"(?:{EMOJI_CORE_SEQUENCE}|{EMOJI_TAG_SEQUENCE})"
 ZWJ = "\u200d"
 EMOJI_ZWJ_SEQUENCE = f"(?:{EMOJI_ZWJ_ELEMENT}(?:{ZWJ}{EMOJI_ZWJ_ELEMENT})+)"
+
+# http://www.unicode.org/reports/tr51/
 EMOJI_SEQUENCE = f"(?:{EMOJI_CORE_SEQUENCE}|{EMOJI_ZWJ_SEQUENCE}|{EMOJI_TAG_SEQUENCE})"
+
+EMOJI_REGEXP = re.compile(EMOJI_SEQUENCE)

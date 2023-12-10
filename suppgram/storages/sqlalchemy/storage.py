@@ -187,9 +187,7 @@ class SQLAlchemyStorage(Storage):
             options = self._models.make_conversation_options(with_messages=True)
             select_query = (
                 select(self._models.conversation_model)
-                .options(
-                    *options,
-                )
+                .options(*options)
                 .where(self._models.make_current_customer_conversation_filter(customer))
             )
             conv = (await session.execute(select_query)).scalars().one_or_none()
@@ -333,11 +331,4 @@ class SQLAlchemyStorage(Storage):
 
     async def save_message(self, conversation: Conversation, message: Message):
         async with self._session() as session, session.begin():
-            session.add(
-                self._models.conversation_message_model(
-                    conversation_id=conversation.id,
-                    kind=message.kind,
-                    time_utc=message.time_utc,
-                    text=message.text,
-                )
-            )
+            session.add(self._models.convert_to_message_model(conversation.id, message))
