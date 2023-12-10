@@ -116,6 +116,10 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def postpone_conversation(self, resolver: Agent, conversation: Conversation):
+        pass
+
+    @abc.abstractmethod
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         pass
 

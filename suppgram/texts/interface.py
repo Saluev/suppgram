@@ -73,6 +73,7 @@ class TextsProvider:
     telegram_agent_permission_denied_message: str
     telegram_workplace_is_not_assigned_message: str
     telegram_resolve_command_description: str
+    telegram_postpone_command_description: str
     telegram_agent_conversation_resolved_message: str
 
     telegram_new_conversation_notification_placeholder: str

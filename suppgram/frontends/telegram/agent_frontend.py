@@ -62,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramAgentFrontend(AgentFrontend):
+    _POSTPONE_COMMAND = "postpone"
     _RESOLVE_COMMAND = "resolve"
 
     def __init__(
@@ -82,6 +83,11 @@ class TelegramAgentFrontend(AgentFrontend):
             app.add_handlers(
                 [
                     CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
+                    CommandHandler(
+                        self._POSTPONE_COMMAND,
+                        self._handle_postpone_command,
+                        filters=ChatType.PRIVATE,
+                    ),
                     CommandHandler(
                         self._RESOLVE_COMMAND,
                         self._handle_resolve_command,
@@ -106,11 +112,15 @@ class TelegramAgentFrontend(AgentFrontend):
         await flat_gather(self._set_commands(app) for app in self._telegram_apps)
 
     async def _set_commands(self, app: Application):
+        postpone = BotCommand(
+            self._POSTPONE_COMMAND,
+            self._texts.telegram_postpone_command_description,
+        )
         resolve = BotCommand(
             self._RESOLVE_COMMAND,
             self._texts.telegram_resolve_command_description,
         )
-        await app.bot.set_my_commands([resolve])
+        await app.bot.set_my_commands([postpone, resolve])
 
     async def start(self):
         await flat_gather(app.updater.start_polling() for app in self._telegram_apps)
@@ -206,6 +216,29 @@ class TelegramAgentFrontend(AgentFrontend):
             )
         except TelegramError:  # TODO more precise exception handling
             return None
+
+    async def _handle_postpone_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.effective_chat, "command update should have `effective_chat`"
+        assert update.effective_user, "command update should have `effective_user`"
+        try:
+            agent = await self._backend.identify_agent(
+                make_agent_identification(update.effective_user)
+            )
+        except AgentNotFound:
+            answer = self._texts.telegram_manager_permission_denied_message
+            await context.bot.send_message(update.effective_chat.id, answer)
+            return
+
+        try:
+            conversation = await self._backend.identify_agent_conversation(
+                make_workplace_identification(update, update.effective_user)
+            )
+        except ConversationNotFound:
+            answer = self._texts.telegram_workplace_is_not_assigned_message
+            await context.bot.send_message(update.effective_chat.id, answer)
+            return
+
+        await self._backend.postpone_conversation(agent, conversation)
 
     async def _handle_resolve_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.effective_chat, "command update should have `effective_chat`"

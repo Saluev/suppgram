@@ -70,6 +70,9 @@ class EnglishTextsProvider(TextsProvider):
     telegram_resolve_command_description = (
         "Mark conversation resolved and stop messaging with the customer."
     )
+    telegram_postpone_command_description = (
+        "Return the conversation to NEW status and stop messaging with the customer."
+    )
     telegram_agent_conversation_resolved_message = (
         "✅ Conversation was marked as resolved. " "This chat is no longer assigned to a customer."
     )
@@ -116,7 +119,7 @@ class EnglishTextsProvider(TextsProvider):
             profile.text,
             "",
         ]
-        lines.extend(self._format_message(message) for message in conversation.messages)
+        lines.extend(self.format_history_message(message) for message in conversation.messages)
         if agent := conversation.assigned_agent:
             if agent.telegram_user_id:
                 agent_ref = self._format_telegram_mention(
@@ -152,13 +155,6 @@ class EnglishTextsProvider(TextsProvider):
             f"hit Start/Restart button to be able to communicate with the customer\\.",
             format=Format.TELEGRAM_MARKDOWN,
         )
-
-    def _format_message(self, message: Message) -> str:
-        from_ = {
-            MessageKind.FROM_CUSTOMER: "Customer",
-            MessageKind.FROM_AGENT: "Agent",
-        }[message.kind]
-        return f"{from_}: {message.text}"
 
     telegram_assign_to_me_button_text = "Assign to me"
 
@@ -211,6 +207,8 @@ class EnglishTextsProvider(TextsProvider):
             return f"👤 Customer: {message.text}"
         if message.kind == MessageKind.FROM_AGENT:
             return f"🧑‍💼 Agent: {message.text}"
+        if message.kind == MessageKind.POSTPONED:
+            return "⏳ Conversation was postponed."
         if message.kind == MessageKind.RESOLVED:
             return "✅ Conversation was resolved."
         logger.warning(f"Unsupported message kind: {message.kind.value!r}")

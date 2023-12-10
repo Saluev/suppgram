@@ -179,6 +179,8 @@ class MessageKind(str, Enum):
     """ Regular message from a customer. """
     FROM_AGENT = "from_agent"
     """ Regular message from a currently assigned agent. """
+    POSTPONED = "postponed"
+    """ Internal message marking the moment the conversation was postponed by the agent."""
     RESOLVED = "resolved"
     """ Internal message marking the moment the conversation was resolved by the agent. """
 

@@ -219,6 +219,27 @@ class LocalBackend(BackendInterface):
         conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_rated.trigger(ConversationEvent(conversation=conversation))
 
+    async def postpone_conversation(self, postponer: Agent, conversation: Conversation):
+        if postponer != conversation.assigned_agent:
+            raise PermissionDenied("not allowed to postpone conversations of other agents")
+
+        await self.process_message(
+            conversation,
+            Message(kind=MessageKind.POSTPONED, time_utc=datetime.now(timezone.utc)),
+        )
+        await self._storage.update_conversation(
+            conversation.id,
+            ConversationDiff(state=ConversationState.NEW, assigned_workplace_id=SetNone),
+        )
+        conversation = Conversation(  # TODO just fetch?..
+            id=conversation.id,
+            state=ConversationState.NEW,
+            customer=conversation.customer,
+            messages=conversation.messages,
+            tags=conversation.tags,
+        )
+        await self.on_new_conversation.trigger(ConversationEvent(conversation=conversation))
+
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         if resolver != conversation.assigned_agent:
             raise PermissionDenied("not allowed to resolve conversations of other agents")
