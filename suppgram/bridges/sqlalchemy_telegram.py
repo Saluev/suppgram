@@ -95,7 +95,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             )
             group = (await session.execute(query)).scalars().one_or_none()
             if group is None:
-                group = TelegramGroup(telegram_chat_id=telegram_chat_id)  # type: ignore
+                group = self._group_model(telegram_chat_id=telegram_chat_id)  # type: ignore
                 session.add(group)
             return self._convert_group(group)
 

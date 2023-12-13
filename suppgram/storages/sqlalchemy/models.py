@@ -188,7 +188,7 @@ class Models:
             raise ValueError("can't create customer with predefined ID")
         return self.customer_model(
             telegram_user_id=identification.telegram_user_id,
-            shell_uuid=identification.shell_uuid,
+            shell_uuid=identification.shell_uuid.hex if identification.shell_uuid else None,
             pubnub_user_id=identification.pubnub_user_id,
             pubnub_channel_id=identification.pubnub_channel_id,
         )

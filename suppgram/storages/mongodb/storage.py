@@ -39,8 +39,10 @@ class MongoDBStorage(Storage):
         filter_ = self._collections.make_customer_filter(identification)
         update = self._collections.make_customer_update(identification, diff)
         doc = await self._collections.customer_collection.find_one_and_update(
-            filter_, update, upsert=True, return_document=ReturnDocument.AFTER
+            filter_, update, upsert=not identification.id, return_document=ReturnDocument.AFTER
         )
+        if doc is None:
+            raise ValueError("can't create customer with predefined ID")
         return self._collections.convert_to_customer(doc)
 
     async def find_customers_by_ids(self, customer_ids: List[Any]) -> List[Customer]:

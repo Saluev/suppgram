@@ -56,3 +56,8 @@ Issues = "https://github.com/Saluev/suppgram/issues"
 
 [tool.black]
 line-length = 100
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]

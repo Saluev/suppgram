@@ -98,7 +98,7 @@ class Builder:
         from suppgram.storages.mongodb.collections import Collections
         from suppgram.storages.mongodb.storage import MongoDBStorage
 
-        self._mongodb_client = AsyncIOMotorClient(mongodb_uri)
+        self._mongodb_client = AsyncIOMotorClient(mongodb_uri, uuidRepresentation="standard")
         self._mongodb_database = cast(
             AgnosticDatabase,
             self._mongodb_client.get_default_database()

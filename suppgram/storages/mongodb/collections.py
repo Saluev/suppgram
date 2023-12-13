@@ -103,6 +103,7 @@ class Collections:
             telegram_user_id=doc.get("telegram_user_id"),
             telegram_first_name=doc.get("telegram_first_name"),
             telegram_last_name=doc.get("telegram_last_name"),
+            telegram_username=doc.get("telegram_username"),
             shell_uuid=doc.get("shell_uuid"),  # MongoDB supports UUIDs
             pubnub_user_id=doc.get("pubnub_user_id"),
             pubnub_channel_id=doc.get("pubnub_channel_id"),
