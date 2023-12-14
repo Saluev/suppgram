@@ -59,7 +59,9 @@ class TextsProvider:
     telegram_manager_start_message: str
     telegram_manager_permission_denied_message: str
     telegram_agents_command_description: str
+    telegram_agents_command_success_message: str
     telegram_send_new_conversations_command_description: str
+    telegram_send_new_conversations_command_success_message: str
 
     # Tags
     telegram_create_tag_command_description: str

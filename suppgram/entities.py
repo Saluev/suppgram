@@ -101,6 +101,7 @@ class Agent:
     """
 
     id: Any
+    deactivated: bool
 
     telegram_user_id: Optional[int] = None
     telegram_first_name: Optional[str] = None
@@ -118,6 +119,8 @@ class AgentDiff:
 
     Is, in fact, a subset of [Agent][suppgram.entities.Agent] fields representing optional metadata.
     """
+
+    deactivated: Optional[bool] = None
 
     telegram_first_name: Optional[str] = None
     telegram_last_name: Optional[str] = None

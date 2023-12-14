@@ -10,7 +10,7 @@ from telegram import (
     Bot,
     Chat,
 )
-from telegram.error import TelegramError, BadRequest, Forbidden
+from telegram.error import BadRequest, Forbidden
 from telegram.ext import (
     MessageHandler,
     ContextTypes,
@@ -39,6 +39,7 @@ from suppgram.frontend import (
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.callback_actions import CallbackActionKind
+from suppgram.frontends.telegram.helper import TelegramHelper
 from suppgram.frontends.telegram.helpers import (
     is_chat_not_found,
     is_blocked_by_user,
@@ -52,7 +53,6 @@ from suppgram.frontends.telegram.identification import (
 )
 from suppgram.frontends.telegram.interfaces import (
     TelegramStorage,
-    TelegramGroupRole,
     TelegramGroup,
     TelegramMessageKind,
     TelegramMessage,
@@ -73,10 +73,12 @@ class TelegramAgentFrontend(AgentFrontend):
         manager_bot_token: Optional[str],
         app_manager: TelegramAppManager,
         backend: Backend,
+        helper: TelegramHelper,
         storage: TelegramStorage,
         texts: TextsProvider,
     ):
         self._backend = backend
+        self._helper = helper
         self._storage = storage
         self._texts = texts
         self._telegram_apps: List[Application] = []
@@ -137,7 +139,9 @@ class TelegramAgentFrontend(AgentFrontend):
             workplace = await self._backend.identify_workplace(workplace_identification)
             agent = workplace.agent
         except AgentNotFound:
-            should_create = await self._check_belongs_to_agent_groups(update.effective_user.id)
+            should_create = await self._helper.check_belongs_to_agent_groups(
+                update.effective_user.id
+            )
             if not should_create:
                 await context.bot.send_message(
                     update.effective_chat.id,
@@ -179,48 +183,8 @@ class TelegramAgentFrontend(AgentFrontend):
             agent_id=agent.id,
             telegram_bot_username=app.bot.username,
         )
-        await flat_gather(
-            self._delete_message_if_exists(self._manager_bot, message) for message in messages
-        )
+        await flat_gather(self._helper.delete_message_if_exists(message) for message in messages)
         await self._storage.delete_messages(messages)
-
-    async def _delete_message_if_exists(self, bot: Optional[Bot], message: TelegramMessage):
-        if bot is None:
-            return
-        try:
-            await bot.delete_message(
-                chat_id=message.group.telegram_chat_id,
-                message_id=message.telegram_message_id,
-            )
-        except TelegramError:  # TODO more precise exception handling
-            pass
-
-    async def _check_belongs_to_agent_groups(self, telegram_user_id: int) -> List[TelegramGroup]:
-        groups = await self._storage.get_groups_by_role(TelegramGroupRole.AGENTS)
-        return [
-            group
-            for group in await flat_gather(
-                self._check_belongs_to_group(telegram_user_id, group) for group in groups
-            )
-            if group is not None
-        ]
-
-    async def _check_belongs_to_group(
-        self, telegram_user_id: int, group: TelegramGroup
-    ) -> Optional[TelegramGroup]:
-        if self._manager_bot is None:
-            return None
-        try:
-            member = await self._manager_bot.get_chat_member(
-                chat_id=group.telegram_chat_id, user_id=telegram_user_id
-            )
-            return (
-                group
-                if member.status in (member.ADMINISTRATOR, member.OWNER, member.MEMBER)
-                else None
-            )
-        except TelegramError:  # TODO more precise exception handling
-            return None
 
     async def _handle_postpone_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self._handle_conversation_command(
@@ -421,7 +385,7 @@ class TelegramAgentFrontend(AgentFrontend):
     async def _nudge_to_start_bot(self, workplace: Workplace):
         assert workplace.telegram_user_id is not None, "should be called for Telegram workspaces"
 
-        agent_groups = await self._check_belongs_to_agent_groups(workplace.telegram_user_id)
+        agent_groups = await self._helper.check_belongs_to_agent_groups(workplace.telegram_user_id)
         await flat_gather(
             self._nudge_to_start_bot_in_group(workplace, group) for group in agent_groups
         )

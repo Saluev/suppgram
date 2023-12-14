@@ -25,7 +25,7 @@ from suppgram.entities import (
     Customer,
     TagEvent,
 )
-from suppgram.errors import PermissionDenied
+from suppgram.errors import PermissionDenied, AgentDeactivated
 from suppgram.helpers import flat_gather
 from suppgram.observer import LocalObservable
 from suppgram.storage import Storage
@@ -69,7 +69,15 @@ class LocalBackend(BackendInterface):
         return await self._storage.get_agent(identification)
 
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
+        if diff.deactivated is not None:
+            raise ValueError("can't deactivate agent via diff, use `deactivate_agent()`")
         return await self._storage.update_agent(identification, diff)
+
+    async def deactivate_agent(self, agent: Agent):
+        # TODO transaction?..
+        conversations = await self._storage.find_agent_conversations(agent)
+        await flat_gather(self.postpone_conversation(agent, conv) for conv in conversations)
+        await self._storage.update_agent(agent.identification, AgentDiff(deactivated=True))
 
     async def create_or_update_customer(
         self, identification: CustomerIdentification, diff: Optional[CustomerDiff] = None
@@ -87,6 +95,9 @@ class LocalBackend(BackendInterface):
         return await self._storage.get_or_create_workplace(identification)
 
     async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+        if created_by.deactivated:
+            raise AgentDeactivated(created_by.identification)
+
         tag = await self._storage.create_tag(name=name, created_by=created_by)
         await self.on_tag_created.trigger(TagEvent(tag=tag))
         return tag
@@ -126,6 +137,9 @@ class LocalBackend(BackendInterface):
             )
 
     async def _process_message_from_agent(self, conversation: Conversation, message: Message):
+        if conversation.assigned_agent and conversation.assigned_agent.deactivated:
+            raise AgentDeactivated(conversation.assigned_agent.identification)
+
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
             NewMessageForCustomerEvent(
@@ -154,6 +168,11 @@ class LocalBackend(BackendInterface):
             )
 
     async def assign_agent(self, assigner: Agent, assignee: Agent, conversation_id: Any):
+        if assigner.deactivated:
+            raise AgentDeactivated(assigner.identification)
+        if assignee.deactivated:
+            raise AgentDeactivated(assignee.identification)
+
         workplace = await self._choose_workplace(assignee)
         await self._storage.update_conversation(
             conversation_id,
@@ -220,6 +239,9 @@ class LocalBackend(BackendInterface):
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         if resolver != conversation.assigned_agent:
             raise PermissionDenied("not allowed to resolve conversations of other agents")
+        if resolver.deactivated:
+            await self.postpone_conversation(resolver, conversation)
+            raise AgentDeactivated(resolver.identification)
 
         # TODO processing message and updating conversation should be in a single transaction
         await self.process_message(

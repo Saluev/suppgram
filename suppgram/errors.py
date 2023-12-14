@@ -25,6 +25,10 @@ class AgentNotFound(AgentException):
     pass
 
 
+class AgentDeactivated(AgentException):
+    pass
+
+
 class WorkplaceException(Exception):
     def __init__(self, identification: WorkplaceIdentification):
         self.identification = identification

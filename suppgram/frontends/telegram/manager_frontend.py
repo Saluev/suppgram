@@ -17,8 +17,9 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     CommandHandler,
+    MessageHandler,
 )
-from telegram.ext.filters import ChatType, TEXT
+from telegram.ext.filters import ChatType, TEXT, StatusUpdate
 
 from suppgram.backend import Backend
 from suppgram.entities import (
@@ -36,6 +37,7 @@ from suppgram.frontend import (
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.callback_actions import CallbackActionKind
+from suppgram.frontends.telegram.helper import TelegramHelper
 from suppgram.frontends.telegram.helpers import (
     send_text_answer,
     arrange_buttons,
@@ -68,10 +70,12 @@ class TelegramManagerFrontend(ManagerFrontend):
         token: str,
         app_manager: TelegramAppManager,
         backend: Backend,
+        helper: TelegramHelper,
         storage: TelegramStorage,
         texts: TextsProvider,
     ):
         self._backend = backend
+        self._helper = helper
         self._storage = storage
         self._texts = texts
         self._telegram_app = app_manager.get_app(token)
@@ -105,6 +109,8 @@ class TelegramManagerFrontend(ManagerFrontend):
                     self._handle_create_conversation_tag_command,
                     filters=TEXT & (ChatType.GROUP | ChatType.PRIVATE),
                 ),
+                MessageHandler(StatusUpdate.NEW_CHAT_MEMBERS, self._handle_new_chat_members),
+                MessageHandler(StatusUpdate.LEFT_CHAT_MEMBER, self._handle_left_chat_member),
             ]
         )
 
@@ -383,14 +389,10 @@ class TelegramManagerFrontend(ManagerFrontend):
         action = callback_data["a"]
         if action == CallbackActionKind.ASSIGN_TO_ME:
             conversation_id = callback_data["c"]
-            workplace = await self._backend.identify_workplace(
-                make_workplace_identification(update, update.effective_user)
+            agent = await self._backend.identify_agent(
+                make_agent_identification(update.effective_user)
             )
-            await self._backend.assign_agent(
-                workplace.agent,
-                workplace.agent,
-                conversation_id,
-            )
+            await self._backend.assign_agent(agent, agent, conversation_id)
         elif action in (
             CallbackActionKind.ADD_CONVERSATION_TAG,
             CallbackActionKind.REMOVE_CONVERSATION_TAG,
@@ -428,7 +430,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             TelegramGroupRole.AGENTS,
             TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS,
         )
-        # TODO positive answer
+        await context.bot.send_message(
+            update.effective_chat.id, self._texts.telegram_agents_command_success_message
+        )
 
     async def _handle_send_new_conversations_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -440,4 +444,49 @@ class TelegramManagerFrontend(ManagerFrontend):
         await self._storage.add_group_roles(
             update.effective_chat.id, TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
         )
-        # TODO positive answer
+        await context.bot.send_message(
+            update.effective_chat.id,
+            self._texts.telegram_send_new_conversations_command_success_message,
+        )
+
+    async def _handle_new_chat_members(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert (
+            update.effective_chat
+        ), "update with NEW_CHAT_MEMBERS filter should have `effective_chat`"
+        assert (
+            update.message and update.message.new_chat_members
+        ), "update with NEW_CHAT_MEMBERS filter should have `message.new_chat_members`"
+        group = await self._storage.create_or_update_group(update.effective_chat.id)
+        if TelegramGroupRole.AGENTS not in group.roles:
+            return
+        await flat_gather(
+            self._backend.create_or_update_agent(make_agent_identification(user))
+            for user in update.message.new_chat_members
+            if not user.is_bot
+        )
+
+    async def _handle_left_chat_member(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert (
+            update.effective_chat
+        ), "update with LEFT_CHAT_MEMBERS filter should have `effective_chat`"
+        assert (
+            update.message and update.message.left_chat_member
+        ), "update with LEFT_CHAT_MEMBERS filter should have `message.left_chat_member`"
+
+        user = update.message.left_chat_member
+        if user.is_bot:
+            return
+
+        group = await self._storage.create_or_update_group(update.effective_chat.id)
+        if TelegramGroupRole.AGENTS not in group.roles:
+            return
+
+        try:
+            agent = await self._backend.identify_agent(make_agent_identification(user))
+        except AgentNotFound:
+            return
+
+        if await self._helper.check_belongs_to_agent_groups(user.id):
+            return
+
+        await self._backend.deactivate_agent(agent)

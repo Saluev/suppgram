@@ -50,6 +50,10 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def deactivate_agent(self, agent: Agent):
+        pass
+
+    @abc.abstractmethod
     async def create_or_update_customer(
         self, identification: CustomerIdentification, diff: Optional[CustomerDiff] = None
     ) -> Customer:

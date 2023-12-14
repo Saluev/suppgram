@@ -11,6 +11,7 @@ from sqlalchemy import (
     Column,
     Enum,
     ColumnElement,
+    Boolean,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import (
@@ -65,6 +66,7 @@ class Customer(Base):
 class Agent(Base):
     __tablename__ = "suppgram_agents"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    deactivated: Mapped[bool] = mapped_column(Boolean, default=False)
     telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=True, unique=True)
     telegram_first_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
@@ -221,6 +223,8 @@ class Models:
         )
 
     def apply_diff_to_agent_model(self, model: Agent, diff: AgentDiff):
+        if diff.deactivated is not None:
+            model.deactivated = diff.deactivated
         if diff.telegram_first_name is not None:
             model.telegram_first_name = diff.telegram_first_name
         if diff.telegram_last_name is not None:
@@ -231,6 +235,7 @@ class Models:
     def convert_from_agent_model(self, agent: Agent) -> AgentInterface:
         return AgentInterface(
             id=agent.id,
+            deactivated=agent.deactivated,
             telegram_user_id=agent.telegram_user_id,
             telegram_first_name=agent.telegram_first_name,
             telegram_last_name=agent.telegram_last_name,

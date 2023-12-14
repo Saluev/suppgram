@@ -178,7 +178,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
 
     async def _handle_conversation_rated(self, event: ConversationEvent):
         messages = await self._storage.get_messages(
-            TelegramMessageKind.RATE_CONVERSATION, event.conversation.id
+            TelegramMessageKind.RATE_CONVERSATION, conversation_id=event.conversation.id
         )
         for message in messages:
             # Normally just one message, so no `gather()`.

@@ -31,6 +31,7 @@ class Builder:
 
         # Helper classes, including implementation-specific:
         self._telegram_app_manager: Optional[Any] = None
+        self._telegram_helper: Optional[Any] = None
         self._telegram_storage: Optional[Any] = None
         self._pubnub_configuration: Optional[Any] = None
         self._pubnub_message_converter: Optional[Any] = None
@@ -203,6 +204,18 @@ class Builder:
         )
         return self._telegram_app_manager
 
+    def _build_telegram_helper(self) -> Any:
+        if self._telegram_helper is not None:
+            return self._telegram_helper
+        from suppgram.frontends.telegram.helper import TelegramHelper
+
+        self._telegram_helper = TelegramHelper(
+            manager_bot_token=self._telegram_manager_bot_token,
+            app_manager=self._build_telegram_app_manager(),
+            storage=self._build_telegram_storage(),
+        )
+        return self._telegram_helper
+
     def _build_telegram_storage(self) -> Any:
         if self._telegram_storage is not None:
             return self._telegram_storage
@@ -259,6 +272,7 @@ class Builder:
                 token=self._telegram_manager_bot_token,
                 app_manager=self._build_telegram_app_manager(),
                 backend=self._build_backend(),
+                helper=self._build_telegram_helper(),
                 storage=self._build_telegram_storage(),
                 texts=self._build_texts(),
             )
@@ -325,6 +339,7 @@ class Builder:
                     manager_bot_token=self._telegram_manager_bot_token,
                     app_manager=self._build_telegram_app_manager(),
                     backend=self._build_backend(),
+                    helper=self._build_telegram_helper(),
                     storage=self._build_telegram_storage(),
                     texts=self._build_texts(),
                 )

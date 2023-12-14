@@ -156,6 +156,7 @@ class Collections:
     def convert_to_agent(self, agent_doc: Document) -> Agent:
         return Agent(
             id=str(agent_doc["_id"]),
+            deactivated=bool(agent_doc.get("deactivated")),
             telegram_user_id=agent_doc.get("telegram_user_id"),
             telegram_first_name=agent_doc.get("telegram_first_name"),
             telegram_last_name=agent_doc.get("telegram_last_name"),
@@ -170,6 +171,8 @@ class Collections:
             result["$set"]["telegram_user_id"] = identification.telegram_user_id
         if diff is None:
             return result
+        if diff.deactivated is not None:
+            result["$set"]["deactivated"] = diff.deactivated
         if diff.telegram_first_name is not None:
             result["$set"]["telegram_first_name"] = diff.telegram_first_name
         if diff.telegram_last_name is not None:

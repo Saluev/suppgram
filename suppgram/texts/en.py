@@ -39,8 +39,14 @@ class EnglishTextsProvider(TextsProvider):
         "🚫 You don't have permission to access manager functionality."
     )
     telegram_agents_command_description = "Make all members of this group support agents."
+    telegram_agents_command_success_message = (
+        "I will now consider all members of this group support agents."
+    )
     telegram_send_new_conversations_command_description = (
         "Send notifications about new conversations to this group."
+    )
+    telegram_send_new_conversations_command_success_message = (
+        "I will now send notifications about new conversations to this group."
     )
 
     telegram_create_tag_command_description = "Create new tag to label conversations with"
