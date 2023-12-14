@@ -23,8 +23,7 @@ class TestMongoDBStorage(StorageTestSuite):
         # in a session-scoped synchronous fixture and then fast client creation
         # in the function-scoped asynchronous fixture below.
         mongodb_client: AgnosticClient = AsyncIOMotorClient(
-            "mongodb://localhost:27017/suppgram_test",
-            uuidRepresentation="standard",
+            "mongodb://localhost:27017/suppgram_test"
         )
         database = cast(AgnosticDatabase, mongodb_client.get_default_database())
         asyncio.ensure_future(mongodb_client.drop_database(database))
@@ -32,8 +31,7 @@ class TestMongoDBStorage(StorageTestSuite):
     @pytest_asyncio.fixture
     async def mongodb_storage(self) -> Storage:
         mongodb_client: AgnosticClient = AsyncIOMotorClient(
-            "mongodb://localhost:27017/suppgram_test",
-            uuidRepresentation="standard",
+            "mongodb://localhost:27017/suppgram_test"
         )
         database = cast(AgnosticDatabase, mongodb_client.get_default_database())
         storage = MongoDBStorage(Collections(database))
@@ -46,6 +44,3 @@ class TestMongoDBStorage(StorageTestSuite):
 
     def generate_id(self) -> Any:
         return ObjectId()
-
-    def test_create_or_update_shell_customer(self):
-        pytest.skip("skipping due to a possible bug in UUID handling by motor")

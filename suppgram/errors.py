@@ -25,10 +25,6 @@ class AgentNotFound(AgentException):
     pass
 
 
-class AgentAlreadyExists(AgentException):
-    pass
-
-
 class WorkplaceException(Exception):
     def __init__(self, identification: WorkplaceIdentification):
         self.identification = identification
@@ -40,6 +36,10 @@ class WorkplaceEmptyIdentification(WorkplaceException):
 
 
 class WorkplaceNotFound(WorkplaceException):
+    pass
+
+
+class TagAlreadyExists(Exception):
     pass
 
 

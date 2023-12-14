@@ -34,4 +34,4 @@ class TestSQLAlchemyStorage(StorageTestSuite):
         self.storage = sqlalchemy_storage
 
     def generate_id(self) -> Any:
-        return random.randint(1, 1000)
+        return random.randint(1000, 2**32 - 1)

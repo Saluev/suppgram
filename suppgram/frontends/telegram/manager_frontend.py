@@ -30,7 +30,7 @@ from suppgram.entities import (
     ConversationTagEvent,
     TagEvent,
 )
-from suppgram.errors import AgentNotFound, PermissionDenied
+from suppgram.errors import AgentNotFound, PermissionDenied, TagAlreadyExists
 from suppgram.frontend import (
     ManagerFrontend,
 )
@@ -369,13 +369,11 @@ class TelegramManagerFrontend(ManagerFrontend):
         if not tag_name:
             return self._texts.telegram_create_tag_usage_message
 
-        existing_tags = await self._backend.get_all_tags()
-        if any(tag.name == tag_name for tag in existing_tags):
-            return self._texts.telegram_tag_already_exists_message
-
         try:
             await self._backend.create_tag(tag_name, agent)
             return self._texts.telegram_tag_successfully_created_message
+        except TagAlreadyExists:
+            return self._texts.telegram_tag_already_exists_message
         except PermissionDenied:
             return self._texts.telegram_create_tag_permission_denied_message
 

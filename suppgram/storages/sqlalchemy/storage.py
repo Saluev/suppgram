@@ -10,7 +10,7 @@ from sqlalchemy import (
     update,
     Column,
 )
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import (
     joinedload,
@@ -36,6 +36,7 @@ from suppgram.errors import (
     WorkplaceNotFound,
     AgentNotFound,
     ConversationAlreadyAssigned,
+    TagAlreadyExists,
 )
 from suppgram.storage import Storage
 from suppgram.storages.sqlalchemy.models import (
@@ -147,14 +148,7 @@ class SQLAlchemyStorage(Storage):
             ]
 
     async def get_or_create_workplace(self, identification: WorkplaceIdentification) -> Workplace:
-        agent_identification = identification.to_agent_identification()
         async with self._session() as session, session.begin():
-            select_query = select(self._models.agent_model).where(
-                self._models.make_agent_filter(agent_identification)
-            )
-            agent = (await session.execute(select_query)).scalars().one_or_none()
-            if agent is None:
-                raise AgentNotFound(agent_identification)
             select_query = (
                 select(self._models.workplace_model, self._models.agent_model)
                 .options(joinedload(self._models.workplace_model.agent))
@@ -162,17 +156,29 @@ class SQLAlchemyStorage(Storage):
             )
             workplace = (await session.execute(select_query)).scalars().one_or_none()
             if workplace is None:
+                agent_identification = identification.to_agent_identification()
+                select_query = select(self._models.agent_model).where(
+                    self._models.make_agent_filter(agent_identification)
+                )
+                agent = (await session.execute(select_query)).scalars().one_or_none()
+                if agent is None:
+                    raise AgentNotFound(agent_identification)
                 workplace = self._models.convert_to_workplace_model(agent.id, identification)
                 session.add(workplace)
                 await session.flush()
+            else:
+                agent = workplace.agent
             return self._models.convert_from_workplace_model(
                 self._models.convert_from_agent_model(agent), workplace
             )
 
     async def create_tag(self, name: str, created_by: Agent):
-        async with self._session() as session, session.begin():
-            tag = self._models.make_tag_model(name, created_by)
-            session.add(tag)
+        try:
+            async with self._session() as session, session.begin():
+                tag = self._models.make_tag_model(name, created_by)
+                session.add(tag)
+        except IntegrityError as exc:
+            raise TagAlreadyExists(name) from exc
 
     async def find_all_tags(self) -> List[ConversationTag]:
         async with self._session() as session:

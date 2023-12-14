@@ -1,7 +1,7 @@
 from datetime import timezone, datetime
 from typing import Any, Mapping, Optional, List, Union, MutableMapping, Set, Iterable, NamedTuple
 
-from bson import ObjectId, CodecOptions
+from bson import ObjectId, CodecOptions, UuidRepresentation
 from motor.core import AgnosticDatabase
 
 from suppgram.containers import UnavailableList
@@ -59,6 +59,9 @@ class Collections:
         agent_collection_name: str = "suppgram_agents",
         conversation_collection_name: str = "suppgram_conversations",
         conversation_tag_collection_name: str = "suppgram_conversation_tags",
+        codec_options: CodecOptions = CodecOptions(
+            tz_aware=True, tzinfo=timezone.utc, uuid_representation=UuidRepresentation.STANDARD
+        ),
     ):
         """
         Parameters:
@@ -68,7 +71,6 @@ class Collections:
             conversation_collection_name: name of MongoDB collection to store conversations and messages in
             conversation_tag_collection_name: name of MongoDB collection to store conversation tags in
         """
-        codec_options: CodecOptions = CodecOptions(tz_aware=True, tzinfo=timezone.utc)
         self.customer_collection = database.get_collection(customer_collection_name, codec_options)
         self.agent_collection = database.get_collection(agent_collection_name, codec_options)
         # Workplaces are stored within agents.
@@ -200,7 +202,7 @@ class Collections:
             raise WorkplaceNotFound(identification)
         return self._convert_from_workplace_subdocument(agent_doc, workplace_doc)
 
-    def convert_to_workspaces(self, agent_doc: Document) -> List[Workplace]:
+    def convert_to_workplaces(self, agent_doc: Document) -> List[Workplace]:
         workplace_subdocs = agent_doc["workplaces"]
         return [
             self._convert_from_workplace_subdocument(agent_doc, workplace_subdoc)
@@ -244,7 +246,7 @@ class Collections:
         agent = agents[str(doc["created_by"])]
         return ConversationTag(
             id=doc["_id"],
-            name=doc["name"],
+            name=doc["_id"],
             created_at_utc=doc["created_at_utc"],
             created_by=agent,
         )

@@ -87,7 +87,7 @@ class Workplace(Base):
 class ConversationTag(Base):
     __tablename__ = "suppgram_conversation_tags"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=False)
     created_by: Mapped[Agent] = relationship(back_populates="created_conversation_tags")

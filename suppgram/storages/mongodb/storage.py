@@ -1,6 +1,7 @@
 from typing import Any, List, Optional, Mapping
 
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from suppgram.entities import (
     Conversation,
@@ -16,7 +17,7 @@ from suppgram.entities import (
     CustomerIdentification,
     CustomerDiff,
 )
-from suppgram.errors import AgentNotFound, WorkplaceNotFound, ConversationNotFound
+from suppgram.errors import AgentNotFound, WorkplaceNotFound, ConversationNotFound, TagAlreadyExists
 from suppgram.storage import Storage
 from suppgram.storages.mongodb.collections import Collections, Document
 
@@ -39,7 +40,7 @@ class MongoDBStorage(Storage):
         filter_ = self._collections.make_customer_filter(identification)
         update = self._collections.make_customer_update(identification, diff)
         doc = await self._collections.customer_collection.find_one_and_update(
-            filter_, update, upsert=not identification.id, return_document=ReturnDocument.AFTER
+            filter_, update, upsert=identification.id is None, return_document=ReturnDocument.AFTER
         )
         if doc is None:
             raise ValueError("can't create customer with predefined ID")
@@ -60,7 +61,10 @@ class MongoDBStorage(Storage):
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
     ) -> Agent:
-        return await self._update_agent(identification, diff, upsert=True)
+        try:
+            return await self._update_agent(identification, diff, upsert=identification.id is None)
+        except AgentNotFound:
+            raise ValueError("can't create agent with predefined ID")
 
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
         return await self._update_agent(identification, diff, upsert=False)
@@ -73,6 +77,8 @@ class MongoDBStorage(Storage):
         doc = await self._collections.agent_collection.find_one_and_update(
             filter_, update, upsert=upsert, return_document=ReturnDocument.AFTER
         )
+        if doc is None:
+            raise AgentNotFound(identification)
         return self._collections.convert_to_agent(doc)
 
     async def get_workplace(self, identification: WorkplaceIdentification) -> Workplace:
@@ -91,7 +97,7 @@ class MongoDBStorage(Storage):
         return [
             workplace
             for agent_doc in agent_docs
-            for workplace in self._collections.convert_to_workspaces(agent_doc)
+            for workplace in self._collections.convert_to_workplaces(agent_doc)
             if workplace.id in workplace_ids_set
         ]
 
@@ -100,23 +106,27 @@ class MongoDBStorage(Storage):
         agent_doc = await self._collections.agent_collection.find_one(filter_)
         if agent_doc is None:
             raise AgentNotFound(agent.identification)
-        return self._collections.convert_to_workspaces(agent_doc)
+        return self._collections.convert_to_workplaces(agent_doc)
 
     async def get_or_create_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         filter_ = self._collections.make_agent_filter(identification)
         agent_doc = await self._collections.agent_collection.find_one(filter_)
         if agent_doc is None:
             raise AgentNotFound(identification.to_agent_identification())
-        agent_id = agent_doc["_id"]
-        update = self._collections.convert_to_workspace_update(agent_id, identification)
-        agent_doc = await self._collections.agent_collection.find_one_and_update(
-            filter_, update, return_document=ReturnDocument.AFTER
-        )
+        if identification.id is None:
+            agent_id = agent_doc["_id"]
+            update = self._collections.convert_to_workspace_update(agent_id, identification)
+            agent_doc = await self._collections.agent_collection.find_one_and_update(
+                filter_, update, return_document=ReturnDocument.AFTER
+            )
         return self._collections.convert_to_workplace(identification, agent_doc)
 
     async def create_tag(self, name: str, created_by: Agent):
-        doc = self._collections.convert_to_tag_document(name, created_by)
-        await self._collections.conversation_tag_collection.insert_one(doc)
+        try:
+            doc = self._collections.convert_to_tag_document(name, created_by)
+            await self._collections.conversation_tag_collection.insert_one(doc)
+        except DuplicateKeyError as exc:
+            raise TagAlreadyExists(name) from exc
 
     async def find_all_tags(self) -> List[ConversationTag]:
         docs = await self._collections.conversation_tag_collection.find({}).to_list(None)
