@@ -29,5 +29,5 @@ jobs:
         docker pull mongo:latest
     - name: Running tests
       run: |
-        docker run -d mongo:latest
+        docker run -p 27017:27017 -d mongo:latest
         PYTHONPATH=. pytest .
