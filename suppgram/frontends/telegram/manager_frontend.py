@@ -43,7 +43,6 @@ from suppgram.frontends.telegram.helpers import (
     arrange_buttons,
 )
 from suppgram.frontends.telegram.identification import (
-    make_workplace_identification,
     make_agent_identification,
     make_agent_diff,
 )
