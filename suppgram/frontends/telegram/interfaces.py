@@ -82,6 +82,7 @@ class TelegramStorage(abc.ABC):
         group: TelegramGroup,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        agent_id: Optional[Any] = None,
         customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
@@ -96,6 +97,7 @@ class TelegramStorage(abc.ABC):
     async def get_messages(
         self,
         kind: TelegramMessageKind,
+        agent_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> List[TelegramMessage]:

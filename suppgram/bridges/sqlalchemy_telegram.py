@@ -22,7 +22,7 @@ from suppgram.frontends.telegram.interfaces import (
     TelegramMessageKind,
     TelegramGroupRole,
 )
-from suppgram.storages.sqlalchemy.models import Base, Conversation, Customer
+from suppgram.storages.sqlalchemy.models import Base, Conversation, Customer, Agent
 
 
 class TelegramGroup(Base):
@@ -42,6 +42,7 @@ class TelegramMessage(Base):
     group: Mapped[TelegramGroup] = relationship(back_populates="messages")
     telegram_message_id: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[TelegramMessageKind] = mapped_column(Enum(TelegramMessageKind), nullable=False)
+    agent_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id), nullable=True)
     conversation_id: Mapped[int] = mapped_column(ForeignKey(Conversation.id), nullable=True)
     telegram_bot_username: Mapped[str] = mapped_column(String, nullable=True)
@@ -135,6 +136,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
         group: TelegramGroupInterface,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        agent_id: Optional[Any] = None,
         customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
@@ -145,6 +147,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
                 group_id=group.telegram_chat_id,
                 telegram_message_id=telegram_message_id,
                 kind=kind,
+                agent_id=agent_id,
                 customer_id=customer_id,
                 conversation_id=conversation_id,
                 telegram_bot_username=telegram_bot_username,
@@ -172,11 +175,14 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
     async def get_messages(
         self,
         kind: TelegramMessageKind,
+        agent_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> List[TelegramMessageInterface]:
         filter_ = self._message_model.kind == kind
-        if conversation_id:
+        if agent_id is not None:
+            filter_ = filter_ & (self._message_model.agent_id == agent_id)
+        if conversation_id is not None:
             filter_ = filter_ & (self._message_model.conversation_id == conversation_id)
         if telegram_bot_username:
             filter_ = filter_ & (self._message_model.telegram_bot_username == telegram_bot_username)

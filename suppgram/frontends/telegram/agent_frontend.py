@@ -134,7 +134,8 @@ class TelegramAgentFrontend(AgentFrontend):
         assert update.effective_user, "command update should have `effective_user`"
         workplace_identification = make_workplace_identification(update, update.effective_user)
         try:
-            await self._backend.identify_workplace(workplace_identification)
+            workplace = await self._backend.identify_workplace(workplace_identification)
+            agent = workplace.agent
         except AgentNotFound:
             should_create = await self._check_belongs_to_agent_groups(update.effective_user.id)
             if not should_create:
@@ -144,7 +145,7 @@ class TelegramAgentFrontend(AgentFrontend):
                 )
                 return
             agent_identification = workplace_identification.to_agent_identification()
-            await self._backend.create_or_update_agent(
+            agent = await self._backend.create_or_update_agent(
                 agent_identification, make_agent_diff(update.effective_user)
             )
 
@@ -152,7 +153,7 @@ class TelegramAgentFrontend(AgentFrontend):
             self._send_start_message_and_conversation_messages(
                 update.effective_chat, workplace_identification, context
             ),
-            self._delete_nudges(update),
+            self._delete_nudges(agent, update),
         )
 
     async def _send_start_message_and_conversation_messages(
@@ -171,10 +172,11 @@ class TelegramAgentFrontend(AgentFrontend):
             workplace = await self._backend.identify_workplace(workplace_identification)
             await self._send_new_messages(workplace, conversation.messages)
 
-    async def _delete_nudges(self, update: Update):
+    async def _delete_nudges(self, agent: Agent, update: Update):
         app = self._get_app_by_bot_id(update.get_bot().id)
         messages = await self._storage.get_messages(
             TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION,
+            agent_id=agent.id,
             telegram_bot_username=app.bot.username,
         )
         await flat_gather(

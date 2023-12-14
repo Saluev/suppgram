@@ -92,6 +92,7 @@ class MongoDBTelegramBridge(TelegramStorage):
         group: TelegramGroup,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        agent_id: Optional[Any] = None,
         customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
@@ -101,6 +102,8 @@ class MongoDBTelegramBridge(TelegramStorage):
             "telegram_bot_id": telegram_bot_id,
             "kind": kind,
         }
+        if agent_id is not None:
+            doc["agent_id"] = ObjectId(agent_id)
         if customer_id is not None:
             doc["customer_id"] = ObjectId(customer_id)
         if conversation_id is not None:
@@ -122,10 +125,13 @@ class MongoDBTelegramBridge(TelegramStorage):
     async def get_messages(
         self,
         kind: TelegramMessageKind,
+        agent_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> List[TelegramMessage]:
         filter_: MutableMapping[str, Any] = {"kind": kind}
+        if agent_id is not None:
+            filter_["agent_id"] = ObjectId(agent_id)
         if conversation_id is not None:
             filter_["conversation_id"] = ObjectId(conversation_id)
         if telegram_bot_username is not None:
