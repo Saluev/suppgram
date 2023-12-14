@@ -161,7 +161,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
             chat_id=event.customer.telegram_user_id,
             text=self._texts.telegram_customer_conversation_resolved_message_placeholder,
         )
-        group = await self._storage.upsert_group(event.customer.telegram_user_id)
+        group = await self._storage.create_or_update_group(event.customer.telegram_user_id)
         await self._storage.insert_message(
             self._telegram_bot.id,
             group,

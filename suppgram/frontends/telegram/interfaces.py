@@ -51,24 +51,29 @@ class TelegramMessage:
 
 
 class TelegramStorage(abc.ABC):
+    """Persistent storage for data specific to Telegram frontend.
+
+    Currently, two entities are stored: Telegram groups and messages within groups.
+    We need these data to track group roles and edit messages sent by bots if needed."""
+
     async def initialize(self):
         pass
 
     @abc.abstractmethod
     async def get_group(self, telegram_chat_id: int) -> TelegramGroup:
-        pass
+        """Fetch Telegram group by Telegram chat ID."""
 
     @abc.abstractmethod
-    async def upsert_group(self, telegram_chat_id: int) -> TelegramGroup:
-        pass
+    async def create_or_update_group(self, telegram_chat_id: int) -> TelegramGroup:
+        """Create or update Telegram group by Telegram chat ID."""
 
     @abc.abstractmethod
     async def add_group_roles(self, telegram_chat_id: int, *roles: TelegramGroupRole):
-        pass
+        """Assign roles to a Telegram group."""
 
     @abc.abstractmethod
     async def get_groups_by_role(self, role: TelegramGroupRole) -> List[TelegramGroup]:
-        pass
+        """Fetch all Telegram groups which have been assigned a role."""
 
     @abc.abstractmethod
     async def insert_message(
@@ -81,11 +86,11 @@ class TelegramStorage(abc.ABC):
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> TelegramMessage:
-        pass
+        """Store information about a Telegram message."""
 
     @abc.abstractmethod
     async def get_message(self, group: TelegramGroup, telegram_message_id: int) -> TelegramMessage:
-        pass
+        """Fetch a Telegram message."""
 
     @abc.abstractmethod
     async def get_messages(
@@ -94,15 +99,16 @@ class TelegramStorage(abc.ABC):
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> List[TelegramMessage]:
-        pass
+        """Fetch all Telegram messages satisfying condition(s)."""
 
     @abc.abstractmethod
     async def delete_messages(self, messages: List[TelegramMessage]):
-        pass
+        """Delete given Telegram messages."""
 
     @abc.abstractmethod
     async def get_newer_messages_of_kind(
         self, messages: List[TelegramMessage]
     ) -> List[TelegramMessage]:
-        # "Newer" as in "with greater Telegram IDs".
-        pass
+        """For all given messages, find all newer messages in the corresponding chats.
+
+        "Newer" here means "with greater Telegram message ID"."""

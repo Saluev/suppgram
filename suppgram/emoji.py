@@ -1,4 +1,4 @@
-"""
+r"""
 Regular expressions for matching emoji sequences.
 
 For parsing single emoji, use either

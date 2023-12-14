@@ -341,7 +341,7 @@ class TelegramAgentFrontend(AgentFrontend):
             return
         app = self._get_app_by_bot_id(workplace.telegram_bot_id)
         message = await app.bot.send_message(chat_id=workplace.telegram_user_id, text=pages[0])
-        group = await self._storage.upsert_group(workplace.telegram_user_id)
+        group = await self._storage.create_or_update_group(workplace.telegram_user_id)
         tmessage = await self._storage.insert_message(
             workplace.telegram_bot_id,
             group,

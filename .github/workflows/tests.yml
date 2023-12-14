@@ -1,4 +1,4 @@
-name: Static checks 
+name: Tests
 
 on: [push]
 
@@ -18,16 +18,16 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    - name: Analysing the code with ruff
+    - name: Analyse code with ruff
       run: |
         ruff suppgram
-    - name: Analysing the code with mypy
+    - name: Analyse code with mypy
       run: |
         mypy suppgram
     - name: Pull MongoDB
       run: |
         docker pull mongo:latest
-    - name: Running tests
+    - name: Run tests
       run: |
         docker run -p 27017:27017 -d mongo:latest
         PYTHONPATH=. pytest .

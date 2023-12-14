@@ -48,12 +48,20 @@ class TelegramMessage(Base):
 
 
 class SQLAlchemyTelegramBridge(TelegramStorage):
+    """Implementation of [TelegramStorage][suppgram.frontends.telegram.TelegramStorage] for SQLAlchemy."""
+
     def __init__(
         self,
         engine: AsyncEngine,
         group_model: Any = TelegramGroup,
         message_model: Any = TelegramMessage,
     ):
+        """
+        Parameters:
+            engine: asynchronous SQLAlchemy engine
+            group_model: SQLAlchemy model for Telegram groups
+            message_model: SQLAlchemy model for Telegram messages
+        """
         self._engine = engine
         self._session = async_sessionmaker(bind=engine)
         self._group_model = group_model
@@ -88,7 +96,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             group = (await session.execute(select_query)).scalars().one()
             return self._convert_group(group)
 
-    async def upsert_group(self, telegram_chat_id: int) -> TelegramGroupInterface:
+    async def create_or_update_group(self, telegram_chat_id: int) -> TelegramGroupInterface:
         async with self._session() as session, session.begin():
             query = select(self._group_model).filter(
                 self._group_model.telegram_chat_id == telegram_chat_id

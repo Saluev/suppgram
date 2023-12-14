@@ -14,6 +14,7 @@ nav:
       - 'Manager frontend': development/manager_frontends.md
       - 'Backend': development/backends.md
       - 'Storages': development/storages.md
+      - 'Bridges': development/bridges.md
 theme: readthedocs
 plugins:
   - mkdocstrings:

@@ -16,12 +16,21 @@ from suppgram.storages.mongodb.collections import Document
 
 
 class MongoDBTelegramBridge(TelegramStorage):
+    """Implementation of [Storage][suppgram.storage.Storage] for MongoDB
+    via [Motor](https://motor.readthedocs.io/) library."""
+
     def __init__(
         self,
         database: AgnosticDatabase,
         group_collection_name: str = "suppgram_telegram_groups",
         messages_collection_name: str = "suppgram_telegram_messages",
     ):
+        """
+        Parameters:
+            database: asyncio-compatible Motor MongoDB database to store data in
+            group_collection_name: name of MongoDB collection to store data on Telegram groups in
+            messages_collection_name: name of MongoDB collection to store references to Telegram messages in
+        """
         codec_options: CodecOptions = CodecOptions(tz_aware=True, tzinfo=timezone.utc)
         self._group_collection = database.get_collection(group_collection_name, codec_options)
         self._message_collection = database.get_collection(messages_collection_name, codec_options)
@@ -38,7 +47,7 @@ class MongoDBTelegramBridge(TelegramStorage):
         docs = await self._group_collection.find(filter_).to_list(None)
         return [self._convert_to_group(doc) for doc in docs]
 
-    async def upsert_group(self, telegram_chat_id: int) -> TelegramGroup:
+    async def create_or_update_group(self, telegram_chat_id: int) -> TelegramGroup:
         filter_ = self._make_group_filter(telegram_chat_id)
         update = self._make_group_update()
         doc = await self._group_collection.find_one_and_update(

@@ -432,7 +432,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
         if not self._backend.check_permission(workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE):
             return  # TODO negative answer
-        await self._storage.upsert_group(update.effective_chat.id)
+        await self._storage.create_or_update_group(update.effective_chat.id)
         await self._storage.add_group_roles(
             update.effective_chat.id,
             TelegramGroupRole.AGENTS,
@@ -450,7 +450,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
         if not self._backend.check_permission(workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE):
             return  # TODO negative answer
-        await self._storage.upsert_group(update.effective_chat.id)
+        await self._storage.create_or_update_group(update.effective_chat.id)
         await self._storage.add_group_roles(
             update.effective_chat.id, TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
         )
