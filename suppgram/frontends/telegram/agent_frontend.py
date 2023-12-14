@@ -173,8 +173,7 @@ class TelegramAgentFrontend(AgentFrontend):
         except ConversationNotFound:
             pass
         else:
-            workplace = await self._backend.identify_workplace(workplace_identification)
-            await self._send_new_messages(workplace, conversation.messages)
+            await self._handle_conversation_assignment(ConversationEvent(conversation))
 
     async def _delete_nudges(self, agent: Agent, update: Update):
         app = self._get_app_by_bot_id(update.get_bot().id)
@@ -275,9 +274,15 @@ class TelegramAgentFrontend(AgentFrontend):
         assert (
             workplace
         ), "conversation should have assigned workplace upon conversation assignment event"
-        await self._send_customer_profile(workplace, conversation.customer)
-        await self._send_previous_conversations_message(workplace, conversation.customer)
-        await self._send_new_messages(workplace, conversation.messages)
+        try:
+            await self._send_customer_profile(workplace, conversation.customer)
+            await self._send_previous_conversations_message(workplace, conversation.customer)
+            await self._send_new_messages(workplace, conversation.messages)
+        except (BadRequest, Forbidden) as exc:
+            if is_chat_not_found(exc) or is_blocked_by_user(exc):
+                await self._nudge_to_start_bot(workplace)
+                return
+            raise
 
     async def _handle_new_message_for_agent_events(self, events: List[NewMessageForAgentEvent]):
         for _, batch_iter in groupby(
