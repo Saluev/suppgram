@@ -53,7 +53,6 @@ from suppgram.frontends.telegram.interfaces import (
     TelegramMessage,
 )
 from suppgram.helpers import flat_gather
-from suppgram.permissions import Permission
 from suppgram.texts.interface import TextsProvider
 
 logger = logging.getLogger(__name__)
@@ -337,16 +336,11 @@ class TelegramManagerFrontend(ManagerFrontend):
             update.effective_user
         ), "command update with `ChatType.PRIVATE` filter should have `effective_user`"
         try:
-            agent = await self._backend.identify_agent(
-                make_agent_identification(update.effective_user)
-            )
+            await self._backend.identify_agent(make_agent_identification(update.effective_user))
         except AgentNotFound:
             answer = self._texts.telegram_manager_permission_denied_message
         else:
-            if self._backend.check_permission(agent, Permission.MANAGE):
-                answer = self._texts.telegram_manager_start_message
-            else:
-                answer = self._texts.telegram_manager_permission_denied_message
+            answer = self._texts.telegram_manager_start_message
         await context.bot.send_message(update.effective_chat.id, answer)
 
     @send_text_answer
@@ -427,11 +421,7 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _handle_agents_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
-        workplace = await self._backend.identify_workplace(
-            make_workplace_identification(update, update.effective_user)
-        )
-        if not self._backend.check_permission(workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE):
-            return  # TODO negative answer
+        await self._backend.identify_agent(make_agent_identification(update.effective_user))
         await self._storage.create_or_update_group(update.effective_chat.id)
         await self._storage.add_group_roles(
             update.effective_chat.id,
@@ -445,11 +435,7 @@ class TelegramManagerFrontend(ManagerFrontend):
     ):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
-        workplace = await self._backend.identify_workplace(
-            make_workplace_identification(update, update.effective_user)
-        )
-        if not self._backend.check_permission(workplace.agent, Permission.TELEGRAM_ADD_GROUP_ROLE):
-            return  # TODO negative answer
+        await self._backend.identify_agent(make_agent_identification(update.effective_user))
         await self._storage.create_or_update_group(update.effective_chat.id)
         await self._storage.add_group_roles(
             update.effective_chat.id, TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS

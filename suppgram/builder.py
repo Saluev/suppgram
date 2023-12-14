@@ -8,7 +8,6 @@ from suppgram.entities import AgentIdentification
 from suppgram.errors import NoStorageSpecified, NoFrontendSpecified
 from suppgram.frontend import ManagerFrontend, CustomerFrontend, AgentFrontend
 from suppgram.helpers import flat_gather
-from suppgram.permissions import PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTextsProvider
 from suppgram.texts.interface import TextsProvider
@@ -35,7 +34,6 @@ class Builder:
         self._telegram_storage: Optional[Any] = None
         self._pubnub_configuration: Optional[Any] = None
         self._pubnub_message_converter: Optional[Any] = None
-        self._permission_checkers: List[PermissionChecker] = []
         self._workplace_managers: List[WorkplaceManager] = []
 
         self._backend: Optional[Backend] = None
@@ -221,19 +219,6 @@ class Builder:
             raise NoStorageSpecified()
         return self._telegram_storage
 
-    def _build_permission_checkers(self) -> List[PermissionChecker]:
-        if self._permission_checkers:
-            return self._permission_checkers
-        if self._telegram_owner_id:
-            from suppgram.frontends.telegram.permission_checkers import (
-                TelegramOwnerIDPermissionChecker,
-            )
-
-            self._permission_checkers.append(
-                TelegramOwnerIDPermissionChecker(self._telegram_owner_id)
-            )
-        return self._permission_checkers
-
     def _build_workplace_managers(self) -> List[WorkplaceManager]:
         if self._workplace_managers:
             return self._workplace_managers
@@ -256,7 +241,6 @@ class Builder:
 
         self._backend = LocalBackend(
             storage=self._build_storage(),
-            permission_checkers=self._build_permission_checkers(),
             workplace_managers=self._build_workplace_managers(),
             texts=self._build_texts(),
         )

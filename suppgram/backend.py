@@ -21,7 +21,6 @@ from suppgram.entities import (
     TagEvent,
 )
 from suppgram.observer import Observable
-from suppgram.permissions import Permission
 
 
 class Backend(abc.ABC):
@@ -64,10 +63,6 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     async def identify_workplace(self, identification: WorkplaceIdentification) -> Workplace:
-        pass
-
-    @abc.abstractmethod
-    def check_permission(self, agent: Agent, permission: Permission) -> bool:
         pass
 
     @abc.abstractmethod

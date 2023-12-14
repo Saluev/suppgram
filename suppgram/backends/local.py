@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Iterable, Any, Optional
+from typing import List, Any, Optional
 
 from suppgram.backend import Backend as BackendInterface, WorkplaceManager
 from suppgram.entities import (
@@ -28,7 +28,6 @@ from suppgram.entities import (
 from suppgram.errors import PermissionDenied
 from suppgram.helpers import flat_gather
 from suppgram.observer import LocalObservable
-from suppgram.permissions import Permission, Decision, PermissionChecker
 from suppgram.storage import Storage
 from suppgram.texts.en import EnglishTextsProvider
 from suppgram.texts.interface import TextsProvider
@@ -38,12 +37,10 @@ class LocalBackend(BackendInterface):
     def __init__(
         self,
         storage: Storage,
-        permission_checkers: List[PermissionChecker],
         workplace_managers: List[WorkplaceManager],
         texts: TextsProvider = EnglishTextsProvider(),
     ):
         self._storage = storage
-        self._permission_checkers = permission_checkers
         self._workplace_managers = workplace_managers
         self._texts = texts
 
@@ -89,24 +86,7 @@ class LocalBackend(BackendInterface):
     async def identify_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         return await self._storage.get_or_create_workplace(identification)
 
-    def check_permission(self, agent: Agent, permission: Permission) -> bool:
-        return self._sum_decisions(
-            checker.check_permission(agent, permission) for checker in self._permission_checkers
-        )
-
-    def _sum_decisions(self, decisions: Iterable[Decision]) -> bool:
-        has_been_allowed = False
-        has_been_denied = False
-        for decision in decisions:
-            if decision == Decision.ALLOWED:
-                has_been_allowed = True
-            if decision == Decision.DENIED:
-                has_been_denied = True
-        return has_been_allowed and not has_been_denied
-
     async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
-        if not self.check_permission(created_by, Permission.CREATE_TAGS):
-            raise PermissionDenied("not allowed to create new tags")
         tag = await self._storage.create_tag(name=name, created_by=created_by)
         await self.on_tag_created.trigger(TagEvent(tag=tag))
         return tag
@@ -174,12 +154,6 @@ class LocalBackend(BackendInterface):
             )
 
     async def assign_agent(self, assigner: Agent, assignee: Agent, conversation_id: Any):
-        permission = (
-            Permission.ASSIGN_TO_SELF if assigner == assignee else Permission.ASSIGN_TO_OTHERS
-        )
-        if not self.check_permission(assigner, permission):
-            raise PermissionDenied("not allowed to assign conversation to this agent")
-
         workplace = await self._choose_workplace(assignee)
         await self._storage.update_conversation(
             conversation_id,
