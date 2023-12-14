@@ -24,3 +24,9 @@ jobs:
     - name: Analysing the code with mypy
       run: |
         mypy suppgram
+    - name: Set up MongoDB
+      run: |
+        docker run -d mongo:latest
+    - name: Running tests
+      run: |
+        PYTHONPATH=. pytest .
