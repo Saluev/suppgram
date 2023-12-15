@@ -25,9 +25,9 @@ customers to reach them.
 
 ## How to use it?
 
-See [Quickstart](docs/usage/quickstart.md)!
+See [Quickstart](https://suppgram.readthedocs.io/en/latest/usage/quickstart/)!
 
 
 ## How to contribute?
 
-See [Contribution guide](docs/development/contribution_guide.md)!
+See [Contribution guide](https://suppgram.readthedocs.io/en/latest/development/contribution_guide/)!
