@@ -19,9 +19,7 @@ from suppgram.frontends.pubnub.converter import (
 
 
 @click.command()
-@click.option(
-    "--pubnub-user-id", default=None, help="PubNub user ID [default: random UUID]"
-)
+@click.option("--pubnub-user-id", default=None, help="PubNub user ID [default: random UUID]")
 @click.option(
     "--pubnub-channel",
     default=None,
@@ -58,21 +56,9 @@ def run_pubnub_customer_client(
     converter = make_pubnub_message_converter(pubnub_message_converter_class_path)
 
     async def _run():
-        # Not needed when secret key is provided.
-        # users = [User.id(pubnub_user_id).get()]
-        # channels = [Channel.id(pubnub_channel).read().write().join()]
-        # result = (
-        #     await pubnub.grant_token()
-        #     .ttl(43200)
-        #     .authorized_uuid(pubnub_user_id)
-        #     .users(users)
-        #     .channels(channels)
-        #     .future()
-        # )
-        # pubnub.set_token(result.result.get_token())
-        await pubnub.add_channel_to_channel_group().channels(
-            [pubnub_channel]
-        ).channel_group(pubnub_channel_group).future()
+        await pubnub.add_channel_to_channel_group().channels([pubnub_channel]).channel_group(
+            pubnub_channel_group
+        ).future()
         pubnub.add_listener(_SubscribeCallback(converter))
         pubnub.subscribe().channels([pubnub_channel]).execute()
         while True:

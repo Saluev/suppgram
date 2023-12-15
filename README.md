@@ -13,21 +13,21 @@ customers to reach them.
 
 ### 1. Customers contact your support service via a multitude of different mediums (Telegram bot, e-mail, etc.).
 
-![](images/customer_chat.png)
+![](docs/images/customer_chat.png)
 
 ### 2. New customer requests are shown to your support agents, with possibility to assign a conversation to an agent or mark it with tags.
 
-![](images/agents_chat.png)
+![](docs/images/agents_chat.png)
 
 ### 3. Support agents are assigned to conversations and are able to chat with the customers via a unified interface, eventually marking chats as resolved.
 
-![](images/agent_chat.png)
+![](docs/images/agent_chat.png)
 
 ## How to use it?
 
-See [Quickstart](usage/quickstart.md)!
+See [Quickstart](docs/usage/quickstart.md)!
 
 
 ## How to contribute?
 
-See [Contribution guide](development/contribution_guide.md)!
+See [Contribution guide](docs/development/contribution_guide.md)!
