@@ -51,6 +51,7 @@ telegram = ["python-telegram-bot~=20.6"]
 
 [project.urls]
 Homepage = "https://github.com/Saluev/suppgram"
+Documentation = "https://suppgram.readthedocs.org"
 Repository = "https://github.com/Saluev/suppgram.git"
 Issues = "https://github.com/Saluev/suppgram/issues"
 
