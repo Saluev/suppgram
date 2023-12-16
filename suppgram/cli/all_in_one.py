@@ -9,7 +9,6 @@ from click import UsageError
 
 from suppgram.builder import Builder
 from suppgram.errors import NoStorageSpecified, NoFrontendSpecified
-from suppgram.frontends.pubnub.errors import MissingCredentials
 from suppgram.logging import ConfidentialStreamHandler
 
 
@@ -166,15 +165,21 @@ def run_all_in_one(
         builder = builder.with_telegram_agent_frontend(telegram_agent_bot_tokens)
 
     try:
-        # Since all command line arguments for this frontend have default values,
-        # we ought to figure out whether we should instantiate it in some other way.
-        builder = builder.with_pubnub_customer_frontend(
-            pubnub_user_id=pubnub_user_id,
-            pubnub_channel_group=pubnub_channel_group,
-            pubnub_message_converter_class_path=pubnub_message_converter_class_path,
-        )
-    except (ImportError, MissingCredentials):
+        from suppgram.frontends.pubnub.errors import MissingCredentials
+    except ImportError:
+        # PubNub integration is not installed.
         pass
+    else:
+        try:
+            # Since all command line arguments for this frontend have default values,
+            # we ought to figure out whether we should instantiate it in some other way.
+            builder = builder.with_pubnub_customer_frontend(
+                pubnub_user_id=pubnub_user_id,
+                pubnub_channel_group=pubnub_channel_group,
+                pubnub_message_converter_class_path=pubnub_message_converter_class_path,
+            )
+        except (ImportError, MissingCredentials):
+            pass
 
     try:
         builder.build()

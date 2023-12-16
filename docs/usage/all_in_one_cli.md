@@ -59,4 +59,4 @@ for sensitive data, e.g. for SQLAlchemy URI if it contains username and/or passw
 Details on particular integrations (SQLAlchemy, MongoDB, Telegram, PubNub, ...) are
 in the next chapters of the documentation.
 
-Alternative to the CLI is programmatic configuration via [Builder][suppgram.builder.Builder] component.
+An alternative to the CLI is programmatic configuration via [Builder][suppgram.builder.Builder] component.
