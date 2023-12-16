@@ -16,23 +16,23 @@ You will need:
    find an easier way on the web.
 
 Now, install `suppgram` Python package with some optional dependencies:
-```bash
+```shell
 $ pip install suppgram[telegram,sqlalchemy]
 ```
 Write the following lines to a file named `.env`:
-```bash
+```shell
 export TELEGRAM_MANAGER_BOT_TOKEN=<secret token of Manager bot>
 export TELEGRAM_CUSTOMER_BOT_TOKEN=<secret token of Customer bot>
 export TELEGRAM_AGENT_BOT_TOKENS=<secret token of Agent bot>
 ```
 Now add the environment variables to your current environment by using `source` command:
-```bash
+```shell
 $ source .env
 ```
 (These tokens are top secret, so we don't want them to stay in your bash history.) 
 
 Now run the all-in-one Suppgram CLI:
-```bash
+```shell
 $ python -m suppgram.cli.all_in_one \
          --sqlalchemy-uri sqlite+aiosqlite:///test.db \
          --telegram-owner-id <your Telegram user ID>

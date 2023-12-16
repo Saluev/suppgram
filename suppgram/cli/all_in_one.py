@@ -95,7 +95,7 @@ from suppgram.logging import ConfidentialStreamHandler
     "pubnub_message_converter_class_path",
     default="suppgram.frontends.pubnub.DefaultMessageConverter",
     show_default=True,
-    help="Class converting messages between PubNub JSONs and `suppgram.entities.Message` objects",
+    help="Class converting messages between PubNub JSONs and suppgram.entities.Message objects",
 )
 def run_all_in_one(
     loglevel: str,

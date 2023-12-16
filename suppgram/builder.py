@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 class Builder:
+    """Provides a simple interface for building functional
+    Suppgram application from separate components."""
+
     def __init__(self) -> None:
         # Implementation-specific objects are declared as `Any` to
         # avoid importing packages which may have missing dependencies.
@@ -51,11 +54,29 @@ class Builder:
         self._agent_frontends: List[AgentFrontend] = []
         self._telegram_agent_bot_tokens: List[str] = []
 
+    def build(self):
+        """Instantiate all configured components and raise exception if misconfigured."""
+        self._build_backend()
+        self._build_manager_frontend()
+        self._build_customer_frontends()
+        self._build_agent_frontends()
+        from suppgram.backends.local import LocalBackend
+
+        if (
+            not self._customer_frontends
+            and not self._agent_frontends
+            and self._manager_frontend is None
+            and isinstance(self._backend, LocalBackend)
+        ):
+            raise NoFrontendSpecified()
+
     async def start(self):
+        """Start all configured components."""
         await self._initialize()
         await flat_gather(runnable.start() for runnable in self._get_runnables())
 
     def with_storage(self, storage: Storage) -> "Builder":
+        """Configure arbitrary [Storage][suppgram.storage.Storage] instance."""
         if self._storage is not None:
             raise ValueError(
                 f"can't use {type(storage).__name__} — "
@@ -66,6 +87,7 @@ class Builder:
         return self
 
     def with_sqlalchemy_storage(self, sqlalchemy_uri: str) -> "Builder":
+        """Configure [SQLAlchemyStorage][suppgram.storages.sqlalchemy.SQLAlchemyStorage]."""
         if self._storage is not None:
             raise ValueError(
                 f"can't use SQLAlchemy storage — already instantiated {type(self._storage).__name__}"
@@ -87,6 +109,7 @@ class Builder:
     def with_mongodb_storage(
         self, mongodb_uri: str, mongodb_database_name: Optional[str]
     ) -> "Builder":
+        """Configure [MongoDBStorage][suppgram.storages.mongodb.MongoDBStorage]."""
         if self._storage is not None:
             raise ValueError(
                 f"can't use MongoDB storage — already instantiated {type(self._storage).__name__}"
@@ -109,6 +132,7 @@ class Builder:
         return self
 
     def with_texts(self, texts: TextsProvider) -> "Builder":
+        """Configure arbitrary [TextsProvider][suppgram.texts.TextsProvider] instance."""
         if self._texts is not None:
             raise ValueError(
                 f"can't use {type(texts).__name__} — already instantiated {type(self._texts).__name__}"
@@ -118,6 +142,9 @@ class Builder:
         return self
 
     def with_texts_class_path(self, texts_class_path: str) -> "Builder":
+        """Create [TextsProvider][suppgram.texts.TextsProvider] instance of given class.
+
+        Assumes that its `__init__` method doesn't require any arguments."""
         if self._texts is not None:
             raise ValueError(
                 f"can't use {texts_class_path} — already instantiated {type(self._texts).__name__}"
@@ -128,26 +155,33 @@ class Builder:
         self._texts = texts_class()
         return self
 
-    def with_telegram_storage(self, telegram_storage: Any) -> "Builder":
-        from suppgram.frontends.telegram.interfaces import TelegramStorage
-
-        if not isinstance(telegram_storage, TelegramStorage):
-            raise TypeError(f"{telegram_storage} is not a valid TelegramStorage implementation")
-        self._telegram_storage = telegram_storage
-        return self
-
     def with_telegram_manager_frontend(
         self, telegram_manager_bot_token: str, telegram_owner_id: Optional[int] = None
     ) -> "Builder":
+        """
+        Configure Telegram manager frontend.
+
+        Arguments:
+            telegram_manager_bot_token: Telegram bot token for manager bot
+            telegram_owner_id: Telegram user ID of system administrator/owner
+        """
         self._telegram_manager_bot_token = telegram_manager_bot_token
         self._telegram_owner_id = telegram_owner_id
         return self
 
     def with_telegram_customer_frontend(self, telegram_customer_bot_token: str) -> "Builder":
+        """
+        Configure Telegram customer frontend.
+
+        Arguments:
+            telegram_customer_bot_token: Telegram bot token for customer bot
+        """
         self._telegram_customer_bot_token = telegram_customer_bot_token
         return self
 
     def with_shell_customer_frontend(self, uuid: Optional[UUID] = None) -> "Builder":
+        """Configure shell customer frontend. Allows to chat with an agent directly in the shell.
+        Useful for debug purposes."""
         if uuid is None:
             uuid = uuid4()
         self._shell_customer_uuid = uuid
@@ -157,8 +191,17 @@ class Builder:
         self,
         pubnub_user_id: str,
         pubnub_channel_group: str,
-        pubnub_message_converter_class_path: str,
+        pubnub_message_converter_class_path: str = "suppgram.frontends.pubnub.DefaultMessageConverter",
     ) -> "Builder":
+        """
+        Configure PubNub customer frontend.
+
+        Arguments:
+            pubnub_user_id: PubNub user ID of the support user, on whose behalf agent messages will be sent to users
+            pubnub_channel_group: ID of Pubnub channel group which includes all customers' chats with support
+            pubnub_message_converter_class_path: allows to customize conversion between
+                                                 Suppgram dataclasses and PubNub message JSONs
+        """
         from suppgram.frontends.pubnub.configuration import make_pubnub_configuration
         from suppgram.frontends.pubnub.converter import make_pubnub_message_converter
 
@@ -171,6 +214,12 @@ class Builder:
         return self
 
     def with_telegram_agent_frontend(self, telegram_agent_bot_tokens: List[str]) -> "Builder":
+        """
+        Configure Telegram agent frontend.
+
+        Arguments:
+            telegram_agent_bot_tokens: list Telegram bot tokens for agent bots. More tokens — more simultaneous chats with customers per agent
+        """
         self._telegram_agent_bot_tokens = telegram_agent_bot_tokens
         return self
 
@@ -346,21 +395,6 @@ class Builder:
             )
 
         return self._agent_frontends
-
-    def build(self):
-        self._build_backend()
-        self._build_manager_frontend()
-        self._build_customer_frontends()
-        self._build_agent_frontends()
-        from suppgram.backends.local import LocalBackend
-
-        if (
-            not self._customer_frontends
-            and not self._agent_frontends
-            and self._manager_frontend is None
-            and isinstance(self._backend, LocalBackend)
-        ):
-            raise NoFrontendSpecified()
 
     async def _initialize(self):
         if self._initialized:
