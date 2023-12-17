@@ -69,6 +69,7 @@ async def mongodb_storage(mongodb_database) -> Storage:
 @pytest.fixture(scope="session")
 def generate_sqlite_id() -> Callable[[], int]:
     # Not supposed to intersect with any natively generated IDs.
+    # Pls don't ever create more than 100000 objects during test session.
     return count(100000).__next__
 
 

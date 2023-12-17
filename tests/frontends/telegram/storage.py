@@ -144,42 +144,28 @@ class TelegramStorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         customer: Customer,
         conversation: Conversation,
     ):
-        bot_id = self.generate_telegram_id()
-        gen_id = self.generate_telegram_id
+        b = self.generate_telegram_id()
+        g = group
+        i = self.generate_telegram_id
         k1 = TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION
         k2 = TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION
         k3 = TelegramMessageKind.RATE_CONVERSATION
 
+        conv = conversation
         cus2 = await self.storage.create_or_update_customer(
             CustomerIdentification(telegram_user_id=self.generate_telegram_id())
         )
         conv2 = await self.storage.get_or_create_conversation(cus2)
 
-        m1 = await self.telegram_storage.insert_message(bot_id, group, gen_id(), k1)
-        m2 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k1, conversation_id=conversation.id
-        )
-        m3 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k1, conversation_id=conv2.id
-        )
-        m4 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k2, conversation_id=conversation.id
-        )
-        m5 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k2, agent_id=agent.id
-        )
-        m6 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k3, customer_id=customer.id
-        )
-        m7 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k3, customer_id=cus2.id
-        )
-        m8 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k3, telegram_bot_username="foo"
-        )
-        m9 = await self.telegram_storage.insert_message(
-            bot_id, group, gen_id(), k1, telegram_bot_username="bar"
-        )
+        m1 = await self.telegram_storage.insert_message(b, g, i(), k1)
+        m2 = await self.telegram_storage.insert_message(b, g, i(), k1, conversation_id=conv.id)
+        m3 = await self.telegram_storage.insert_message(b, g, i(), k1, conversation_id=conv2.id)
+        m4 = await self.telegram_storage.insert_message(b, g, i(), k2, conversation_id=conv.id)
+        m5 = await self.telegram_storage.insert_message(b, g, i(), k2, agent_id=agent.id)
+        m6 = await self.telegram_storage.insert_message(b, g, i(), k3, customer_id=customer.id)
+        m7 = await self.telegram_storage.insert_message(b, g, i(), k3, customer_id=cus2.id)
+        m8 = await self.telegram_storage.insert_message(b, g, i(), k3, telegram_bot_username="foo")
+        m9 = await self.telegram_storage.insert_message(b, g, i(), k1, telegram_bot_username="bar")
         # We'll need to check against all_ids below because the database
         # is not cleared between tests for performance reasons.
         all_ids = collect_ids(m1, m2, m3, m4, m5, m6, m7, m8, m9)

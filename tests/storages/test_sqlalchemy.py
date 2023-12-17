@@ -1,5 +1,3 @@
-import random
-from itertools import count
 from typing import Any, Callable
 
 import pytest

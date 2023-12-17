@@ -317,7 +317,9 @@ class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         )
         (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
         assert updated_conv.state == ConversationState.ASSIGNED
-        assert updated_conv.assigned_workplace.id == workplace.id
+        assert (
+            updated_conv.assigned_workplace and updated_conv.assigned_workplace.id == workplace.id
+        )
 
         with pytest.raises(ConversationAlreadyAssigned):
             await self.storage.update_conversation(
