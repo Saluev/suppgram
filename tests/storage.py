@@ -1,6 +1,5 @@
 import abc
 from datetime import datetime, timezone
-from itertools import count
 from typing import Any, Callable
 from uuid import uuid4
 
@@ -35,16 +34,9 @@ from suppgram.errors import (
 from suppgram.storage import Storage
 
 
-class StorageTestSuite(abc.ABC):
+class StorageTestSuiteFixtures:
     storage: Storage
-
-    @abc.abstractmethod
-    def generate_id(self) -> Any:
-        pass
-
-    @pytest.fixture(autouse=True)
-    def _make_generate_telegram_id(self, generate_telegram_id: Callable[[], int]):
-        self.generate_telegram_id = generate_telegram_id
+    generate_telegram_id: Callable[[], int]
 
     @pytest_asyncio.fixture(scope="function")
     async def customer(self) -> Customer:
@@ -61,6 +53,18 @@ class StorageTestSuite(abc.ABC):
         return await self.storage.create_or_update_agent(
             AgentIdentification(telegram_user_id=self.generate_telegram_id())
         )
+
+
+class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
+    storage: Storage
+
+    @abc.abstractmethod
+    def generate_id(self) -> Any:
+        pass
+
+    @pytest.fixture(autouse=True)
+    def _make_generate_telegram_id(self, generate_telegram_id: Callable[[], int]):
+        self.generate_telegram_id = generate_telegram_id
 
     @pytest_asyncio.fixture(scope="function")
     async def workplace(self, agent: Agent) -> Workplace:
@@ -87,10 +91,11 @@ class StorageTestSuite(abc.ABC):
 
     @pytest.mark.asyncio
     async def test_create_or_update_telegram_customer(self):
-        identification = CustomerIdentification(telegram_user_id=7)
+        telegram_user_id = self.generate_telegram_id()
+        identification = CustomerIdentification(telegram_user_id=telegram_user_id)
         telegram_customer = await self.storage.create_or_update_customer(identification)
         assert telegram_customer.id
-        assert telegram_customer.telegram_user_id == 7
+        assert telegram_customer.telegram_user_id == telegram_user_id
         assert telegram_customer.telegram_username is None
         telegram_customer_id = telegram_customer.id
 
@@ -105,7 +110,7 @@ class StorageTestSuite(abc.ABC):
             CustomerDiff(telegram_last_name="Doe", telegram_username="johndoe"),
         )
         assert telegram_customer.id == telegram_customer_id
-        assert telegram_customer.telegram_user_id == 7
+        assert telegram_customer.telegram_user_id == telegram_user_id
         assert telegram_customer.telegram_first_name == "John"
         assert telegram_customer.telegram_last_name == "Doe"
         assert telegram_customer.telegram_username == "johndoe"
@@ -132,7 +137,9 @@ class StorageTestSuite(abc.ABC):
             await self.storage.get_agent(AgentIdentification(id=self.generate_id()))
 
         with pytest.raises(AgentNotFound):
-            await self.storage.get_agent(AgentIdentification(telegram_user_id=17))
+            await self.storage.get_agent(
+                AgentIdentification(telegram_user_id=self.generate_telegram_id())
+            )
 
     @pytest.mark.asyncio
     async def test_cant_create_agent_with_id(self):
@@ -141,10 +148,11 @@ class StorageTestSuite(abc.ABC):
 
     @pytest.mark.asyncio
     async def test_create_or_update_telegram_agent(self):
-        identification = AgentIdentification(telegram_user_id=27)
+        telegram_user_id = self.generate_telegram_id()
+        identification = AgentIdentification(telegram_user_id=telegram_user_id)
         telegram_agent = await self.storage.create_or_update_agent(identification)
         assert telegram_agent.id
-        assert telegram_agent.telegram_user_id == 27
+        assert telegram_agent.telegram_user_id == telegram_user_id
         assert telegram_agent.telegram_username is None
         telegram_agent_id = telegram_agent.id
 
@@ -159,7 +167,7 @@ class StorageTestSuite(abc.ABC):
             AgentDiff(telegram_last_name="Doe", telegram_username="johndoe"),
         )
         assert telegram_agent.id == telegram_agent_id
-        assert telegram_agent.telegram_user_id == 27
+        assert telegram_agent.telegram_user_id == telegram_user_id
         assert telegram_agent.telegram_first_name == "John"
         assert telegram_agent.telegram_last_name == "Doe"
         assert telegram_agent.telegram_username == "johndoe"
@@ -170,7 +178,9 @@ class StorageTestSuite(abc.ABC):
             await self.storage.get_workplace(WorkplaceIdentification(id=self.generate_id()))
 
         with pytest.raises(WorkplaceNotFound):
-            await self.storage.get_workplace(WorkplaceIdentification(telegram_user_id=37))
+            await self.storage.get_workplace(
+                WorkplaceIdentification(telegram_user_id=self.generate_telegram_id())
+            )
 
     @pytest.mark.asyncio
     async def test_cant_create_workplace_with_id(self):
@@ -185,7 +195,10 @@ class StorageTestSuite(abc.ABC):
     async def test_cant_create_workplace_for_non_existing_agent(self):
         with pytest.raises(AgentNotFound):
             await self.storage.get_or_create_workplace(
-                WorkplaceIdentification(telegram_user_id=47, telegram_bot_id=3)
+                WorkplaceIdentification(
+                    telegram_user_id=self.generate_telegram_id(),
+                    telegram_bot_id=self.generate_telegram_id(),
+                )
             )
 
     @pytest.mark.asyncio

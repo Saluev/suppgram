@@ -1,10 +1,15 @@
 import abc
-from typing import Any, Callable
+from typing import Any, Callable, Set
 
 import pytest
 import pytest_asyncio
 
-from suppgram.entities import AgentIdentification, CustomerIdentification
+from suppgram.entities import (
+    CustomerIdentification,
+    Agent,
+    Customer,
+    Conversation,
+)
 from suppgram.frontends.telegram import TelegramStorage
 from suppgram.frontends.telegram.storage import (
     TelegramGroup,
@@ -13,11 +18,12 @@ from suppgram.frontends.telegram.storage import (
     TelegramMessage,
 )
 from suppgram.storage import Storage
+from tests.storage import StorageTestSuiteFixtures
 
 
-class TelegramStorageTestSuite(abc.ABC):
-    storage: TelegramStorage
-    suppgram_storage: Storage
+class TelegramStorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
+    telegram_storage: TelegramStorage
+    storage: Storage
 
     @abc.abstractmethod
     def generate_id(self) -> Any:
@@ -29,35 +35,37 @@ class TelegramStorageTestSuite(abc.ABC):
 
     @pytest_asyncio.fixture(scope="function")
     async def group(self) -> TelegramGroup:
-        return await self.storage.create_or_update_group(self.generate_telegram_id())
+        return await self.telegram_storage.create_or_update_group(self.generate_telegram_id())
 
     @pytest.mark.asyncio
     async def test_get_non_existing_group(self):
         with pytest.raises(Exception):
-            await self.storage.get_group(self.generate_telegram_id())
+            await self.telegram_storage.get_group(self.generate_telegram_id())
 
     @pytest.mark.asyncio
     async def test_create_or_update_group(self):
         telegram_chat_id = self.generate_telegram_id()
-        group = await self.storage.create_or_update_group(telegram_chat_id)
+        group = await self.telegram_storage.create_or_update_group(telegram_chat_id)
         assert group.telegram_chat_id == telegram_chat_id
         assert group.roles == set()
 
     @pytest.mark.asyncio
     async def test_add_non_existing_group_roles(self):
         with pytest.raises(Exception):
-            await self.storage.add_group_roles(self.generate_telegram_id())
+            await self.telegram_storage.add_group_roles(self.generate_telegram_id())
 
     @pytest.mark.asyncio
     async def test_add_group_roles(self, group: TelegramGroup):
-        await self.storage.add_group_roles(group.telegram_chat_id, TelegramGroupRole.AGENTS)
-        group = await self.storage.get_group(group.telegram_chat_id)
+        await self.telegram_storage.add_group_roles(
+            group.telegram_chat_id, TelegramGroupRole.AGENTS
+        )
+        group = await self.telegram_storage.get_group(group.telegram_chat_id)
         assert group.roles == {TelegramGroupRole.AGENTS}
 
-        await self.storage.add_group_roles(
+        await self.telegram_storage.add_group_roles(
             group.telegram_chat_id, TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
         )
-        group = await self.storage.get_group(group.telegram_chat_id)
+        group = await self.telegram_storage.get_group(group.telegram_chat_id)
         assert group.roles == {
             TelegramGroupRole.AGENTS,
             TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS,
@@ -65,11 +73,11 @@ class TelegramStorageTestSuite(abc.ABC):
 
     @pytest.mark.asyncio
     async def test_get_groups_by_role(self):
-        g1 = await self.storage.create_or_update_group(self.generate_telegram_id())
-        g2 = await self.storage.create_or_update_group(self.generate_telegram_id())
-        await self.storage.add_group_roles(g2.telegram_chat_id, TelegramGroupRole.AGENTS)
+        g1 = await self.telegram_storage.create_or_update_group(self.generate_telegram_id())
+        g2 = await self.telegram_storage.create_or_update_group(self.generate_telegram_id())
+        await self.telegram_storage.add_group_roles(g2.telegram_chat_id, TelegramGroupRole.AGENTS)
 
-        groups = await self.storage.get_groups_by_role(TelegramGroupRole.AGENTS)
+        groups = await self.telegram_storage.get_groups_by_role(TelegramGroupRole.AGENTS)
         group_ids = {g.telegram_chat_id for g in groups}
         assert g1.telegram_chat_id not in group_ids
         assert g2.telegram_chat_id in group_ids
@@ -78,23 +86,21 @@ class TelegramStorageTestSuite(abc.ABC):
     @pytest.mark.asyncio
     async def test_get_non_existing_message(self, group: TelegramGroup):
         with pytest.raises(Exception):
-            await self.storage.get_message(group, self.generate_telegram_id())
+            await self.telegram_storage.get_message(group, self.generate_telegram_id())
 
     @pytest.mark.asyncio
-    async def test_insert_message(self, group: TelegramGroup):
+    async def test_insert_message(
+        self,
+        group: TelegramGroup,
+        # Following entities are necessary to avoid foreign key constraint failure:
+        agent: Agent,
+        customer: Customer,
+        conversation: Conversation,
+    ):
         telegram_bot_id = self.generate_telegram_id()
         telegram_message_id = self.generate_telegram_id()
 
-        # These entities are necessary to avoid foreign key constraint failure.
-        agent = await self.suppgram_storage.create_or_update_agent(
-            AgentIdentification(telegram_user_id=self.generate_telegram_id())
-        )
-        customer = await self.suppgram_storage.create_or_update_customer(
-            CustomerIdentification(telegram_user_id=self.generate_telegram_id())
-        )
-        conversation = await self.suppgram_storage.get_or_create_conversation(customer)
-
-        message = await self.storage.insert_message(
+        message = await self.telegram_storage.insert_message(
             telegram_bot_id,
             group,
             telegram_message_id,
@@ -113,7 +119,7 @@ class TelegramStorageTestSuite(abc.ABC):
         assert message.telegram_bot_username == "MyTestBot"
         message_id = message.id
 
-        message = await self.storage.get_message(group, telegram_message_id)
+        message = await self.telegram_storage.get_message(group, telegram_message_id)
         assert message.id == message_id
 
     @pytest.mark.asyncio
@@ -124,10 +130,74 @@ class TelegramStorageTestSuite(abc.ABC):
         m2 = await self._generate_message(
             group, TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION
         )
-        await self.storage.delete_messages([m1])
+        await self.telegram_storage.delete_messages([m1])
         with pytest.raises(Exception):
-            await self.storage.get_message(group, m1.telegram_message_id)
-        assert await self.storage.get_message(group, m2.telegram_message_id)
+            await self.telegram_storage.get_message(group, m1.telegram_message_id)
+        assert await self.telegram_storage.get_message(group, m2.telegram_message_id)
+
+    @pytest.mark.asyncio
+    async def test_get_messages_with_filters(
+        self,
+        group: TelegramGroup,
+        # Following entities are necessary to avoid foreign key constraint failure:
+        agent: Agent,
+        customer: Customer,
+        conversation: Conversation,
+    ):
+        bot_id = self.generate_telegram_id()
+        gen_id = self.generate_telegram_id
+        k1 = TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION
+        k2 = TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION
+        k3 = TelegramMessageKind.RATE_CONVERSATION
+
+        cus2 = await self.storage.create_or_update_customer(
+            CustomerIdentification(telegram_user_id=self.generate_telegram_id())
+        )
+        conv2 = await self.storage.get_or_create_conversation(cus2)
+
+        m1 = await self.telegram_storage.insert_message(bot_id, group, gen_id(), k1)
+        m2 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k1, conversation_id=conversation.id
+        )
+        m3 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k1, conversation_id=conv2.id
+        )
+        m4 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k2, conversation_id=conversation.id
+        )
+        m5 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k2, agent_id=agent.id
+        )
+        m6 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k3, customer_id=customer.id
+        )
+        m7 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k3, customer_id=cus2.id
+        )
+        m8 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k3, telegram_bot_username="foo"
+        )
+        m9 = await self.telegram_storage.insert_message(
+            bot_id, group, gen_id(), k1, telegram_bot_username="bar"
+        )
+        # We'll need to check against all_ids below because the database
+        # is not cleared between tests for performance reasons.
+        all_ids = collect_ids(m1, m2, m3, m4, m5, m6, m7, m8, m9)
+
+        messages = await self.telegram_storage.get_messages(k1)
+        assert collect_ids(*messages) & all_ids == collect_ids(m1, m2, m3, m9)
+
+        messages = await self.telegram_storage.get_messages(k1, conversation_id=conversation.id)
+        assert collect_ids(*messages) & all_ids == collect_ids(m2)
+
+        messages = await self.telegram_storage.get_messages(k2)
+        assert collect_ids(*messages) & all_ids == collect_ids(m4, m5)
+
+        messages = await self.telegram_storage.get_messages(k2, agent_id=agent.id)
+        assert collect_ids(*messages) & all_ids == collect_ids(m5)
+
+        messages = await self.telegram_storage.get_messages(k3)
+        assert collect_ids(*messages) & all_ids == collect_ids(m6, m7, m8)
 
     @pytest.mark.asyncio
     async def test_get_newer_messages_of_kind(self, group: TelegramGroup):
@@ -137,17 +207,22 @@ class TelegramStorageTestSuite(abc.ABC):
         await self._generate_message(group, TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION)
         m5 = await self._generate_message(group, TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION)
 
-        g2 = await self.storage.create_or_update_group(self.generate_telegram_id())
+        g2 = await self.telegram_storage.create_or_update_group(self.generate_telegram_id())
         m6 = await self._generate_message(g2, TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION)
         m7 = await self._generate_message(g2, TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION)
 
-        messages = await self.storage.get_newer_messages_of_kind([m3, m6])
-        message_ids = {m.id for m in messages}
-        assert message_ids == {m5.id, m7.id}
+        messages = await self.telegram_storage.get_newer_messages_of_kind([m3, m6])
+        assert collect_ids(*messages) == collect_ids(m5, m7)
 
     async def _generate_message(
-        self, group: TelegramGroup, kind: TelegramMessageKind
+        self,
+        group: TelegramGroup,
+        kind: TelegramMessageKind,
     ) -> TelegramMessage:
-        return await self.storage.insert_message(
+        return await self.telegram_storage.insert_message(
             self.generate_telegram_id(), group, self.generate_telegram_id(), kind
         )
+
+
+def collect_ids(*messages: TelegramMessage) -> Set[Any]:
+    return {m.id for m in messages}

@@ -12,9 +12,9 @@ pytest_plugins = ("pytest_asyncio",)
 class TestMongoDBTelegramBridge(TelegramStorageTestSuite):
     @pytest_asyncio.fixture(autouse=True)
     async def _create_storage(self, mongodb_database, mongodb_storage):
-        self.storage = MongoDBTelegramBridge(mongodb_database)
-        self.suppgram_storage = mongodb_storage
-        await self.storage.initialize()
+        self.telegram_storage = MongoDBTelegramBridge(mongodb_database)
+        self.storage = mongodb_storage
+        await self.telegram_storage.initialize()
 
     def generate_id(self) -> Any:
         return ObjectId()

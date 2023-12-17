@@ -13,9 +13,9 @@ class TestSQLAlchemyTelegramBridge(TelegramStorageTestSuite):
     @pytest_asyncio.fixture(autouse=True)
     async def _create_storage(self, sqlite_engine, sqlalchemy_storage):
         # SQLAlchemyStorage implementation is needed for related tables to exist.
-        self.storage = SQLAlchemyTelegramBridge(sqlite_engine)
-        self.suppgram_storage = sqlalchemy_storage
-        await self.storage.initialize()
+        self.telegram_storage = SQLAlchemyTelegramBridge(sqlite_engine)
+        self.storage = sqlalchemy_storage
+        await self.telegram_storage.initialize()
 
     @pytest.fixture(autouse=True)
     def _make_generate_id(self, generate_sqlite_id: Callable[[], int]):
