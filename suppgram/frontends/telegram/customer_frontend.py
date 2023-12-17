@@ -28,7 +28,7 @@ from suppgram.frontends.telegram.identification import (
     make_customer_identification,
     make_customer_diff,
 )
-from suppgram.frontends.telegram.interfaces import TelegramStorage, TelegramMessageKind
+from suppgram.frontends.telegram.storage import TelegramStorage, TelegramMessageKind
 from suppgram.texts.interface import TextsProvider
 
 logger = logging.getLogger(__name__)

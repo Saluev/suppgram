@@ -5,7 +5,7 @@ from bson import CodecOptions, ObjectId
 from motor.core import AgnosticDatabase
 from pymongo import ReturnDocument
 
-from suppgram.frontends.telegram.interfaces import (
+from suppgram.frontends.telegram.storage import (
     TelegramStorage,
     TelegramMessage,
     TelegramMessageKind,
@@ -58,7 +58,9 @@ class MongoDBTelegramBridge(TelegramStorage):
     async def add_group_roles(self, telegram_chat_id: int, *roles: TelegramGroupRole):
         filter_ = self._make_group_filter(telegram_chat_id)
         update = self._make_group_roles_update(roles)
-        await self._group_collection.update_one(filter_, update)
+        result = await self._group_collection.update_one(filter_, update)
+        if result.matched_count == 0:
+            raise ValueError(f"couldn't find Telegram group {telegram_chat_id}")
 
     async def get_groups_by_role(self, role: TelegramGroupRole) -> List[TelegramGroup]:
         filter_ = self._make_group_filter_by_role(role)
@@ -92,6 +94,7 @@ class MongoDBTelegramBridge(TelegramStorage):
         group: TelegramGroup,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        *,
         agent_id: Optional[Any] = None,
         customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
@@ -125,6 +128,7 @@ class MongoDBTelegramBridge(TelegramStorage):
     async def get_messages(
         self,
         kind: TelegramMessageKind,
+        *,
         agent_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
@@ -156,6 +160,7 @@ class MongoDBTelegramBridge(TelegramStorage):
             {
                 "_id.c": message.group.telegram_chat_id,
                 "_id.m": {"$gt": message.telegram_message_id},
+                "kind": message.kind,
             }
             for message in messages
         ]
@@ -184,6 +189,7 @@ class MongoDBTelegramBridge(TelegramStorage):
             group=groups[telegram_chat_id],
             telegram_message_id=telegram_message_id,
             kind=TelegramMessageKind(doc["kind"]),
+            agent_id=str(doc["agent_id"]) if "agent_id" in doc else None,
             customer_id=str(doc["customer_id"]) if "customer_id" in doc else None,
             conversation_id=str(doc["conversation_id"]) if "conversation_id" in doc else None,
             telegram_bot_username=doc.get("telegram_bot_username"),

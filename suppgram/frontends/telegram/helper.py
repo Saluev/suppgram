@@ -5,7 +5,7 @@ from telegram.error import TelegramError
 
 from suppgram.frontends.telegram import TelegramStorage
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.interfaces import TelegramGroup, TelegramGroupRole, TelegramMessage
+from suppgram.frontends.telegram.storage import TelegramGroup, TelegramGroupRole, TelegramMessage
 from suppgram.helpers import flat_gather
 
 

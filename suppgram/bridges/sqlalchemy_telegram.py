@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column, relationship, joinedload
 
-from suppgram.frontends.telegram.interfaces import (
+from suppgram.frontends.telegram.storage import (
     TelegramStorage,
     TelegramGroup as TelegramGroupInterface,
     TelegramMessage as TelegramMessageInterface,
@@ -136,6 +136,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
         group: TelegramGroupInterface,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        *,
         agent_id: Optional[Any] = None,
         customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
@@ -175,6 +176,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
     async def get_messages(
         self,
         kind: TelegramMessageKind,
+        *,
         agent_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
@@ -235,6 +237,7 @@ class SQLAlchemyTelegramBridge(TelegramStorage):
             group=group,
             telegram_message_id=msg.telegram_message_id,
             kind=msg.kind,
+            agent_id=msg.agent_id,
             customer_id=msg.customer_id,
             conversation_id=msg.conversation_id,
             telegram_bot_username=msg.telegram_bot_username,

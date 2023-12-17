@@ -1,7 +1,7 @@
 import abc
 from datetime import datetime, timezone
 from itertools import count
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 import pytest
@@ -42,12 +42,9 @@ class StorageTestSuite(abc.ABC):
     def generate_id(self) -> Any:
         pass
 
-    def generate_telegram_id(self) -> int:
-        try:
-            generator = self._telegram_id_generator
-        except AttributeError:
-            generator = self._telegram_id_generator = count()
-        return next(generator)
+    @pytest.fixture(autouse=True)
+    def _make_generate_telegram_id(self, generate_telegram_id: Callable[[], int]):
+        self.generate_telegram_id = generate_telegram_id
 
     @pytest_asyncio.fixture(scope="function")
     async def customer(self) -> Customer:

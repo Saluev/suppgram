@@ -239,18 +239,12 @@ class Builder:
 
         from suppgram.frontends.telegram.app_manager import TelegramAppManager
 
-        self._telegram_app_manager = TelegramAppManager(
-            tokens=list(
-                filter(
-                    None,
-                    [
-                        self._telegram_customer_bot_token,
-                        self._telegram_manager_bot_token,
-                    ]
-                    + list(self._telegram_agent_bot_tokens),
-                )
-            )
-        )
+        tokens = [
+            self._telegram_customer_bot_token,
+            self._telegram_manager_bot_token,
+            *self._telegram_agent_bot_tokens,
+        ]
+        self._telegram_app_manager = TelegramAppManager.from_tokens(tokens=[*filter(None, tokens)])
         return self._telegram_app_manager
 
     def _build_telegram_helper(self) -> Any:

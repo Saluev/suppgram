@@ -8,7 +8,7 @@ from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
 from suppgram.frontends.telegram.callback_actions import CallbackActionKind
-from suppgram.frontends.telegram.interfaces import TelegramMessage
+from suppgram.frontends.telegram.storage import TelegramMessage
 
 T = TypeVar("T")
 

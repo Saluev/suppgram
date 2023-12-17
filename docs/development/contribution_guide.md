@@ -36,8 +36,12 @@ ruff supppram
 
 Feel free to add these commands to your pre-commit hook.
 
+<br/>
+
 ## Running documentation locally
 
 ```shell
 mkdocs serve
 ```
+
+<br/>

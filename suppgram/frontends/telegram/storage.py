@@ -13,10 +13,9 @@ class TelegramGroupRole(int, Enum):
     AGENTS = 2
 
 
-@dataclass
+@dataclass(frozen=True)
 class TelegramGroup:
     telegram_chat_id: int
-    # telegram_chat_title: Optional[str]  # TODO
     roles: FrozenSet[TelegramGroupRole]
 
 
@@ -27,7 +26,7 @@ class TelegramMessageKind(str, Enum):
     CUSTOMER_MESSAGE_HISTORY = "customer_message_history"
 
 
-@dataclass
+@dataclass(frozen=True)
 class TelegramMessage:
     id: Any
 
@@ -37,6 +36,7 @@ class TelegramMessage:
     kind: TelegramMessageKind
 
     # Here be all possible parameters of all kinds of messages:
+    agent_id: Optional[Any]
     customer_id: Optional[Any]
     conversation_id: Optional[Any]
     telegram_bot_username: Optional[str]
@@ -82,6 +82,7 @@ class TelegramStorage(abc.ABC):
         group: TelegramGroup,
         telegram_message_id: int,
         kind: TelegramMessageKind,
+        *,
         agent_id: Optional[Any] = None,
         customer_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
@@ -97,6 +98,7 @@ class TelegramStorage(abc.ABC):
     async def get_messages(
         self,
         kind: TelegramMessageKind,
+        *,
         agent_id: Optional[Any] = None,
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,

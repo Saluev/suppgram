@@ -2,6 +2,7 @@ site_name: Suppgram Documentation
 site_url: https://suppgram.readthedocs.io/
 repo_name: GitHub
 repo_url: https://github.com/Saluev/suppgram/
+site_description: Simple Telegram-based support system written in Python
 nav:
   - Home: index.md
   - Usage:

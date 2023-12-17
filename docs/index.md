@@ -1,4 +1,4 @@
-# Suppgram — simple Telegram-based support system
+# Suppgram — Telegram-based support system
 
 ## What problem does it solve?
 

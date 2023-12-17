@@ -46,7 +46,7 @@ from suppgram.frontends.telegram.identification import (
     make_agent_identification,
     make_agent_diff,
 )
-from suppgram.frontends.telegram.interfaces import (
+from suppgram.frontends.telegram.storage import (
     TelegramStorage,
     TelegramGroupRole,
     TelegramMessageKind,
