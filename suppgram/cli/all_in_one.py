@@ -137,49 +137,73 @@ def run_all_in_one(
         level=getattr(logging, loglevel),
         handlers=[ConfidentialStreamHandler(sys.stderr, replacements)],
     )
-    # TODO figure out what's with pubnub logging
 
     builder = Builder()
 
-    if sqlalchemy_uri:
-        builder = builder.with_sqlalchemy_storage(sqlalchemy_uri)
+    try:
+        if sqlalchemy_uri:
+            builder = builder.with_sqlalchemy_storage(sqlalchemy_uri)
+    except ImportError as exc:
+        raise UsageError(
+            "can't import SQLAlchemy integration. "
+            "Make sure that necessary dependencies are installed:\n\n    pip install suppgram[sqlalchemy]\n"
+        ) from exc
 
-    if mongodb_uri is not None:
-        builder = builder.with_mongodb_storage(mongodb_uri, mongodb_database_name)
+    try:
+        if mongodb_uri is not None:
+            builder = builder.with_mongodb_storage(mongodb_uri, mongodb_database_name)
+    except ImportError as exc:
+        raise UsageError(
+            "can't import MongoDB integration. "
+            "Make sure that necessary dependencies are installed:\n\n    pip install suppgram[mongodb]\n"
+        ) from exc
 
     if texts_class_path:
         builder = builder.with_texts_class_path(texts_class_path)
 
-    if telegram_manager_bot_token:
-        builder = builder.with_telegram_manager_frontend(
-            telegram_manager_bot_token, telegram_owner_id
-        )
+    try:
+        if telegram_manager_bot_token:
+            builder = builder.with_telegram_manager_frontend(
+                telegram_manager_bot_token, telegram_owner_id
+            )
 
-    if telegram_customer_bot_token:
-        builder = builder.with_telegram_customer_frontend(telegram_customer_bot_token)
+        if telegram_customer_bot_token:
+            builder = builder.with_telegram_customer_frontend(telegram_customer_bot_token)
+
+        if telegram_agent_bot_tokens:
+            builder = builder.with_telegram_agent_frontend(telegram_agent_bot_tokens)
+    except ImportError as exc:
+        raise UsageError(
+            "can't import Telegram integration. "
+            "Make sure that necessary dependencies are installed:\n\n    pip install suppgram[telegram]\n"
+        ) from exc
 
     if customer_shell:
         builder = builder.with_shell_customer_frontend()
 
-    if telegram_agent_bot_tokens:
-        builder = builder.with_telegram_agent_frontend(telegram_agent_bot_tokens)
-
-    try:
-        from suppgram.frontends.pubnub.errors import MissingCredentials
-    except ImportError:
-        # PubNub integration is not installed.
-        pass
-    else:
+    if (
+        any(arg.startswith("--pubnub") for arg in sys.argv)
+        or "PUBNUB_SUBSCRIBE_KEY" in os.environ
+        or "PUBNUB_PUBLISH_KEY" in os.environ
+        or "PUBNUB_SECRET_KEY" in os.environ
+        or "PUBNUB_TOKEN" in os.environ
+    ):
         try:
-            # Since all command line arguments for this frontend have default values,
-            # we ought to figure out whether we should instantiate it in some other way.
+            from suppgram.frontends.pubnub.errors import MissingCredentials
+        except ImportError:
+            raise UsageError(
+                "can't import PubNub integration. "
+                "Make sure that necessary dependencies are installed:\n\n    pip install suppgram[pubnub]\n"
+            )
+
+        try:
             builder = builder.with_pubnub_customer_frontend(
                 pubnub_user_id=pubnub_user_id,
                 pubnub_channel_group=pubnub_channel_group,
                 pubnub_message_converter_class_path=pubnub_message_converter_class_path,
             )
-        except (ImportError, MissingCredentials):
-            pass
+        except MissingCredentials as exc:
+            raise UsageError(str(exc)) from exc
 
     try:
         builder.build()

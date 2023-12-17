@@ -17,7 +17,7 @@ You will need:
 
 Now, install `suppgram` Python package with some optional dependencies:
 ```shell
-$ pip install suppgram[telegram,sqlalchemy]
+$ pip install "suppgram[telegram,sqlalchemy]"
 ```
 Write the following lines to a file named `.env`:
 ```shell
