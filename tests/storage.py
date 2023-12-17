@@ -1,8 +1,11 @@
 import abc
+from datetime import datetime, timezone
+from itertools import count
 from typing import Any
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 from suppgram.entities import (
     CustomerIdentification,
@@ -10,8 +13,25 @@ from suppgram.entities import (
     AgentIdentification,
     AgentDiff,
     WorkplaceIdentification,
+    ConversationState,
+    ConversationDiff,
+    Agent,
+    Workplace,
+    Customer,
+    ConversationTag,
+    Conversation,
+    Message,
+    MessageKind,
+    SetNone,
 )
-from suppgram.errors import AgentNotFound, WorkplaceNotFound, TagAlreadyExists
+from suppgram.errors import (
+    AgentNotFound,
+    WorkplaceNotFound,
+    TagAlreadyExists,
+    ConversationNotFound,
+    ConversationAlreadyAssigned,
+    DataNotFetched,
+)
 from suppgram.storage import Storage
 
 
@@ -21,6 +41,45 @@ class StorageTestSuite(abc.ABC):
     @abc.abstractmethod
     def generate_id(self) -> Any:
         pass
+
+    def generate_telegram_id(self) -> int:
+        try:
+            generator = self._telegram_id_generator
+        except AttributeError:
+            generator = self._telegram_id_generator = count()
+        return next(generator)
+
+    @pytest_asyncio.fixture(scope="function")
+    async def customer(self) -> Customer:
+        return await self.storage.create_or_update_customer(
+            CustomerIdentification(telegram_user_id=self.generate_telegram_id())
+        )
+
+    @pytest_asyncio.fixture(scope="function")
+    async def conversation(self, customer: Customer) -> Conversation:
+        return await self.storage.get_or_create_conversation(customer)
+
+    @pytest_asyncio.fixture(scope="function")
+    async def agent(self) -> Agent:
+        return await self.storage.create_or_update_agent(
+            AgentIdentification(telegram_user_id=self.generate_telegram_id())
+        )
+
+    @pytest_asyncio.fixture(scope="function")
+    async def workplace(self, agent: Agent) -> Workplace:
+        return await self.storage.get_or_create_workplace(
+            WorkplaceIdentification(
+                telegram_user_id=agent.telegram_user_id, telegram_bot_id=self.generate_telegram_id()
+            )
+        )
+
+    @pytest_asyncio.fixture(scope="function")
+    async def tag1(self, agent: Agent) -> ConversationTag:
+        return await self.storage.create_tag(name="urgent", created_by=agent)
+
+    @pytest_asyncio.fixture(scope="function")
+    async def tag2(self, agent: Agent) -> ConversationTag:
+        return await self.storage.create_tag(name="can wait", created_by=agent)
 
     @pytest.mark.asyncio
     async def test_cant_create_customer_with_id(self):
@@ -133,12 +192,14 @@ class StorageTestSuite(abc.ABC):
             )
 
     @pytest.mark.asyncio
-    async def test_get_or_create_telegram_workspace_for_existing_agent(self):
-        agent = await self.storage.create_or_update_agent(AgentIdentification(telegram_user_id=57))
-        identification = WorkplaceIdentification(telegram_user_id=57, telegram_bot_id=13)
+    async def test_get_or_create_telegram_workspace_for_existing_agent(self, agent: Agent):
+        telegram_bot_id = self.generate_telegram_id()
+        identification = WorkplaceIdentification(
+            telegram_user_id=agent.telegram_user_id, telegram_bot_id=telegram_bot_id
+        )
         workplace = await self.storage.get_or_create_workplace(identification)
-        assert workplace.telegram_user_id == 57
-        assert workplace.telegram_bot_id == 13
+        assert workplace.telegram_user_id == agent.telegram_user_id
+        assert workplace.telegram_bot_id == telegram_bot_id
         assert workplace.agent.id == agent.id
         workplace_id = workplace.id
 
@@ -151,13 +212,16 @@ class StorageTestSuite(abc.ABC):
         assert workplace.id == workplace_id
 
     @pytest.mark.asyncio
-    async def test_get_agent_workplaces(self):
-        agent = await self.storage.create_or_update_agent(AgentIdentification(telegram_user_id=67))
+    async def test_get_agent_workplaces(self, agent: Agent):
         w1 = await self.storage.get_or_create_workplace(
-            WorkplaceIdentification(telegram_user_id=67, telegram_bot_id=23)
+            WorkplaceIdentification(
+                telegram_user_id=agent.telegram_user_id, telegram_bot_id=self.generate_telegram_id()
+            )
         )
         w2 = await self.storage.get_or_create_workplace(
-            WorkplaceIdentification(telegram_user_id=67, telegram_bot_id=24)
+            WorkplaceIdentification(
+                telegram_user_id=agent.telegram_user_id, telegram_bot_id=self.generate_telegram_id()
+            )
         )
 
         workplaces = await self.storage.get_agent_workplaces(agent)
@@ -165,11 +229,10 @@ class StorageTestSuite(abc.ABC):
         assert sorted([w.id for w in workplaces]) == sorted([w1.id, w2.id])
 
     @pytest.mark.asyncio
-    async def test_tags(self):
+    async def test_tags(self, agent: Agent):
         tags = await self.storage.find_all_tags()
         assert len(tags) == 0
 
-        agent = await self.storage.create_or_update_agent(AgentIdentification(telegram_user_id=77))
         await self.storage.create_tag("marquee", agent)
 
         with pytest.raises(TagAlreadyExists):
@@ -181,3 +244,161 @@ class StorageTestSuite(abc.ABC):
         assert len(tags) == 2
         assert tags[0].created_by.id == agent.id
         assert sorted([tag.name for tag in tags]) == ["blink", "marquee"]
+
+    @pytest.mark.asyncio
+    async def test_get_non_existing_conversation(self, workplace: Workplace):
+        convs = await self.storage.find_conversations_by_ids([self.generate_id()])
+        assert convs == []
+
+        with pytest.raises(ConversationNotFound):
+            await self.storage.get_agent_conversation(workplace.identification)
+
+    @pytest.mark.asyncio
+    async def test_create_conversation(self, customer: Customer):
+        conv = await self.storage.get_or_create_conversation(customer)
+        assert conv.state == ConversationState.NEW
+        assert conv.customer.id == customer.id
+        assert conv.tags == []
+        assert conv.assigned_workplace is None
+        assert conv.messages == []
+
+    @pytest.mark.asyncio
+    async def test_get_existing_conversation(self, customer: Customer):
+        conv = await self.storage.get_or_create_conversation(customer)
+        conversation_id = conv.id
+
+        conv = await self.storage.get_or_create_conversation(customer)
+        assert conv.id == conversation_id
+
+        convs = await self.storage.find_conversations_by_ids([conversation_id], with_messages=False)
+        assert convs == [conv]
+        with pytest.raises(DataNotFetched):
+            len(convs[0].messages)
+
+        convs = await self.storage.find_conversations_by_ids([conversation_id], with_messages=True)
+        assert convs == [conv]
+        assert convs[0].messages == []
+
+        convs = await self.storage.find_customer_conversations(customer, with_messages=False)
+        assert convs == [conv]
+        with pytest.raises(DataNotFetched):
+            len(convs[0].messages)
+
+        convs = await self.storage.find_customer_conversations(customer, with_messages=True)
+        assert convs == [conv]
+        assert convs[0].messages == []
+
+    @pytest.mark.asyncio
+    async def test_update_non_existing_converation(self):
+        with pytest.raises(ConversationNotFound):
+            await self.storage.update_conversation(self.generate_id(), ConversationDiff())
+
+    @pytest.mark.asyncio
+    async def test_update_conversation(self, conversation: Conversation, workplace: Workplace):
+        await self.storage.update_conversation(
+            conversation.id, ConversationDiff(customer_rating=3), unassigned_only=True
+        )
+        (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
+        assert updated_conv.customer_rating == 3
+
+        await self.storage.update_conversation(
+            conversation.id,
+            ConversationDiff(state=ConversationState.ASSIGNED, assigned_workplace_id=workplace.id),
+        )
+        (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
+        assert updated_conv.state == ConversationState.ASSIGNED
+        assert updated_conv.assigned_workplace.id == workplace.id
+
+        with pytest.raises(ConversationAlreadyAssigned):
+            await self.storage.update_conversation(
+                conversation.id, ConversationDiff(customer_rating=4), unassigned_only=True
+            )
+
+        await self.storage.update_conversation(
+            conversation.id, ConversationDiff(assigned_workplace_id=SetNone)
+        )
+        (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
+        assert updated_conv.assigned_workplace is None
+
+    @pytest.mark.asyncio
+    async def test_update_conversation_tags(
+        self,
+        conversation: Conversation,
+        workplace: Workplace,
+        tag1: ConversationTag,
+        tag2: ConversationTag,
+    ):
+        await self.storage.update_conversation(
+            conversation.id, ConversationDiff(removed_tags=[tag2])
+        )
+        (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
+        assert updated_conv.tags == []
+
+        await self.storage.update_conversation(conversation.id, ConversationDiff(added_tags=[tag1]))
+        (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
+        assert [tag.id for tag in updated_conv.tags] == [tag1.id]
+
+        await self.storage.update_conversation(
+            conversation.id, ConversationDiff(removed_tags=[tag1])
+        )
+        (updated_conv,) = await self.storage.find_conversations_by_ids([conversation.id])
+        assert updated_conv.tags == []
+
+    @pytest.mark.asyncio
+    async def test_get_agent_conversation(self, conversation: Conversation, workplace: Workplace):
+        await self.storage.update_conversation(
+            conversation.id, ConversationDiff(assigned_workplace_id=workplace.id)
+        )
+        conv = await self.storage.get_agent_conversation(workplace.identification)
+        assert conv.id == conversation.id
+
+        conv = await self.storage.get_agent_conversation(
+            WorkplaceIdentification(
+                telegram_user_id=workplace.telegram_user_id,
+                telegram_bot_id=workplace.telegram_bot_id,
+            )
+        )
+        assert conv.id == conversation.id
+
+        convs = await self.storage.find_agent_conversations(workplace.agent, with_messages=False)
+        assert [c.id for c in convs] == [conv.id]
+        with pytest.raises(DataNotFetched):
+            len(convs[0].messages)
+
+        convs = await self.storage.find_agent_conversations(workplace.agent, with_messages=True)
+        assert convs == [conv]
+        assert convs[0].messages == []
+
+    @pytest.mark.asyncio
+    async def test_save_message_to_non_existing_conversation(self, customer: Customer):
+        conv = Conversation(
+            id=self.generate_id(), state=ConversationState.NEW, customer=customer, tags=[]
+        )
+        message = Message(
+            kind=MessageKind.FROM_CUSTOMER,
+            time_utc=datetime.now(timezone.utc),
+            text="Surprise-surprise!",
+        )
+        with pytest.raises(ConversationNotFound):
+            await self.storage.save_message(conv, message)
+
+    @pytest.mark.asyncio
+    async def test_save_message(self, conversation: Conversation):
+        message_from_customer = Message(
+            kind=MessageKind.FROM_CUSTOMER, time_utc=datetime.now(timezone.utc), text="Hi!"
+        )
+        await self.storage.save_message(conversation, message_from_customer)
+        message_from_agent = Message(
+            kind=MessageKind.FROM_AGENT, time_utc=datetime.now(timezone.utc), text="Hello!"
+        )
+        await self.storage.save_message(conversation, message_from_agent)
+
+        (updated_conv,) = await self.storage.find_conversations_by_ids(
+            [conversation.id], with_messages=True
+        )
+        assert len(updated_conv.messages) == 2
+        assert [m.kind for m in updated_conv.messages] == [
+            MessageKind.FROM_CUSTOMER,
+            MessageKind.FROM_AGENT,
+        ]
+        assert [m.text for m in updated_conv.messages] == ["Hi!", "Hello!"]

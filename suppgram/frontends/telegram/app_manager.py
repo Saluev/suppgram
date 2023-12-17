@@ -1,11 +1,11 @@
-from typing import List, MutableMapping
+from typing import List, Dict
 
 from telegram.ext import Application, ApplicationBuilder
 
 
 class TelegramAppManager:
     def __init__(self, tokens: List[str]):
-        self._apps: MutableMapping[str, Application] = {}
+        self._apps: Dict[str, Application] = {}
         for token in tokens:
             app = ApplicationBuilder().token(token).build()
             self._apps[token] = app

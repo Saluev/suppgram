@@ -1,5 +1,15 @@
 from datetime import timezone, datetime
-from typing import Any, Mapping, Optional, List, Union, MutableMapping, Set, Iterable, NamedTuple
+from typing import (
+    Any,
+    Mapping,
+    Optional,
+    List,
+    Union,
+    Set,
+    Iterable,
+    NamedTuple,
+    Dict,
+)
 
 from bson import ObjectId, CodecOptions, UuidRepresentation
 from motor.core import AgnosticDatabase
@@ -114,7 +124,7 @@ class Collections:
     def make_customer_update(
         self, identification: CustomerIdentification, diff: Optional[CustomerDiff]
     ) -> Document:
-        result: MutableMapping[str, Any] = {}
+        result: Dict[str, Any] = {}
         if identification.telegram_user_id is not None:
             result["telegram_user_id"] = identification.telegram_user_id
         if identification.pubnub_user_id is not None:
@@ -166,7 +176,7 @@ class Collections:
     def convert_to_agent_update(
         self, identification: AgentIdentification, diff: Optional[AgentDiff]
     ) -> Document:
-        result: MutableMapping[str, Any] = {"$set": {}, "$setOnInsert": {"workplaces": []}}
+        result: Dict[str, Any] = {"$set": {}, "$setOnInsert": {"workplaces": []}}
         if identification.telegram_user_id is not None:
             result["$set"]["telegram_user_id"] = identification.telegram_user_id
         if diff is None:
@@ -225,7 +235,7 @@ class Collections:
     def convert_to_workspace_update(
         self, agent_id: Any, identification: WorkplaceIdentification
     ) -> Document:
-        result: MutableMapping[str, Any] = {}
+        result: Dict[str, Any] = {}
         if identification.telegram_bot_id is not None:
             result["id"] = f"{agent_id}_{identification.telegram_bot_id}"
             result["telegram_bot_id"] = identification.telegram_bot_id
@@ -258,7 +268,7 @@ class Collections:
         return {"customer_id": ObjectId(customer.id), "state": {"$nin": FINAL_STATES}}
 
     def make_conversation_filter(self, id: Any, unassigned_only: bool) -> Document:
-        result: MutableMapping[str, Any] = {"_id": ObjectId(id)}
+        result: Dict[str, Any] = {"_id": ObjectId(id)}
         if unassigned_only:
             result["assigned_workplace_id"] = None
         return result
@@ -281,7 +291,7 @@ class Collections:
         diff: Optional[ConversationDiff] = None,
         workplaces: Mapping[Any, Workplace] = {},
     ) -> Document:
-        result: MutableMapping[str, Any] = {"$set": {}, "$setOnInsert": {}}
+        result: Dict[str, Any] = {"$set": {}, "$setOnInsert": {}}
         if customer is not None:
             result["$setOnInsert"].update(
                 {
@@ -300,16 +310,18 @@ class Collections:
             elif diff.assigned_workplace_id is not None:
                 result["$set"].update(
                     {
-                        "assigned_agent_id": workplaces[diff.assigned_workplace_id].agent.id,
+                        "assigned_agent_id": ObjectId(
+                            workplaces[diff.assigned_workplace_id].agent.id
+                        ),
                         "assigned_workplace_id": diff.assigned_workplace_id,
                     }
                 )
 
             if diff.added_tags:
-                result["$addToSet"] = {"tags": {"$each": [tag.id for tag in diff.added_tags]}}
+                result["$addToSet"] = {"tag_ids": {"$each": [tag.id for tag in diff.added_tags]}}
 
-            if diff.removed_tags is not None:
-                result["$pull"] = {"tags": {"$in": [tag.id for tag in diff.removed_tags]}}
+            if diff.removed_tags:
+                result["$pull"] = {"tag_ids": {"$in": [tag.id for tag in diff.removed_tags]}}
 
             # TODO probably should allow adding and removing at the same time, which MongoDB forbids
 

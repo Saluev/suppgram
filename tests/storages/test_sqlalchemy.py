@@ -5,13 +5,26 @@ from tempfile import TemporaryDirectory
 from typing import Generator, Any
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import event, Engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    create_async_engine,
+)
 
 from suppgram.storage import Storage
 from suppgram.storages.sqlalchemy import SQLAlchemyStorage, Models
 from tests.storage import StorageTestSuite
 
 pytest_plugins = ("pytest_asyncio",)
+
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    # Without this, SQLite will allow violating foreign key
+    # constraints and certain tests will fail.
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 @pytest.fixture(scope="session")

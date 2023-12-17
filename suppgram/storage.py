@@ -70,7 +70,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create_tag(self, name: str, created_by: Agent):
+    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
         pass
 
     @abc.abstractmethod

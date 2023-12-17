@@ -17,7 +17,13 @@ from suppgram.entities import (
     CustomerIdentification,
     CustomerDiff,
 )
-from suppgram.errors import AgentNotFound, WorkplaceNotFound, ConversationNotFound, TagAlreadyExists
+from suppgram.errors import (
+    AgentNotFound,
+    WorkplaceNotFound,
+    ConversationNotFound,
+    TagAlreadyExists,
+    ConversationAlreadyAssigned,
+)
 from suppgram.storage import Storage
 from suppgram.storages.mongodb.collections import Collections, Document
 
@@ -121,10 +127,11 @@ class MongoDBStorage(Storage):
             )
         return self._collections.convert_to_workplace(identification, agent_doc)
 
-    async def create_tag(self, name: str, created_by: Agent):
+    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
         try:
             doc = self._collections.convert_to_tag_document(name, created_by)
             await self._collections.conversation_tag_collection.insert_one(doc)
+            return self._collections.convert_to_tag(doc, {created_by.id: created_by})
         except DuplicateKeyError as exc:
             raise TagAlreadyExists(name) from exc
 
@@ -163,13 +170,20 @@ class MongoDBStorage(Storage):
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
+        filter_ = self._collections.make_conversation_filter(id, unassigned_only=False)
+        doc = await self._collections.conversation_collection.find_one(filter_)
+        if doc is None:
+            raise ConversationNotFound()
+
         workplaces: Mapping[Any, Workplace] = {}
         if (identification := diff.assigned_workplace_identification) is not None:
             workplace = await self.get_workplace(identification)
             workplaces = {workplace.id: workplace}
         filter_ = self._collections.make_conversation_filter(id, unassigned_only=unassigned_only)
         update = self._collections.make_conversation_update(diff=diff, workplaces=workplaces)
-        await self._collections.conversation_collection.update_one(filter_, update)
+        result = await self._collections.conversation_collection.update_one(filter_, update)
+        if result.matched_count == 0:
+            raise ConversationAlreadyAssigned()
 
     async def get_agent_conversation(self, identification: WorkplaceIdentification) -> Conversation:
         workplace_id = identification.id
@@ -238,4 +252,6 @@ class MongoDBStorage(Storage):
     async def save_message(self, conversation: Conversation, message: Message):
         filter_ = self._collections.make_conversation_filter(conversation.id, unassigned_only=False)
         update = self._collections.make_message_update(message)
-        await self._collections.conversation_collection.update_one(filter_, update)
+        result = await self._collections.conversation_collection.update_one(filter_, update)
+        if result.matched_count == 0:
+            raise ConversationNotFound()

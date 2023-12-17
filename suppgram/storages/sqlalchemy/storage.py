@@ -172,11 +172,13 @@ class SQLAlchemyStorage(Storage):
                 self._models.convert_from_agent_model(agent), workplace
             )
 
-    async def create_tag(self, name: str, created_by: Agent):
+    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
         try:
             async with self._session() as session, session.begin():
                 tag = self._models.make_tag_model(name, created_by)
                 session.add(tag)
+                await session.flush()
+                return self._models.convert_from_tag_model(tag, created_by)
         except IntegrityError as exc:
             raise TagAlreadyExists(name) from exc
 
@@ -186,7 +188,12 @@ class SQLAlchemyStorage(Storage):
                 joinedload(self._models.conversation_tag_model.created_by)
             )
             tags = (await session.execute(select_query)).scalars().all()
-            return [self._models.convert_from_tag_model(tag) for tag in tags]
+            return [
+                self._models.convert_from_tag_model(
+                    tag, self._models.convert_from_agent_model(tag.created_by)
+                )
+                for tag in tags
+            ]
 
     async def get_or_create_conversation(self, customer: Customer) -> Conversation:
         async with self._session() as session, session.begin():
@@ -217,7 +224,12 @@ class SQLAlchemyStorage(Storage):
                         assigned_agent, conv.assigned_workplace
                     )
                 messages = [self._models.convert_from_message_model(msg) for msg in conv.messages]
-                tags = [self._models.convert_from_tag_model(tag) for tag in conv.tags]
+                tags = [
+                    self._models.convert_from_tag_model(
+                        tag, self._models.convert_from_agent_model(tag.created_by)
+                    )
+                    for tag in conv.tags
+                ]
             return Conversation(
                 id=conv.id,
                 state=conv.state,
@@ -336,5 +348,8 @@ class SQLAlchemyStorage(Storage):
             ]
 
     async def save_message(self, conversation: Conversation, message: Message):
-        async with self._session() as session, session.begin():
-            session.add(self._models.convert_to_message_model(conversation.id, message))
+        try:
+            async with self._session() as session, session.begin():
+                session.add(self._models.convert_to_message_model(conversation.id, message))
+        except IntegrityError:
+            raise ConversationNotFound()

@@ -1,5 +1,5 @@
 from datetime import timezone
-from typing import List, Optional, Any, Iterable, Mapping, MutableMapping
+from typing import List, Optional, Any, Iterable, Mapping, Dict
 
 from bson import CodecOptions, ObjectId
 from motor.core import AgnosticDatabase
@@ -129,7 +129,7 @@ class MongoDBTelegramBridge(TelegramStorage):
         conversation_id: Optional[Any] = None,
         telegram_bot_username: Optional[str] = None,
     ) -> List[TelegramMessage]:
-        filter_: MutableMapping[str, Any] = {"kind": kind}
+        filter_: Dict[str, Any] = {"kind": kind}
         if agent_id is not None:
             filter_["agent_id"] = ObjectId(agent_id)
         if conversation_id is not None:

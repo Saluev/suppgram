@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Any, Optional, Mapping, MutableMapping
+from typing import List, Any, Optional, Mapping, Dict
 from uuid import UUID
 
 from sqlalchemy import (
@@ -124,7 +124,7 @@ class Conversation(Base):
 class ConversationMessage(Base):
     __tablename__ = "suppgram_conversation_messages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    conversation_id: Mapped[int] = mapped_column(ForeignKey(Conversation.id))
+    conversation_id: Mapped[int] = mapped_column(ForeignKey(Conversation.id), nullable=False)
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
     kind: Mapped[MessageKind] = mapped_column(Enum(MessageKind), nullable=False)
     time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -284,12 +284,14 @@ class Models:
             created_by_id=created_by.id,  # type: ignore
         )
 
-    def convert_from_tag_model(self, tag: ConversationTag) -> ConversationTagInterface:
+    def convert_from_tag_model(
+        self, tag: ConversationTag, created_by: AgentInterface
+    ) -> ConversationTagInterface:
         return ConversationTagInterface(
             id=tag.id,
             name=tag.name,
             created_at_utc=tag.created_at_utc,
-            created_by=self.convert_from_agent_model(tag.created_by),
+            created_by=created_by,
         )
 
     def convert_from_conversation_model(
@@ -306,7 +308,10 @@ class Models:
             id=conversation.id,
             state=conversation.state,
             customer=self.convert_from_customer_model(conversation.customer),
-            tags=[self.convert_from_tag_model(tag) for tag in conversation.tags],
+            tags=[
+                self.convert_from_tag_model(tag, self.convert_from_agent_model(tag.created_by))
+                for tag in conversation.tags
+            ],
             assigned_agent=assigned_agent,
             assigned_workplace=assigned_workplace,
             messages=[self.convert_from_message_model(message) for message in conversation.messages]
@@ -414,7 +419,7 @@ class Models:
         return result
 
     def make_conversation_update_values(self, diff: ConversationDiff) -> Mapping[str, Any]:
-        result: MutableMapping[str, Any] = {}
+        result: Dict[str, Any] = {}
 
         if diff.state is not None:
             result["state"] = diff.state
