@@ -320,7 +320,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                 if "Message is not modified" not in str(exc):
                     raise
 
-        text = self._texts.compose_telegram_new_conversation_notification(conversation)
+        text = self._texts.compose_telegram_conversation_notification(conversation)
         try:
             await self._telegram_bot.edit_message_text(
                 text.text,

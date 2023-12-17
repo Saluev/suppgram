@@ -1,16 +1,11 @@
-import html
 import logging
-from typing import Optional, Collection
 
 from suppgram.entities import (
     Conversation,
     Message,
     MessageKind,
-    Customer,
-    ConversationTag,
     Agent,
 )
-from suppgram.helpers import escape_markdown
 from suppgram.texts.interface import TextsProvider, Text, Format
 
 logger = logging.getLogger(__name__)
@@ -59,12 +54,6 @@ class EnglishTextsProvider(TextsProvider):
     telegram_tag_successfully_created_message = "✅ New tag has been successfully created."
     telegram_tag_already_exists_message = "⚠️ Tag with this name already exists!"
 
-    def compose_add_tag_button_text(self, tag: ConversationTag) -> str:
-        return f"☐ {tag.name}"
-
-    def compose_remove_tag_button_text(self, tag: ConversationTag) -> str:
-        return f"☑ {tag.name}"
-
     telegram_agent_start_message = "👷 Welcome to the support agent bot!"
     telegram_agent_permission_denied_message = (
         "🚫 You don't have permission to access support agent functionality."
@@ -83,65 +72,15 @@ class EnglishTextsProvider(TextsProvider):
     )
     telegram_new_conversation_notification_placeholder = "❗️ New conversation!"
 
-    # TODO move logic to base class, keep only string templates here
-    def compose_customer_profile(
-        self, customer: Customer, allowed_formats: Collection[Format] = (Format.PLAIN,)
-    ) -> Text:
-        format_ = next(iter(allowed_formats))
-        if Format.TELEGRAM_HTML in allowed_formats:
-            format_ = Format.TELEGRAM_HTML
-        elif Format.TELEGRAM_MARKDOWN in allowed_formats:
-            format_ = Format.TELEGRAM_MARKDOWN
+    customer_profile_header = "👤 Customer: {customer}"
+    customer_profile_anonymous = "anonymous"
+    customer_profile_contacts = "📒 Contacts: {contacts}"
 
-        full_name = (
-            f"{customer.telegram_first_name or ''} {customer.telegram_last_name or ''}".strip()
-            or "anonymous"
-        )
-        lines = [f"👤 Customer: {full_name}"]
-        contacts = []
-        if customer.telegram_user_id:
-            contacts.append(
-                self._format_telegram_mention(
-                    telegram_user_id=customer.telegram_user_id,
-                    telegram_first_name="Telegram",
-                    telegram_last_name=None,
-                    telegram_username=customer.telegram_username,
-                    format_=format_,
-                )
-            )
-        lines.append("Contacts: " + ", ".join(contacts))
-        return Text(text="\n".join(lines), format=format_)
-
-    def compose_telegram_new_conversation_notification(self, conversation: Conversation) -> Text:
-        profile = self.compose_customer_profile(
-            conversation.customer,
-            allowed_formats=Format.get_formats_supported_by_telegram(),
-        )
+    def compose_conversation_notification_header(self, conversation: Conversation) -> str:
         emoji = self.CONVERSATION_STATE_TO_EMOJI.get(conversation.state, "")
-        lines = [
-            f"{emoji} Conversation in status #{conversation.state.upper()}",
-            "",
-            profile.text,
-            "",
-        ]
-        lines.extend(self.format_history_message(message) for message in conversation.messages)
-        if agent := conversation.assigned_agent:
-            if agent.telegram_user_id:
-                agent_ref = self._format_telegram_mention(
-                    telegram_user_id=agent.telegram_user_id,
-                    telegram_first_name=agent.telegram_first_name,
-                    telegram_last_name=None,  # less formal
-                    telegram_username=agent.telegram_username,
-                    format_=profile.format,
-                )
-            else:
-                logger.warning(f"Can't mention {agent} — unsupported agent frontend")
-                agent_ref = f"#_{agent.id}"
-            lines.extend(("", f"Assigned to {agent_ref}"))
-        if conversation.tags:
-            tags = [self._format_telegram_tag(tag) for tag in conversation.tags]
-            lines.extend(("", " ".join(tags)))
-        return Text(text="\n".join(lines), format=profile.format)
+        return f"{emoji} Conversation in status #{conversation.state.upper()}"
+
+    conversation_notification_assigned_to = "Assigned to {agent}"
 
     def compose_nudge_to_start_bot_notification(
         self, agent: Agent, telegram_bot_username: str
@@ -162,39 +101,6 @@ class EnglishTextsProvider(TextsProvider):
         )
 
     telegram_assign_to_me_button_text = "Assign to me"
-
-    def _format_telegram_mention(
-        self,
-        telegram_user_id: int,
-        telegram_first_name: Optional[str],
-        telegram_last_name: Optional[str],
-        telegram_username: Optional[str],
-        format_: Format,
-    ) -> str:
-        full_name: str = (
-            f"{telegram_first_name or ''} {telegram_last_name or ''}".strip()
-            or telegram_username
-            or str(telegram_user_id)
-        )
-
-        if format_ == Format.PLAIN:
-            if not telegram_username:
-                logger.warning(
-                    f"Can't mention Telegram user {telegram_user_id} without username in plain format"
-                )
-            return f"@{telegram_username}" if telegram_username else full_name
-
-        url = f"tg://user?id={telegram_user_id}"
-
-        if format_ == Format.TELEGRAM_MARKDOWN:
-            escaped_name = escape_markdown(full_name)
-            return f"[{escaped_name}]({url})"
-
-        if format_ == Format.TELEGRAM_HTML:
-            escaped_name = html.escape(full_name)
-            return f'<a href="{url}">{escaped_name}</a>'
-
-        raise ValueError(f"text format {format_.value!r} is not supported")
 
     message_history_title = "🗂️ Message history\n"
 

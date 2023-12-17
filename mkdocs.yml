@@ -8,6 +8,7 @@ nav:
       - Quickstart: usage/quickstart.md
       - 'All-in-one CLI': usage/all_in_one_cli.md
       - Builder: usage/builder.md
+      - 'Customizing texts': usage/customizing_texts.md
   - Development:
       - 'Contribution guide': development/contribution_guide.md
       - 'Architecture overview': development/architecture_overview.md
