@@ -53,24 +53,28 @@ async def _clean_postgresql_storage():
     engine = create_async_engine(
         f"postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
     )
-    truncate_query = text(
-        """
-        TRUNCATE TABLE
-            suppgram_customers,
-            suppgram_agents,
-            suppgram_workplaces,
-            suppgram_conversations,
-            suppgram_conversation_messages,
-            suppgram_conversation_tags,
-            suppgram_conversation_tag_associations
-        """
-    )
-    try:
-        async with AsyncSession(bind=engine) as session, session.begin():
-            await session.execute(truncate_query)
-    except ProgrammingError as exc:
-        if "does not exist" not in str(exc):
-            raise
+    for truncate_query in [
+        text(
+            """
+            TRUNCATE TABLE
+                suppgram_customers,
+                suppgram_agents,
+                suppgram_workplaces,
+                suppgram_conversations,
+                suppgram_conversation_messages,
+                suppgram_conversation_tags,
+                suppgram_conversation_tag_associations
+            CASCADE
+            """
+        ),
+        text("""TRUNCATE TABLE suppgram_telegram_chats, suppgram_telegram_messages CASCADE"""),
+    ]:
+        try:
+            async with AsyncSession(bind=engine) as session, session.begin():
+                await session.execute(truncate_query)
+        except ProgrammingError as exc:
+            if "does not exist" not in str(exc):
+                raise
 
 
 @pytest.fixture(scope="session", autouse=True)
