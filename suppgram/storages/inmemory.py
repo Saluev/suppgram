@@ -121,7 +121,7 @@ class InMemoryStorage(Storage):
             )
         except StopIteration:
             conversation = Conversation(
-                id=uuid4(),
+                id=uuid4().hex,
                 state=ConversationState.NEW,
                 customer=customer,
                 tags=[],
@@ -228,7 +228,7 @@ class InMemoryStorage(Storage):
         if identification.id is not None:
             raise ValueError("can't create customer with predefined ID")
         return Customer(
-            id=uuid4(),
+            id=uuid4().hex,
             telegram_user_id=identification.telegram_user_id,
             shell_uuid=identification.shell_uuid,
             pubnub_user_id=identification.pubnub_user_id,
@@ -255,7 +255,7 @@ class InMemoryStorage(Storage):
         if identification.id is not None:
             raise ValueError("can't create agent with predefined ID")
         return Agent(
-            id=uuid4(),
+            id=uuid4().hex,
             deactivated=False,
             telegram_user_id=identification.telegram_user_id,
         )
@@ -286,7 +286,7 @@ class InMemoryStorage(Storage):
         if identification.id is not None:
             raise ValueError("can't create workplace with predefined ID")
         return Workplace(
-            id=uuid4(),
+            id=uuid4().hex,
             telegram_user_id=identification.telegram_user_id,
             telegram_bot_id=identification.telegram_bot_id,
             agent=agent,

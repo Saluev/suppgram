@@ -39,7 +39,7 @@ def sqlite_engine() -> Generator[AsyncEngine, None, None]:
 
 
 @pytest.fixture
-def sqlite_sqlalchemy_storage(sqlite_engine: AsyncEngine) -> Storage:
+def sqlite_sqlalchemy_storage(sqlite_engine: AsyncEngine) -> Generator[Storage, None, None]:
     global enable_sqlite_foreign_keys
     storage = SQLAlchemyStorage(sqlite_engine, Models(sqlite_engine))
     asyncio.run(storage.initialize())
@@ -71,7 +71,8 @@ async def _clean_postgresql_storage():
 
 @pytest.fixture(scope="session", autouse=True)
 def clean_postgresql_storage():
-    asyncio.ensure_future(_clean_postgresql_storage())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(_clean_postgresql_storage())
 
 
 @pytest.fixture
@@ -97,7 +98,8 @@ def clean_mongodb_storage() -> None:
     # in the function-scoped asynchronous fixture below.
     mongodb_client: AgnosticClient = AsyncIOMotorClient("mongodb://localhost:27017/suppgram_test")
     database = cast(AgnosticDatabase, mongodb_client.get_default_database())
-    asyncio.ensure_future(mongodb_client.drop_database(database))
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(mongodb_client.drop_database(database))
 
 
 @pytest_asyncio.fixture

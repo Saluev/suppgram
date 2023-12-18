@@ -60,7 +60,7 @@ class InMemoryTelegramStorage(TelegramStorage):
         telegram_bot_username: Optional[str] = None
     ) -> TelegramMessage:
         message = TelegramMessage(
-            id=uuid4(),
+            id=uuid4().hex,
             telegram_bot_id=telegram_bot_id,
             group=group,
             telegram_message_id=telegram_message_id,

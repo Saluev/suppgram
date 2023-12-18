@@ -15,4 +15,4 @@ class TestInMemoryStorage(StorageTestSuite):
         self.storage = InMemoryStorage()
 
     def generate_id(self) -> Any:
-        return uuid4()
+        return uuid4().hex

@@ -90,7 +90,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
     async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.effective_chat, "command update should have `effective_chat`"
         await context.bot.send_message(
-            update.effective_chat.id, self._texts.telegram_customer_start_message
+            chat_id=update.effective_chat.id, text=self._texts.telegram_customer_start_message
         )
 
     async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
