@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class EnglishTextsProvider(TextsProvider):
+    telegram_customer_unsupported_message_content = (
+        "😞 Sorry, this kind of content is not supported right now. "
+        "Support agent will not see this message."
+    )
+
     telegram_customer_start_message = "👋 Welcome to support service! Please describe your problem."
     telegram_customer_conversation_resolved_message_placeholder = (
         "✅ Conversation was marked as resolved. "

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
-from telegram import MessageEntity, InlineKeyboardMarkup
+from telegram import MessageEntity, InlineKeyboardMarkup, Sticker
 
 from suppgram.entities import (
     CustomerIdentification,
@@ -25,6 +25,30 @@ async def test_customer_start(storage, customer_telegram_update, send_message_mo
     send_message_mock.assert_called_once_with(
         chat_id=update.effective_chat.id,
         text="👋 Welcome to support service! Please describe your problem.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_customer_unsupported_message_kind(
+    storage, customer_telegram_update, send_message_mock
+):
+    update = await customer_telegram_update(
+        from_customer=True,
+        sticker=Sticker(
+            file_id="CAACAgQAAxkBAAIG-mWAv3L-CcgEs86whsGGTybEjjD6AAJ2AAMv3_gJdvG_3FZCYjgzBA",
+            file_unique_id="AgADdgADL9_4CQ",
+            width=512,
+            height=512,
+            is_animated=False,
+            is_video=False,
+            type=Sticker.REGULAR,
+        ),
+    )
+    send_message_mock.assert_called_once_with(
+        chat_id=update.effective_chat.id,
+        text="😞 Sorry, this kind of content is not supported right now. "
+        "Support agent will not see this message.",
+        reply_to_message_id=update.message.message_id,
     )
 
 

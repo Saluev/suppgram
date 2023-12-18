@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from telegram import User, Chat, Message, MessageEntity, Update, CallbackQuery
+from telegram import User, Chat, Message, MessageEntity, Update, CallbackQuery, Sticker
 from telegram.ext import Application, ApplicationBuilder
 
 from suppgram.backend import Backend
@@ -126,6 +126,7 @@ class UpdateComposer(Protocol):
         from_customer: bool = False,
         from_bot: bool = False,
         text: Optional[str] = None,
+        sticker: Optional[Sticker] = None,
         entities: Optional[List[MessageEntity]] = None,
         callback_message: Optional[Message] = None,
         callback_data: Optional[str] = None,
@@ -148,6 +149,7 @@ def customer_telegram_update(
         from_customer: bool = False,
         from_bot: bool = False,
         text: Optional[str] = None,
+        sticker: Optional[Sticker] = None,
         entities: Optional[List[MessageEntity]] = None,
         callback_message: Optional[Message] = None,
         callback_data: Optional[str] = None,
@@ -156,13 +158,14 @@ def customer_telegram_update(
             from_user = customer_telegram_user
         if from_bot:
             from_user = customer_app.bot.bot
-        if text:
+        if text or sticker:
             message = Message(
                 message_id=generate_telegram_id(),
                 date=datetime.now(timezone.utc),
                 chat=customer_telegram_chat,
                 from_user=from_user,
                 text=text,
+                sticker=sticker,
                 entities=entities,
             )
             message.set_bot(customer_app.bot)

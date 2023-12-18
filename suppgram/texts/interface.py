@@ -53,6 +53,8 @@ class Text:
 class TextsProvider:
     """Provides static texts and functions to compose dynamic texts where necessary."""
 
+    telegram_customer_unsupported_message_content: str
+
     telegram_customer_start_message: str
     telegram_customer_conversation_resolved_message_placeholder: str
     telegram_customer_conversation_resolved_message: str

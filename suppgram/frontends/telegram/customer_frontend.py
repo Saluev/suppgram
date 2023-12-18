@@ -71,7 +71,8 @@ class TelegramCustomerFrontend(CustomerFrontend):
             [
                 CommandHandler("start", self._handle_start_command),
                 CallbackQueryHandler(self._handle_callback_query),
-                MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
+                MessageHandler(ChatType.PRIVATE & TEXT, self._handle_text_message),
+                MessageHandler(ChatType.PRIVATE & ~TEXT, self._handle_unsupported_message),
             ]
         )
         self._backend.on_new_message_for_customer.add_handler(
@@ -109,8 +110,8 @@ class TelegramCustomerFrontend(CustomerFrontend):
             logger.info(f"Customer frontend received unsupported callback action {action!r}")
 
     async def _handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        assert update.message, "update with `TEXT` filter should have `message`"
-        assert update.effective_user, "update with `TEXT` filter should have `effective_user`"
+        assert update.message, "message update should have `message`"
+        assert update.effective_user, "message update should have `effective_user`"
         identification = make_customer_identification(update.effective_user)
         await self._backend.create_or_update_customer(
             identification,
@@ -124,6 +125,16 @@ class TelegramCustomerFrontend(CustomerFrontend):
                 time_utc=update.message.date,
                 text=update.message.text,
             ),
+        )
+
+    async def _handle_unsupported_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.message, "message update should have `message`"
+        assert update.effective_user, "message update should have `effective_user`"
+        print(update.message)
+        await self._telegram_bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=self._texts.telegram_customer_unsupported_message_content,
+            reply_to_message_id=update.message.message_id,
         )
 
     async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
