@@ -53,7 +53,7 @@ from suppgram.frontends.telegram.identification import (
 )
 from suppgram.frontends.telegram.storage import (
     TelegramStorage,
-    TelegramGroup,
+    TelegramChat,
     TelegramMessageKind,
     TelegramMessage,
 )
@@ -139,7 +139,7 @@ class TelegramAgentFrontend(AgentFrontend):
             workplace = await self._backend.identify_workplace(workplace_identification)
             agent = workplace.agent
         except AgentNotFound:
-            should_create = await self._helper.check_belongs_to_agent_groups(
+            should_create = await self._helper.check_belongs_to_agent_chats(
                 update.effective_user.id
             )
             if not should_create:
@@ -259,8 +259,8 @@ class TelegramAgentFrontend(AgentFrontend):
         if action is None:
             return
         if action == CallbackActionKind.PAGE:
-            group = await self._storage.get_group(callback_data["c"])
-            message = await self._storage.get_message(group, callback_data["m"])
+            chat = await self._storage.get_chat(callback_data["c"])
+            message = await self._storage.get_message(chat, callback_data["m"])
             customer = await self._backend.create_or_update_customer(
                 message.customer_identification,
             )
@@ -312,10 +312,10 @@ class TelegramAgentFrontend(AgentFrontend):
             return
         app = self._get_app_by_bot_id(workplace.telegram_bot_id)
         message = await app.bot.send_message(chat_id=workplace.telegram_user_id, text=pages[0])
-        group = await self._storage.create_or_update_group(workplace.telegram_user_id)
+        chat = await self._storage.create_or_update_chat(workplace.telegram_user_id)
         tmessage = await self._storage.insert_message(
             workplace.telegram_bot_id,
-            group,
+            chat,
             message.message_id,
             TelegramMessageKind.CUSTOMER_MESSAGE_HISTORY,
             customer_id=customer.id,
@@ -335,7 +335,7 @@ class TelegramAgentFrontend(AgentFrontend):
         keyboard = make_pagination_keyboard(message, len(pages), page_idx)
         await app.bot.edit_message_text(
             pages[page_idx],
-            message.group.telegram_chat_id,
+            message.chat.telegram_chat_id,
             message.telegram_message_id,
             reply_markup=keyboard,
         )
@@ -390,12 +390,10 @@ class TelegramAgentFrontend(AgentFrontend):
     async def _nudge_to_start_bot(self, workplace: Workplace):
         assert workplace.telegram_user_id is not None, "should be called for Telegram workspaces"
 
-        agent_groups = await self._helper.check_belongs_to_agent_groups(workplace.telegram_user_id)
-        await flat_gather(
-            self._nudge_to_start_bot_in_group(workplace, group) for group in agent_groups
-        )
+        agent_chats = await self._helper.check_belongs_to_agent_chats(workplace.telegram_user_id)
+        await flat_gather(self._nudge_to_start_bot_in_chat(workplace, chat) for chat in agent_chats)
 
-    async def _nudge_to_start_bot_in_group(self, workplace: Workplace, group: TelegramGroup):
+    async def _nudge_to_start_bot_in_chat(self, workplace: Workplace, chat: TelegramChat):
         assert workplace.telegram_bot_id is not None, "should be called for Telegram workspaces"
         if self._manager_bot is None:
             return
@@ -403,11 +401,11 @@ class TelegramAgentFrontend(AgentFrontend):
         bot_username = app.bot.username
         text = self._texts.compose_nudge_to_start_bot_notification(workplace.agent, bot_username)
         message = await self._manager_bot.send_message(
-            chat_id=group.telegram_chat_id, text=text.text, parse_mode=text.parse_mode
+            chat_id=chat.telegram_chat_id, text=text.text, parse_mode=text.parse_mode
         )
         await self._storage.insert_message(
             workplace.telegram_bot_id,
-            group,
+            chat,
             message.message_id,
             TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION,
             telegram_bot_username=bot_username,

@@ -48,9 +48,9 @@ from suppgram.frontends.telegram.identification import (
 )
 from suppgram.frontends.telegram.storage import (
     TelegramStorage,
-    TelegramGroupRole,
+    TelegramChatRole,
     TelegramMessageKind,
-    TelegramGroup,
+    TelegramChat,
     TelegramMessage,
 )
 from suppgram.helpers import flat_gather
@@ -177,7 +177,7 @@ class TelegramManagerFrontend(ManagerFrontend):
 
     async def _send_new_conversation_notification(
         self,
-        group: TelegramGroup,
+        group: TelegramChat,
         conversation: Conversation,
         all_tags: List[ConversationTag],
     ):
@@ -191,7 +191,7 @@ class TelegramManagerFrontend(ManagerFrontend):
 
     async def _send_placeholder_message(
         self,
-        group: TelegramGroup,
+        group: TelegramChat,
         text: str,
         kind: TelegramMessageKind,
         conversation_id: Optional[Any] = None,
@@ -218,8 +218,8 @@ class TelegramManagerFrontend(ManagerFrontend):
             TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
             conversation_id=conversation.id,
         )
-        groups = await self._storage.get_groups_by_role(
-            TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
+        groups = await self._storage.get_chats_by_role(
+            TelegramChatRole.NEW_CONVERSATION_NOTIFICATIONS
         )
         group_ids = {group.telegram_chat_id for group in groups}
         newer_messages = await self._storage.get_newer_messages_of_kind(messages)
@@ -229,7 +229,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             conv.id for conv in conversations if conv.state != ConversationState.NEW
         }
         now_new_group_ids = [
-            message.group.telegram_chat_id
+            message.chat.telegram_chat_id
             for message in newer_messages
             if message.conversation_id in not_new_conversation_ids
         ]
@@ -237,11 +237,11 @@ class TelegramManagerFrontend(ManagerFrontend):
         messages_to_delete: List[TelegramMessage] = []
         messages_to_update: List[TelegramMessage] = []
         for message in messages:
-            if message.group.telegram_chat_id in now_new_group_ids:
+            if message.chat.telegram_chat_id in now_new_group_ids:
                 messages_to_delete.append(message)
             else:
                 messages_to_update.append(message)
-                group_ids.remove(message.group.telegram_chat_id)
+                group_ids.remove(message.chat.telegram_chat_id)
 
         groups_to_send_to = [group for group in groups if group.telegram_chat_id in group_ids]
 
@@ -250,7 +250,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         await asyncio.gather(
             flat_gather(
                 self._telegram_bot.delete_message(
-                    chat_id=message.group.telegram_chat_id,
+                    chat_id=message.chat.telegram_chat_id,
                     message_id=message.telegram_message_id,
                 )
                 for message in messages_to_delete
@@ -311,7 +311,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         if keyboard_only:
             try:
                 await self._telegram_bot.edit_message_reply_markup(
-                    message.group.telegram_chat_id,
+                    message.chat.telegram_chat_id,
                     message.telegram_message_id,
                     reply_markup=InlineKeyboardMarkup(inline_buttons) if inline_buttons else None,
                 )
@@ -324,7 +324,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         try:
             await self._telegram_bot.edit_message_text(
                 text.text,
-                message.group.telegram_chat_id,
+                message.chat.telegram_chat_id,
                 message.telegram_message_id,
                 parse_mode=text.parse_mode,
                 reply_markup=InlineKeyboardMarkup(inline_buttons) if inline_buttons else None,
@@ -414,8 +414,8 @@ class TelegramManagerFrontend(ManagerFrontend):
         try:
             await self._backend.update_agent(identification, diff)
         except AgentNotFound:
-            group = await self._storage.get_group(effective_chat.id)
-            if TelegramGroupRole.AGENTS not in group.roles:
+            group = await self._storage.get_chat(effective_chat.id)
+            if TelegramChatRole.AGENTS not in group.roles:
                 return
             await self._backend.create_or_update_agent(identification, diff)
 
@@ -423,11 +423,11 @@ class TelegramManagerFrontend(ManagerFrontend):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
         await self._backend.identify_agent(make_agent_identification(update.effective_user))
-        await self._storage.create_or_update_group(update.effective_chat.id)
-        await self._storage.add_group_roles(
+        await self._storage.create_or_update_chat(update.effective_chat.id)
+        await self._storage.add_chat_roles(
             update.effective_chat.id,
-            TelegramGroupRole.AGENTS,
-            TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS,
+            TelegramChatRole.AGENTS,
+            TelegramChatRole.NEW_CONVERSATION_NOTIFICATIONS,
         )
         await context.bot.send_message(
             update.effective_chat.id, self._texts.telegram_agents_command_success_message
@@ -439,9 +439,9 @@ class TelegramManagerFrontend(ManagerFrontend):
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
         await self._backend.identify_agent(make_agent_identification(update.effective_user))
-        await self._storage.create_or_update_group(update.effective_chat.id)
-        await self._storage.add_group_roles(
-            update.effective_chat.id, TelegramGroupRole.NEW_CONVERSATION_NOTIFICATIONS
+        await self._storage.create_or_update_chat(update.effective_chat.id)
+        await self._storage.add_chat_roles(
+            update.effective_chat.id, TelegramChatRole.NEW_CONVERSATION_NOTIFICATIONS
         )
         await context.bot.send_message(
             update.effective_chat.id,
@@ -455,8 +455,8 @@ class TelegramManagerFrontend(ManagerFrontend):
         assert (
             update.message and update.message.new_chat_members
         ), "update with NEW_CHAT_MEMBERS filter should have `message.new_chat_members`"
-        group = await self._storage.create_or_update_group(update.effective_chat.id)
-        if TelegramGroupRole.AGENTS not in group.roles:
+        group = await self._storage.create_or_update_chat(update.effective_chat.id)
+        if TelegramChatRole.AGENTS not in group.roles:
             return
         await flat_gather(
             self._backend.create_or_update_agent(make_agent_identification(user))
@@ -476,8 +476,8 @@ class TelegramManagerFrontend(ManagerFrontend):
         if user.is_bot:
             return
 
-        group = await self._storage.create_or_update_group(update.effective_chat.id)
-        if TelegramGroupRole.AGENTS not in group.roles:
+        group = await self._storage.create_or_update_chat(update.effective_chat.id)
+        if TelegramChatRole.AGENTS not in group.roles:
             return
 
         try:
@@ -485,7 +485,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         except AgentNotFound:
             return
 
-        if await self._helper.check_belongs_to_agent_groups(user.id):
+        if await self._helper.check_belongs_to_agent_chats(user.id):
             return
 
         await self._backend.deactivate_agent(agent)

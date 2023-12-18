@@ -118,7 +118,7 @@ def _make_pagination_button(
         callback_data=json.dumps(
             {
                 "a": CallbackActionKind.PAGE,
-                "c": message.group.telegram_chat_id,
+                "c": message.chat.telegram_chat_id,
                 "m": message.telegram_message_id,
                 "p": page_idx,
             },

@@ -161,7 +161,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
             chat_id=event.customer.telegram_user_id,
             text=self._texts.telegram_customer_conversation_resolved_message_placeholder,
         )
-        group = await self._storage.create_or_update_group(event.customer.telegram_user_id)
+        group = await self._storage.create_or_update_chat(event.customer.telegram_user_id)
         await self._storage.insert_message(
             self._telegram_bot.id,
             group,
@@ -183,7 +183,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
         for message in messages:
             # Normally just one message, so no `gather()`.
             await self._telegram_bot.edit_message_text(
-                chat_id=message.group.telegram_chat_id,
+                chat_id=message.chat.telegram_chat_id,
                 message_id=message.telegram_message_id,
                 text=self._texts.compose_customer_conversation_resolved_message(
                     cast(int, event.conversation.customer_rating)

@@ -6,8 +6,8 @@ from suppgram.frontends.telegram import TelegramStorage
 from suppgram.frontends.telegram.storage import (
     TelegramMessage,
     TelegramMessageKind,
-    TelegramGroup,
-    TelegramGroupRole,
+    TelegramChat,
+    TelegramChatRole,
 )
 
 
@@ -15,42 +15,42 @@ class InMemoryTelegramStorage(TelegramStorage):
     """In-memory implementation of [Storage][suppgram.storage.Storage] used in tests."""
 
     def __init__(self) -> None:
-        self.groups: List[TelegramGroup] = []
+        self.chats: List[TelegramChat] = []
         self.messages: List[TelegramMessage] = []
 
-    async def get_group(self, telegram_chat_id: int) -> TelegramGroup:
+    async def get_chat(self, telegram_chat_id: int) -> TelegramChat:
         try:
-            return next(g for g in self.groups if g.telegram_chat_id == telegram_chat_id)
+            return next(g for g in self.chats if g.telegram_chat_id == telegram_chat_id)
         except StopIteration:
             raise ValueError
 
-    async def create_or_update_group(self, telegram_chat_id: int) -> TelegramGroup:
+    async def create_or_update_chat(self, telegram_chat_id: int) -> TelegramChat:
         try:
-            return await self.get_group(telegram_chat_id)
+            return await self.get_chat(telegram_chat_id)
         except ValueError:
-            group = TelegramGroup(telegram_chat_id=telegram_chat_id, roles=frozenset())
-            self.groups.append(group)
-            return group
+            chat = TelegramChat(telegram_chat_id=telegram_chat_id, roles=frozenset())
+            self.chats.append(chat)
+            return chat
 
-    async def add_group_roles(self, telegram_chat_id: int, *roles: TelegramGroupRole):
+    async def add_chat_roles(self, telegram_chat_id: int, *roles: TelegramChatRole):
         try:
             idx = next(
-                i for i, g in enumerate(self.groups) if g.telegram_chat_id == telegram_chat_id
+                i for i, g in enumerate(self.chats) if g.telegram_chat_id == telegram_chat_id
             )
         except StopIteration:
             raise ValueError
-        group = self.groups.pop(idx)
-        group = replace(group, roles=group.roles | {*roles})
-        self.groups.append(group)
-        return group
+        chat = self.chats.pop(idx)
+        chat = replace(chat, roles=chat.roles | {*roles})
+        self.chats.append(chat)
+        return chat
 
-    async def get_groups_by_role(self, role: TelegramGroupRole) -> List[TelegramGroup]:
-        return [g for g in self.groups if role in g.roles]
+    async def get_chats_by_role(self, role: TelegramChatRole) -> List[TelegramChat]:
+        return [g for g in self.chats if role in g.roles]
 
     async def insert_message(
         self,
         telegram_bot_id: int,
-        group: TelegramGroup,
+        chat: TelegramChat,
         telegram_message_id: int,
         kind: TelegramMessageKind,
         *,
@@ -62,7 +62,7 @@ class InMemoryTelegramStorage(TelegramStorage):
         message = TelegramMessage(
             id=uuid4().hex,
             telegram_bot_id=telegram_bot_id,
-            group=group,
+            chat=chat,
             telegram_message_id=telegram_message_id,
             kind=kind,
             agent_id=agent_id,
@@ -73,12 +73,12 @@ class InMemoryTelegramStorage(TelegramStorage):
         self.messages.append(message)
         return message
 
-    async def get_message(self, group: TelegramGroup, telegram_message_id: int) -> TelegramMessage:
+    async def get_message(self, chat: TelegramChat, telegram_message_id: int) -> TelegramMessage:
         try:
             return next(
                 m
                 for m in self.messages
-                if m.group.telegram_chat_id == group.telegram_chat_id
+                if m.chat.telegram_chat_id == chat.telegram_chat_id
                 and m.telegram_message_id == telegram_message_id
             )
         except StopIteration:
@@ -113,7 +113,7 @@ class InMemoryTelegramStorage(TelegramStorage):
             newer
             for newer in self.messages
             if any(
-                newer.group.telegram_chat_id == older.group.telegram_chat_id
+                newer.chat.telegram_chat_id == older.chat.telegram_chat_id
                 and newer.telegram_message_id > older.telegram_message_id
                 and newer.kind == older.kind
                 for older in messages

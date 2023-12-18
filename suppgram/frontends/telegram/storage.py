@@ -6,7 +6,7 @@ from typing import FrozenSet, Any, Optional, List
 from suppgram.entities import CustomerIdentification
 
 
-class TelegramGroupRole(int, Enum):
+class TelegramChatRole(int, Enum):
     # Group for notifications on new unassigned conversations.
     NEW_CONVERSATION_NOTIFICATIONS = 1
     # Group all members of which are agents.
@@ -14,9 +14,9 @@ class TelegramGroupRole(int, Enum):
 
 
 @dataclass(frozen=True)
-class TelegramGroup:
+class TelegramChat:
     telegram_chat_id: int
-    roles: FrozenSet[TelegramGroupRole]
+    roles: FrozenSet[TelegramChatRole]
 
 
 class TelegramMessageKind(str, Enum):
@@ -31,7 +31,7 @@ class TelegramMessage:
     id: Any
 
     telegram_bot_id: int
-    group: TelegramGroup
+    chat: TelegramChat
     telegram_message_id: int
     kind: TelegramMessageKind
 
@@ -45,7 +45,7 @@ class TelegramMessage:
     def customer_identification(self) -> CustomerIdentification:
         if self.customer_id is None:
             raise ValueError(
-                f"no customer ID in message {self.telegram_message_id} in group {self.group.telegram_chat_id}"
+                f"no customer ID in message {self.telegram_message_id} in group {self.chat.telegram_chat_id}"
             )
         return CustomerIdentification(id=self.customer_id)
 
@@ -60,26 +60,26 @@ class TelegramStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def get_group(self, telegram_chat_id: int) -> TelegramGroup:
-        """Fetch Telegram group by Telegram chat ID."""
+    async def get_chat(self, telegram_chat_id: int) -> TelegramChat:
+        """Fetch Telegram chat by Telegram chat ID."""
 
     @abc.abstractmethod
-    async def create_or_update_group(self, telegram_chat_id: int) -> TelegramGroup:
-        """Create or update Telegram group by Telegram chat ID."""
+    async def create_or_update_chat(self, telegram_chat_id: int) -> TelegramChat:
+        """Create or update Telegram chat by Telegram chat ID."""
 
     @abc.abstractmethod
-    async def add_group_roles(self, telegram_chat_id: int, *roles: TelegramGroupRole):
-        """Assign roles to a Telegram group."""
+    async def add_chat_roles(self, telegram_chat_id: int, *roles: TelegramChatRole):
+        """Assign roles to a Telegram chat."""
 
     @abc.abstractmethod
-    async def get_groups_by_role(self, role: TelegramGroupRole) -> List[TelegramGroup]:
-        """Fetch all Telegram groups which have been assigned a role."""
+    async def get_chats_by_role(self, role: TelegramChatRole) -> List[TelegramChat]:
+        """Fetch all Telegram chats which have been assigned a role."""
 
     @abc.abstractmethod
     async def insert_message(
         self,
         telegram_bot_id: int,
-        group: TelegramGroup,
+        chat: TelegramChat,
         telegram_message_id: int,
         kind: TelegramMessageKind,
         *,
@@ -91,7 +91,7 @@ class TelegramStorage(abc.ABC):
         """Store information about a Telegram message."""
 
     @abc.abstractmethod
-    async def get_message(self, group: TelegramGroup, telegram_message_id: int) -> TelegramMessage:
+    async def get_message(self, chat: TelegramChat, telegram_message_id: int) -> TelegramMessage:
         """Fetch a Telegram message."""
 
     @abc.abstractmethod

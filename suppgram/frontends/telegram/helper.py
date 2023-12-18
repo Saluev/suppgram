@@ -5,7 +5,7 @@ from telegram.error import TelegramError
 
 from suppgram.frontends.telegram import TelegramStorage
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
-from suppgram.frontends.telegram.storage import TelegramGroup, TelegramGroupRole, TelegramMessage
+from suppgram.frontends.telegram.storage import TelegramChat, TelegramChatRole, TelegramMessage
 from suppgram.helpers import flat_gather
 
 
@@ -21,19 +21,19 @@ class TelegramHelper:
             app_manager.get_app(manager_bot_token).bot if manager_bot_token else None
         )
 
-    async def check_belongs_to_agent_groups(self, telegram_user_id: int) -> List[TelegramGroup]:
-        groups = await self._storage.get_groups_by_role(TelegramGroupRole.AGENTS)
+    async def check_belongs_to_agent_chats(self, telegram_user_id: int) -> List[TelegramChat]:
+        chats = await self._storage.get_chats_by_role(TelegramChatRole.AGENTS)
         return [
-            group
-            for group in await flat_gather(
-                self.check_belongs_to_group(telegram_user_id, group) for group in groups
+            chat
+            for chat in await flat_gather(
+                self.check_belongs_to_group(telegram_user_id, group) for group in chats
             )
-            if group is not None
+            if chat is not None
         ]
 
     async def check_belongs_to_group(
-        self, telegram_user_id: int, group: TelegramGroup
-    ) -> Optional[TelegramGroup]:
+        self, telegram_user_id: int, group: TelegramChat
+    ) -> Optional[TelegramChat]:
         if self._manager_bot is None:
             return None
         try:
@@ -53,7 +53,7 @@ class TelegramHelper:
             return
         try:
             await self._manager_bot.delete_message(
-                chat_id=message.group.telegram_chat_id,
+                chat_id=message.chat.telegram_chat_id,
                 message_id=message.telegram_message_id,
             )
         except TelegramError:  # TODO more precise exception handling
