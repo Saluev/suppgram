@@ -3,6 +3,9 @@ aioconsole~=0.6.2
 aiosqlite~=0.19.0
 asyncpg~=0.29.0
 click~=8.1.7
+mkdocs~=1.5.3
+mkdocstrings~=0.24.0
+mkdocstrings-python~=1.7.5
 motor~=3.3.2
 mypy-extensions==1.0.0
 mypy==1.7.1

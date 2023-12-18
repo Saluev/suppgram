@@ -53,7 +53,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
         texts: TextsProvider,
     ):
         """
-        This constructor should not be used directly; use [Builder](suppgram.builder.Builder) instead.
+        This constructor should not be used directly; use [Builder][suppgram.builder.Builder] instead.
 
         Arguments:
             token: Telegram bot token.

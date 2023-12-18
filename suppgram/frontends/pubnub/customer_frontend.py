@@ -31,7 +31,7 @@ class PubNubCustomerFrontend(CustomerFrontend):
         pubnub_configuration: Configuration,  # user ID to send messages from is also in there
     ):
         """
-        This constructor should not be used directly; use [Builder](suppgram.builder.Builder) instead.
+        This constructor should not be used directly; use [Builder][suppgram.builder.Builder] instead.
 
         Arguments:
             backend: used backend instance.
@@ -45,16 +45,12 @@ class PubNubCustomerFrontend(CustomerFrontend):
         self._pubnub = pubnub_configuration.instantiate_async()
         self._pubnub.add_listener(_SubscribeCallback(backend, message_converter))
         self._pubnub_channel_group = pubnub_channel_group
-        backend.on_new_message_for_customer.add_handler(
-            self._handle_new_message_for_customer_event
-        )
+        backend.on_new_message_for_customer.add_handler(self._handle_new_message_for_customer_event)
 
     async def start(self):
         self._pubnub.subscribe().channel_groups([self._pubnub_channel_group]).execute()
 
-    async def _handle_new_message_for_customer_event(
-        self, event: NewMessageForCustomerEvent
-    ):
+    async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
         customer = event.customer
         if customer.pubnub_user_id is None or customer.pubnub_channel_id is None:
             return
@@ -84,9 +80,7 @@ class _SubscribeCallback(SubscribeCallback):
         if converted.kind != MessageKind.FROM_CUSTOMER:
             return
         identification = make_customer_identification(message)
-        conversation = await self._backend.identify_customer_conversation(
-            identification
-        )
+        conversation = await self._backend.identify_customer_conversation(identification)
         await self._backend.process_message(conversation, converted)
 
     def presence(self, pubnub: PubNub, presence: PNPresenceEventResult):

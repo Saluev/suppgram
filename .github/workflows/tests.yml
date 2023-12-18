@@ -24,6 +24,9 @@ jobs:
     - name: Analyse code with mypy
       run: |
         mypy suppgram
+    - name: Build docs
+      run: |
+        mkdocs build
     - name: Pull MongoDB
       run: |
         docker pull mongo:latest
