@@ -12,10 +12,11 @@ $ python -m pip install -r requirements.txt
 
 ## Running tests
 
-To run all tests, you'll need a running MongoDB instance. The easiest way to get
+To run all tests, you'll need running MongoDB and PostgreSQL instances. The easiest way to get
 one is by using Docker:
 ```shell
 $ docker run -p 27107:27017 -d mongo:latest
+$ docker run -p 5432:5432 -e POSTGRES_USER=suppgram -e POSTGRES_PASSWORD=test -e POSTGRES_DB=suppgram_test -d postgres:latest
 ```
 
 Then the tests can be run via `pytest`:

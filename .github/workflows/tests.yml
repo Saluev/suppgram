@@ -27,7 +27,11 @@ jobs:
     - name: Pull MongoDB
       run: |
         docker pull mongo:latest
+    - name: Pull PostgreSQL
+      run: |
+        docker pull postgres:latest
     - name: Run tests
       run: |
         docker run -p 27017:27017 -d mongo:latest
+        docker run -p 5432:5432 -e POSTGRES_USER=suppgram -e POSTGRES_PASSWORD=test -e POSTGRES_DB=suppgram_test -d postgres:latest
         PYTHONPATH=. pytest .

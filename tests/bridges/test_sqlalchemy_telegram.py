@@ -11,10 +11,10 @@ pytest_plugins = ("pytest_asyncio",)
 
 class TestSQLAlchemyTelegramBridge(TelegramStorageTestSuite):
     @pytest_asyncio.fixture(autouse=True)
-    async def _create_storage(self, sqlite_engine, sqlalchemy_storage):
+    async def _create_storage(self, sqlite_engine, sqlite_sqlalchemy_storage):
         # SQLAlchemyStorage implementation is needed for related tables to exist.
         self.telegram_storage = SQLAlchemyTelegramBridge(sqlite_engine)
-        self.storage = sqlalchemy_storage
+        self.storage = sqlite_sqlalchemy_storage
         await self.telegram_storage.initialize()
 
     @pytest.fixture(autouse=True)

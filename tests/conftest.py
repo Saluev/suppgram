@@ -8,8 +8,8 @@ import pytest
 import pytest_asyncio
 from motor.core import AgnosticClient, AgnosticDatabase
 from motor.motor_asyncio import AsyncIOMotorClient
-from sqlalchemy import event, Engine
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import event, Engine, text
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession
 
 from suppgram.storage import Storage
 from suppgram.storages.mongodb import MongoDBStorage, Collections
@@ -18,13 +18,17 @@ from suppgram.storages.sqlalchemy import SQLAlchemyStorage, Models
 pytest_plugins = ("pytest_asyncio",)
 
 
+enable_sqlite_foreign_keys = False
+
+
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     # Without this, SQLite will allow violating foreign key
     # constraints and certain tests will fail.
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+    if enable_sqlite_foreign_keys:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 @pytest.fixture(scope="session")
@@ -34,10 +38,53 @@ def sqlite_engine() -> Generator[AsyncEngine, None, None]:
         yield create_async_engine(f"sqlite+aiosqlite:///{filename}", echo=True)
 
 
-@pytest.fixture(scope="session")
-def sqlalchemy_storage(sqlite_engine: AsyncEngine) -> Storage:
+@pytest.fixture
+def sqlite_sqlalchemy_storage(sqlite_engine: AsyncEngine) -> Storage:
+    global enable_sqlite_foreign_keys
     storage = SQLAlchemyStorage(sqlite_engine, Models(sqlite_engine))
     asyncio.run(storage.initialize())
+    enable_sqlite_foreign_keys = True
+    yield storage
+    enable_sqlite_foreign_keys = False
+
+
+async def _clean_postgresql_storage():
+    engine = create_async_engine(
+        f"postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
+    )
+    async with AsyncSession(bind=engine) as session, session.begin():
+        await session.execute(
+            text(
+                """
+                TRUNCATE TABLE
+                    suppgram_customers,
+                    suppgram_agents,
+                    suppgram_workplaces,
+                    suppgram_conversations,
+                    suppgram_conversation_messages,
+                    suppgram_conversation_tags,
+                    suppgram_conversation_tag_associations
+                """
+            )
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clean_postgresql_storage():
+    asyncio.ensure_future(_clean_postgresql_storage())
+
+
+@pytest.fixture
+def postgresql_engine() -> AsyncEngine:
+    return create_async_engine(
+        f"postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
+    )
+
+
+@pytest_asyncio.fixture
+async def postgresql_sqlalchemy_storage(postgresql_engine: AsyncEngine) -> Storage:
+    storage = SQLAlchemyStorage(postgresql_engine, Models(postgresql_engine))
+    await storage.initialize()
     return storage
 
 
