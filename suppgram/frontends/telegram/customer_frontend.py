@@ -129,7 +129,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
 
     async def _handle_unsupported_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.message, "message update should have `message`"
-        assert update.effective_user, "message update should have `effective_user`"
+        assert update.effective_chat, "message update should have `effective_chat`"
         print(update.message)
         await self._telegram_bot.send_message(
             chat_id=update.effective_chat.id,
