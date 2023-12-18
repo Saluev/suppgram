@@ -6,6 +6,7 @@ from typing import Generator, cast, Callable
 
 import pytest
 import pytest_asyncio
+from asyncpg import UndefinedTableError
 from motor.core import AgnosticClient, AgnosticDatabase
 from motor.motor_asyncio import AsyncIOMotorClient
 from sqlalchemy import event, Engine, text
@@ -52,21 +53,23 @@ async def _clean_postgresql_storage():
     engine = create_async_engine(
         f"postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
     )
-    async with AsyncSession(bind=engine) as session, session.begin():
-        await session.execute(
-            text(
-                """
-                TRUNCATE TABLE
-                    suppgram_customers,
-                    suppgram_agents,
-                    suppgram_workplaces,
-                    suppgram_conversations,
-                    suppgram_conversation_messages,
-                    suppgram_conversation_tags,
-                    suppgram_conversation_tag_associations
-                """
-            )
-        )
+    truncate_query = text(
+        """
+        TRUNCATE TABLE
+            suppgram_customers,
+            suppgram_agents,
+            suppgram_workplaces,
+            suppgram_conversations,
+            suppgram_conversation_messages,
+            suppgram_conversation_tags,
+            suppgram_conversation_tag_associations
+        """
+    )
+    try:
+        async with AsyncSession(bind=engine) as session, session.begin():
+            await session.execute(truncate_query)
+    except UndefinedTableError:
+        pass
 
 
 @pytest.fixture(scope="session", autouse=True)
