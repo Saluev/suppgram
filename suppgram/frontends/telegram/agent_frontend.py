@@ -144,8 +144,8 @@ class TelegramAgentFrontend(AgentFrontend):
             )
             if not should_create:
                 await context.bot.send_message(
-                    update.effective_chat.id,
-                    self._texts.telegram_manager_permission_denied_message,
+                    chat_id=update.effective_chat.id,
+                    text=self._texts.telegram_manager_permission_denied_message,
                 )
                 return
             agent_identification = workplace_identification.to_agent_identification()
@@ -166,7 +166,9 @@ class TelegramAgentFrontend(AgentFrontend):
         workplace_identification: WorkplaceIdentification,
         context: ContextTypes.DEFAULT_TYPE,
     ):
-        await context.bot.send_message(effective_chat.id, self._texts.telegram_agent_start_message)
+        await context.bot.send_message(
+            chat_id=effective_chat.id, text=self._texts.telegram_agent_start_message
+        )
 
         try:
             conversation = await self._backend.identify_agent_conversation(workplace_identification)
@@ -408,6 +410,7 @@ class TelegramAgentFrontend(AgentFrontend):
             chat,
             message.message_id,
             TelegramMessageKind.NUDGE_TO_START_BOT_NOTIFICATION,
+            agent_id=workplace.agent.id,
             telegram_bot_username=bot_username,
         )
 

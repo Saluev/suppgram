@@ -68,7 +68,7 @@ class TelegramStorage(abc.ABC):
         """Create or update Telegram chat by Telegram chat ID."""
 
     @abc.abstractmethod
-    async def add_chat_roles(self, telegram_chat_id: int, *roles: TelegramChatRole):
+    async def add_chat_roles(self, telegram_chat_id: int, *roles: TelegramChatRole) -> object:
         """Assign roles to a Telegram chat."""
 
     @abc.abstractmethod

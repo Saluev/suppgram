@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
-from telegram import MessageEntity, InlineKeyboardMarkup, Sticker
+from telegram import InlineKeyboardMarkup, Sticker
 
 from suppgram.entities import (
     CustomerIdentification,
@@ -16,12 +16,8 @@ pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.mark.asyncio
-async def test_customer_start(storage, customer_telegram_update, send_message_mock):
-    update = await customer_telegram_update(
-        from_customer=True,
-        text="/start",
-        entities=[MessageEntity(type=MessageEntity.BOT_COMMAND, offset=0, length=len("/start"))],
-    )
+async def test_customer_start(storage, telegram_update, send_message_mock):
+    update = await telegram_update(from_customer=True, text="/start")
     send_message_mock.assert_called_once_with(
         chat_id=update.effective_chat.id,
         text="👋 Welcome to support service! Please describe your problem.",
@@ -29,10 +25,8 @@ async def test_customer_start(storage, customer_telegram_update, send_message_mo
 
 
 @pytest.mark.asyncio
-async def test_customer_unsupported_message_kind(
-    storage, customer_telegram_update, send_message_mock
-):
-    update = await customer_telegram_update(
+async def test_customer_unsupported_message_kind(storage, telegram_update, send_message_mock):
+    update = await telegram_update(
         from_customer=True,
         sticker=Sticker(
             file_id="CAACAgQAAxkBAAIG-mWAv3L-CcgEs86whsGGTybEjjD6AAJ2AAMv3_gJdvG_3FZCYjgzBA",
@@ -53,8 +47,8 @@ async def test_customer_unsupported_message_kind(
 
 
 @pytest.mark.asyncio
-async def test_customer_text_message(storage, customer_telegram_update):
-    update = await customer_telegram_update(from_customer=True, text="Hello there!")
+async def test_customer_text_message(storage, telegram_update):
+    update = await telegram_update(from_customer=True, text="Hello there!")
 
     customer = await storage.create_or_update_customer(
         CustomerIdentification(telegram_user_id=update.effective_user.id)
@@ -98,12 +92,12 @@ async def test_agent_text_message(
 @pytest.mark.asyncio
 async def test_customer_conversation_resolution(
     backend,
-    customer_telegram_update,
+    telegram_update,
     customer_conversation,
     send_message_mock,
     edit_message_text_mock,
 ):
-    placeholder = (await customer_telegram_update(from_bot=True, text="whatever")).message
+    placeholder = (await telegram_update(to_customer=True, text="whatever")).message
     send_message_mock.return_value = placeholder
 
     message = Message(kind=MessageKind.RESOLVED, time_utc=datetime.now(timezone.utc))
@@ -137,7 +131,7 @@ async def test_customer_conversation_resolution(
     edit_message_text_mock.reset_mock()
 
     callback_data = buttons[2].callback_data
-    await customer_telegram_update(
+    await telegram_update(
         from_customer=True,
         callback_message=placeholder,
         callback_data=callback_data,

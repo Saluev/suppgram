@@ -51,7 +51,7 @@ def sqlite_sqlalchemy_storage(sqlite_engine: AsyncEngine) -> Generator[Storage, 
 
 async def _clean_postgresql_storage():
     engine = create_async_engine(
-        f"postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
+        "postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
     )
     for truncate_query in [
         text(
@@ -86,7 +86,7 @@ def clean_postgresql_storage():
 @pytest.fixture
 def postgresql_engine() -> AsyncEngine:
     return create_async_engine(
-        f"postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
+        "postgresql+asyncpg://suppgram:test@localhost:5432/suppgram_test", echo=True
     )
 
 
