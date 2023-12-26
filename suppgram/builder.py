@@ -54,7 +54,7 @@ class Builder:
         self._agent_frontends: List[AgentFrontend] = []
         self._telegram_agent_bot_tokens: List[str] = []
 
-    def build(self):
+    def build(self) -> "Builder":
         """Instantiate all configured components and raise exception if misconfigured."""
         self._build_backend()
         self._build_manager_frontend()
@@ -69,6 +69,8 @@ class Builder:
             and isinstance(self._backend, LocalBackend)
         ):
             raise NoFrontendSpecified()
+
+        return self
 
     async def start(self):
         """Start all configured components."""
@@ -218,7 +220,8 @@ class Builder:
         Configure Telegram agent frontend.
 
         Arguments:
-            telegram_agent_bot_tokens: list Telegram bot tokens for agent bots. More tokens — more simultaneous chats with customers per agent
+            telegram_agent_bot_tokens: list of Telegram bot tokens for agent bots. More tokens —
+                                       more simultaneous chats with customers per agent
         """
         self._telegram_agent_bot_tokens = telegram_agent_bot_tokens
         return self

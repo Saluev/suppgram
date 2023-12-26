@@ -6,7 +6,7 @@ You will need:
 
 1. At least three Telegram bots. **Manager bot** will be used to manage the system, **Customer bot** will
    face customers, and **Agent bot** will be used by agents to chat 
-   with the customers (you may call it "Chat with customer").
+   with the customers (you may name it "Chat with customer").
    <br/><br/>Create them via [BotFather](https://t.me/BotFather) and write down corresponding secret tokens.<br/> 
 2. Telegram group where the agents will be notified about new conversations with customers. We will further refer
    to it as **Agent group**.

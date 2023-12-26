@@ -1,6 +1,8 @@
+.env
 .mypy_cache
 .ruff_cache
 .venv*
 **/__pycache__
 dist
+site
 *.egg-info
