@@ -53,7 +53,7 @@ class EnglishTextProvider(TextProvider):
         "I will now send notifications about new conversations to this group."
     )
 
-    telegram_create_tag_command_description = "Create new tag to label conversations with"
+    telegram_create_tag_command_description = "Create new tag to label conversations with."
     telegram_create_tag_permission_denied_message = (
         "🚫 You don't have permission to create new tags."
     )
@@ -68,7 +68,7 @@ class EnglishTextProvider(TextProvider):
         "🚫 You don't have permission to access support agent functionality."
     )
     telegram_workplace_is_not_assigned_message = (
-        "📭 This chat is not assigned to any ongoing " "conversation with a customer right now."
+        "📭 This chat is not assigned to any ongoing conversation with a customer right now."
     )
     telegram_resolve_command_description = (
         "Mark conversation resolved and stop messaging with the customer."
@@ -77,7 +77,7 @@ class EnglishTextProvider(TextProvider):
         "Return the conversation to NEW status and stop messaging with the customer."
     )
     telegram_agent_conversation_resolved_message = (
-        "✅ Conversation was marked as resolved. " "This chat is no longer assigned to a customer."
+        "✅ Conversation was marked as resolved. This chat is no longer assigned to a customer."
     )
     telegram_new_conversation_notification_placeholder = "❗️ New conversation!"
 

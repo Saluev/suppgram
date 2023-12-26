@@ -12,9 +12,16 @@ Suppgram encapsulates all text generation in [TextProvider][suppgram.texts.TextP
 It has a lot of members, see [source code](https://github.com/Saluev/suppgram/blob/master/suppgram/texts/interface.py)
 for details.
 
-Suppgram also provides out-of-the-box text pack for English language.
+Suppgram also provides out-of-the-box text pack for English and Russian languages.
 
 ::: suppgram.texts.en.EnglishTextProvider
+    handler: python
+    options:
+      show_root_heading: true
+      show_source: false
+      heading_level: 2
+
+::: suppgram.texts.ru.RussianTextProvider
     handler: python
     options:
       show_root_heading: true
