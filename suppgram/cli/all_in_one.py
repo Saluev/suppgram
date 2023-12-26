@@ -40,7 +40,7 @@ from suppgram.logging import ConfidentialStreamHandler
 @click.option(
     "--texts",
     "texts_class_path",
-    default="suppgram.texts.en.EnglishTextsProvider",
+    default="suppgram.texts.en.EnglishTextProvider",
     show_default=True,
     help="Class with texts",
 )

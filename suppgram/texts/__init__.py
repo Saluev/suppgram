@@ -1,1 +1,1 @@
-from .interface import TextsProvider  # noqa
+from .interface import TextProvider  # noqa

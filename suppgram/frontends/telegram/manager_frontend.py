@@ -54,7 +54,7 @@ from suppgram.frontends.telegram.storage import (
     TelegramMessage,
 )
 from suppgram.helpers import flat_gather
-from suppgram.texts.interface import TextsProvider
+from suppgram.texts.interface import TextProvider
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         backend: Backend,
         helper: TelegramHelper,
         storage: TelegramStorage,
-        texts: TextsProvider,
+        texts: TextProvider,
     ):
         self._backend = backend
         self._helper = helper

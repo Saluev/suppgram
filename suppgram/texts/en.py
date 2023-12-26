@@ -6,12 +6,12 @@ from suppgram.entities import (
     MessageKind,
     Agent,
 )
-from suppgram.texts.interface import TextsProvider, Text, Format
+from suppgram.texts.interface import TextProvider, Text, Format
 
 logger = logging.getLogger(__name__)
 
 
-class EnglishTextsProvider(TextsProvider):
+class EnglishTextProvider(TextProvider):
     telegram_customer_unsupported_message_content = (
         "😞 Sorry, this kind of content is not supported right now. "
         "Support agent will not see this message."

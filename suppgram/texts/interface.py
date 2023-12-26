@@ -50,7 +50,7 @@ class Text:
         return self.format.convert_to_parse_mode()
 
 
-class TextsProvider:
+class TextProvider:
     """Provides static texts and functions to compose dynamic texts where necessary."""
 
     telegram_customer_unsupported_message_content: str

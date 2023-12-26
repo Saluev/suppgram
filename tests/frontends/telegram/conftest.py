@@ -34,7 +34,7 @@ from suppgram.frontends.telegram.storage import TelegramChat, TelegramChatRole
 from suppgram.frontends.telegram.workplace_manager import TelegramWorkplaceManager
 from suppgram.storage import Storage
 from suppgram.storages.inmemory import InMemoryStorage
-from suppgram.texts.en import EnglishTextsProvider
+from suppgram.texts.en import EnglishTextProvider
 
 
 @pytest.fixture
@@ -164,7 +164,7 @@ async def customer_frontend(
         app_manager=app_manager,
         backend=backend,
         storage=telegram_storage,
-        texts=EnglishTextsProvider(),
+        texts=EnglishTextProvider(),
     )
     await frontend.initialize()
     return frontend
@@ -187,7 +187,7 @@ async def agent_frontend(
         backend=backend,
         helper=telegram_helper,
         storage=telegram_storage,
-        texts=EnglishTextsProvider(),
+        texts=EnglishTextProvider(),
     )
     await frontend.initialize()
     return frontend

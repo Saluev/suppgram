@@ -9,8 +9,8 @@ from suppgram.errors import NoStorageSpecified, NoFrontendSpecified
 from suppgram.frontend import ManagerFrontend, CustomerFrontend, AgentFrontend
 from suppgram.helpers import flat_gather
 from suppgram.storage import Storage
-from suppgram.texts.en import EnglishTextsProvider
-from suppgram.texts.interface import TextsProvider
+from suppgram.texts.en import EnglishTextProvider
+from suppgram.texts.interface import TextProvider
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class Builder:
         self._mongodb_client: Optional[Any] = None
         self._mongodb_database: Optional[Any] = None
 
-        self._texts: Optional[TextsProvider] = None
+        self._texts: Optional[TextProvider] = None
 
         # Helper classes, including implementation-specific:
         self._telegram_app_manager: Optional[Any] = None
@@ -133,8 +133,8 @@ class Builder:
         self._storage = MongoDBStorage(collections=mongodb_collections)
         return self
 
-    def with_texts(self, texts: TextsProvider) -> "Builder":
-        """Configure arbitrary [TextsProvider][suppgram.texts.TextsProvider] instance."""
+    def with_texts(self, texts: TextProvider) -> "Builder":
+        """Configure arbitrary [TextProvider][suppgram.texts.TextProvider] instance."""
         if self._texts is not None:
             raise ValueError(
                 f"can't use {type(texts).__name__} — already instantiated {type(self._texts).__name__}"
@@ -144,7 +144,7 @@ class Builder:
         return self
 
     def with_texts_class_path(self, texts_class_path: str) -> "Builder":
-        """Create [TextsProvider][suppgram.texts.TextsProvider] instance of given class.
+        """Create [TextProvider][suppgram.texts.TextProvider] instance of given class.
 
         Assumes that its `__init__` method doesn't require any arguments."""
         if self._texts is not None:
@@ -231,9 +231,9 @@ class Builder:
             raise NoStorageSpecified()
         return self._storage
 
-    def _build_texts(self) -> TextsProvider:
+    def _build_texts(self) -> TextProvider:
         if self._texts is None:
-            self._texts = EnglishTextsProvider()
+            self._texts = EnglishTextProvider()
         return self._texts
 
     def _build_telegram_app_manager(self) -> Any:

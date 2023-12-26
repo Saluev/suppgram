@@ -23,7 +23,7 @@ Options:
                                   will connect to the default database
                                   specified in the URI
   --texts TEXT                    Class with texts  [default:
-                                  suppgram.texts.en.EnglishTextsProvider]
+                                  suppgram.texts.en.EnglishTextProvider]
   --telegram-customer-bot-token-file FILE
                                   Path to file storing token for Telegram bot
                                   serving customers. Alternatively,

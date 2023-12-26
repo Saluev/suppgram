@@ -12,7 +12,7 @@ from suppgram.entities import (
     Message,
 )
 from suppgram.frontend import CustomerFrontend
-from suppgram.texts.interface import TextsProvider
+from suppgram.texts.interface import TextProvider
 
 
 class ShellCustomerFrontend(CustomerFrontend):
@@ -22,7 +22,7 @@ class ShellCustomerFrontend(CustomerFrontend):
     Useful for debug purposes.
     """
 
-    def __init__(self, backend: Backend, texts: TextsProvider):
+    def __init__(self, backend: Backend, texts: TextProvider):
         """
         Arguments:
             backend: used backend instance.
@@ -32,9 +32,7 @@ class ShellCustomerFrontend(CustomerFrontend):
         self._backend = backend
         self._texts = texts
 
-        backend.on_new_message_for_customer.add_handler(
-            self._handle_new_message_for_customer_event
-        )
+        backend.on_new_message_for_customer.add_handler(self._handle_new_message_for_customer_event)
 
     async def start(self):
         asyncio.create_task(self._run())
@@ -55,9 +53,7 @@ class ShellCustomerFrontend(CustomerFrontend):
                 ),
             )
 
-    async def _handle_new_message_for_customer_event(
-        self, event: NewMessageForCustomerEvent
-    ):
+    async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
         text = event.message.text
         if event.message.kind == MessageKind.RESOLVED:
             text = self._texts.telegram_customer_conversation_resolved_message

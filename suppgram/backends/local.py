@@ -29,8 +29,8 @@ from suppgram.errors import PermissionDenied, AgentDeactivated
 from suppgram.helpers import flat_gather
 from suppgram.observer import LocalObservable
 from suppgram.storage import Storage
-from suppgram.texts.en import EnglishTextsProvider
-from suppgram.texts.interface import TextsProvider
+from suppgram.texts.en import EnglishTextProvider
+from suppgram.texts.interface import TextProvider
 
 
 class LocalBackend(BackendInterface):
@@ -38,7 +38,7 @@ class LocalBackend(BackendInterface):
         self,
         storage: Storage,
         workplace_managers: List[WorkplaceManager],
-        texts: TextsProvider = EnglishTextsProvider(),
+        texts: TextProvider = EnglishTextProvider(),
     ):
         self._storage = storage
         self._workplace_managers = workplace_managers

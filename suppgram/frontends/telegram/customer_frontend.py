@@ -30,7 +30,7 @@ from suppgram.frontends.telegram.identification import (
     make_customer_diff,
 )
 from suppgram.frontends.telegram.storage import TelegramStorage, TelegramMessageKind
-from suppgram.texts.interface import TextsProvider
+from suppgram.texts.interface import TextProvider
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
         app_manager: TelegramAppManager,
         backend: Backend,
         storage: TelegramStorage,
-        texts: TextsProvider,
+        texts: TextProvider,
     ):
         """
         This constructor should not be used directly; use [Builder][suppgram.builder.Builder] instead.
