@@ -40,6 +40,14 @@ def is_blocked_by_user(exc: TelegramError) -> bool:
     return "bot was blocked by the user" in str(exc)
 
 
+def encode_callback_data(doc: Any) -> str:
+    return json.dumps(doc, separators=(",", ":"))
+
+
+def decode_callback_data(data: str) -> Any:
+    return json.loads(data)
+
+
 def paginate_texts(
     prefix: str,
     texts: Iterable[str],
@@ -113,13 +121,12 @@ def _make_pagination_button(
 ) -> InlineKeyboardButton:
     return InlineKeyboardButton(
         text=text,
-        callback_data=json.dumps(
+        callback_data=encode_callback_data(
             {
                 "a": CallbackActionKind.PAGE,
                 "c": message.chat.telegram_chat_id,
                 "m": message.telegram_message_id,
                 "p": page_idx,
             },
-            separators=(",", ":"),
         ),
     )

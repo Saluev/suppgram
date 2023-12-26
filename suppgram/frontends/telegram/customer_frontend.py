@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import cast, List
 
@@ -25,6 +24,7 @@ from suppgram.frontend import (
 )
 from suppgram.frontends.telegram.app_manager import TelegramAppManager
 from suppgram.frontends.telegram.callback_actions import CallbackActionKind
+from suppgram.frontends.telegram.helpers import encode_callback_data, decode_callback_data
 from suppgram.frontends.telegram.identification import (
     make_customer_identification,
     make_customer_diff,
@@ -103,11 +103,18 @@ class TelegramCustomerFrontend(CustomerFrontend):
         if not update.callback_query.data:
             # No idea how to handle this update.
             return
-        callback_data = json.loads(update.callback_query.data)
+        callback_data = decode_callback_data(update.callback_query.data)
         action = callback_data["a"]
-        conversation = await self._backend.get_conversation(callback_data["c"])
+        conversation = await self._backend.identify_customer_conversation(
+            make_customer_identification(update.effective_user)
+        )
+        conversation_to_rate = await self._backend.get_conversation(callback_data["c"])
         if action == CallbackActionKind.RATE:
-            await self._backend.rate_conversation(conversation, callback_data["r"])
+            if conversation.customer.id != conversation_to_rate.customer.id:
+                # Can't rate another person's conversation!
+                # Probably someone's playing with the callback query payloads.
+                return
+            await self._backend.rate_conversation(conversation_to_rate, callback_data["r"])
         else:
             logger.info(f"Customer frontend received unsupported callback action {action!r}")
 
@@ -206,8 +213,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
     def _make_rate_button(self, conversation: Conversation, rating: int) -> InlineKeyboardButton:
         return InlineKeyboardButton(
             text=self._texts.format_rating(rating),
-            callback_data=json.dumps(
-                {"a": CallbackActionKind.RATE, "c": conversation.id, "r": rating},
-                separators=(",", ":"),
-            ),  # TODO encrypt
+            callback_data=encode_callback_data(
+                {"a": CallbackActionKind.RATE, "c": conversation.id, "r": rating}
+            ),
         )

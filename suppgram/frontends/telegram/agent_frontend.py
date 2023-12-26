@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from itertools import groupby
 from typing import List, Iterable, Optional, Callable, Awaitable, Mapping
@@ -46,6 +45,7 @@ from suppgram.frontends.telegram.helpers import (
     is_blocked_by_user,
     make_pagination_keyboard,
     paginate_texts,
+    decode_callback_data,
 )
 from suppgram.frontends.telegram.identification import (
     make_agent_identification,
@@ -284,7 +284,7 @@ class TelegramAgentFrontend(AgentFrontend):
             return
 
         agent = await self._backend.identify_agent(make_agent_identification(update.effective_user))
-        callback_data = json.loads(update.callback_query.data)
+        callback_data = decode_callback_data(update.callback_query.data)
         action = callback_data.get("a")
         if action is None:
             return

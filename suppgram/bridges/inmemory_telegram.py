@@ -102,7 +102,6 @@ class InMemoryTelegramStorage(TelegramStorage):
         ]
 
     async def delete_messages(self, messages: List[TelegramMessage]):
-        print(messages, self.messages)
         message_ids = {m.id for m in messages}
         self.messages = [m for m in self.messages if m.id not in message_ids]
 

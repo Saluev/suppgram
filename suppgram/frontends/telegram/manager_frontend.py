@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from typing import Optional, Any, List
 
@@ -42,6 +41,8 @@ from suppgram.frontends.telegram.helper import TelegramHelper
 from suppgram.frontends.telegram.helpers import (
     send_text_answer,
     arrange_buttons,
+    encode_callback_data,
+    decode_callback_data,
 )
 from suppgram.frontends.telegram.identification import (
     make_agent_identification,
@@ -118,6 +119,9 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def initialize(self):
         await super().initialize()
         await self._telegram_app.initialize()
+        await self._set_commands()
+
+    async def _set_commands(self):
         await self._telegram_bot.set_my_commands(
             [
                 BotCommand(
@@ -274,48 +278,28 @@ class TelegramManagerFrontend(ManagerFrontend):
         all_tags: List[ConversationTag],
         keyboard_only: bool = False,
     ):
-        assign_to_me_button = InlineKeyboardButton(
-            self._texts.telegram_assign_to_me_button_text,
-            callback_data=json.dumps(
-                {
-                    "a": CallbackActionKind.ASSIGN_TO_ME,
-                    "c": conversation.id,
-                },
-                separators=(",", ":"),
-            ),
-        )
         present_tag_ids = {tag.id for tag in conversation.tags}
 
+        assign_buttons = (
+            [[self._make_assign_to_me_button(conversation)]]
+            if conversation.state == ConversationState.NEW
+            else []
+        )
         tag_buttons = [
-            InlineKeyboardButton(
-                self._texts.compose_remove_tag_button_text(tag)
-                if tag.id in present_tag_ids
-                else self._texts.compose_add_tag_button_text(tag),
-                callback_data=json.dumps(
-                    {
-                        "a": CallbackActionKind.REMOVE_CONVERSATION_TAG
-                        if tag.id in present_tag_ids
-                        else CallbackActionKind.ADD_CONVERSATION_TAG,
-                        "c": conversation.id,
-                        "t": tag.id,
-                    },
-                    separators=(",", ":"),
-                ),
-            )
+            self._make_remove_tag_button(conversation, tag)
+            if tag.id in present_tag_ids
+            else self._make_add_tag_button(conversation, tag)
             for tag in all_tags
         ]
-
-        inline_buttons = (
-            [[assign_to_me_button]] if conversation.state == ConversationState.NEW else []
-        )
-        inline_buttons.extend(arrange_buttons(tag_buttons))
+        inline_buttons = [*assign_buttons, *arrange_buttons(tag_buttons)]
+        inline_keyboard = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
 
         if keyboard_only:
             try:
                 await self._telegram_bot.edit_message_reply_markup(
                     message.chat.telegram_chat_id,
                     message.telegram_message_id,
-                    reply_markup=InlineKeyboardMarkup(inline_buttons) if inline_buttons else None,
+                    reply_markup=inline_keyboard,
                 )
                 return
             except BadRequest as exc:
@@ -329,11 +313,39 @@ class TelegramManagerFrontend(ManagerFrontend):
                 message.chat.telegram_chat_id,
                 message.telegram_message_id,
                 parse_mode=text.parse_mode,
-                reply_markup=InlineKeyboardMarkup(inline_buttons) if inline_buttons else None,
+                reply_markup=inline_keyboard,
             )
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 raise
+
+    def _make_assign_to_me_button(self, conversation: Conversation) -> InlineKeyboardButton:
+        return InlineKeyboardButton(
+            self._texts.telegram_assign_to_me_button_text,
+            callback_data=encode_callback_data(
+                {"a": CallbackActionKind.ASSIGN_TO_ME, "c": conversation.id}
+            ),
+        )
+
+    def _make_add_tag_button(
+        self, conversation: Conversation, tag: ConversationTag
+    ) -> InlineKeyboardButton:
+        return InlineKeyboardButton(
+            text=self._texts.compose_add_tag_button_text(tag),
+            callback_data=encode_callback_data(
+                {"a": CallbackActionKind.ADD_CONVERSATION_TAG, "c": conversation.id, "t": tag.id}
+            ),
+        )
+
+    def _make_remove_tag_button(
+        self, conversation: Conversation, tag: ConversationTag
+    ) -> InlineKeyboardButton:
+        return InlineKeyboardButton(
+            text=self._texts.compose_remove_tag_button_text(tag),
+            callback_data=encode_callback_data(
+                {"a": CallbackActionKind.REMOVE_CONVERSATION_TAG, "c": conversation.id, "t": tag.id}
+            ),
+        )
 
     async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert (
@@ -386,7 +398,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             # No idea how to handle this update.
             return
         await self._create_or_update_agent(update.effective_chat, update.effective_user)
-        callback_data = json.loads(update.callback_query.data)
+        callback_data = decode_callback_data(update.callback_query.data)
         action = callback_data["a"]
         if action == CallbackActionKind.ASSIGN_TO_ME:
             conversation_id = callback_data["c"]
