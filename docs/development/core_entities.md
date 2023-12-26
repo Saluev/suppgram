@@ -107,7 +107,7 @@ implementing your own Suppgram frontend, you may need to extend these classes wi
       show_if_no_docstring: true
       heading_level: 3
 
-::: suppgram.entities.ConversationTag
+::: suppgram.entities.Tag
     handler: python
     options:
       show_root_heading: true

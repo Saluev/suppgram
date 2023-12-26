@@ -27,7 +27,7 @@ from suppgram.entities import (
     NewUnassignedMessageFromCustomerEvent,
     ConversationEvent,
     ConversationState,
-    ConversationTag,
+    Tag,
     ConversationTagEvent,
     TagEvent,
 )
@@ -185,7 +185,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         self,
         group: TelegramChat,
         conversation: Conversation,
-        all_tags: List[ConversationTag],
+        all_tags: List[Tag],
     ):
         message = await self._send_placeholder_message(
             group,
@@ -275,7 +275,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         self,
         message: TelegramMessage,
         conversation: Conversation,
-        all_tags: List[ConversationTag],
+        all_tags: List[Tag],
         keyboard_only: bool = False,
     ):
         present_tag_ids = {tag.id for tag in conversation.tags}
@@ -327,9 +327,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             ),
         )
 
-    def _make_add_tag_button(
-        self, conversation: Conversation, tag: ConversationTag
-    ) -> InlineKeyboardButton:
+    def _make_add_tag_button(self, conversation: Conversation, tag: Tag) -> InlineKeyboardButton:
         return InlineKeyboardButton(
             text=self._texts.compose_add_tag_button_text(tag),
             callback_data=encode_callback_data(
@@ -337,9 +335,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             ),
         )
 
-    def _make_remove_tag_button(
-        self, conversation: Conversation, tag: ConversationTag
-    ) -> InlineKeyboardButton:
+    def _make_remove_tag_button(self, conversation: Conversation, tag: Tag) -> InlineKeyboardButton:
         return InlineKeyboardButton(
             text=self._texts.compose_remove_tag_button_text(tag),
             callback_data=encode_callback_data(

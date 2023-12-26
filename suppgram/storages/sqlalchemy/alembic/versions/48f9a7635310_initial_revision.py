@@ -1,8 +1,8 @@
 """Initial revision
 
-Revision ID: 78877fb69405
+Revision ID: 48f9a7635310
 Revises: 
-Create Date: 2023-12-27 00:06:23.214873
+Create Date: 2023-12-27 01:35:29.099926
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "78877fb69405"
+revision = "48f9a7635310"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -50,7 +50,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("telegram_chat_id"),
     )
     op.create_table(
-        "suppgram_conversation_tags",
+        "suppgram_tags",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("created_at_utc", sa.DateTime(timezone=True), nullable=False),
@@ -114,16 +114,16 @@ def upgrade() -> None:
     op.create_table(
         "suppgram_conversation_tag_associations",
         sa.Column("conversation_id", sa.Integer(), nullable=False),
-        sa.Column("conversation_tag_id", sa.Integer(), nullable=False),
+        sa.Column("tag_id", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
             ["conversation_id"],
             ["suppgram_conversations.id"],
         ),
         sa.ForeignKeyConstraint(
-            ["conversation_tag_id"],
-            ["suppgram_conversation_tags.id"],
+            ["tag_id"],
+            ["suppgram_tags.id"],
         ),
-        sa.PrimaryKeyConstraint("conversation_id", "conversation_tag_id"),
+        sa.PrimaryKeyConstraint("conversation_id", "tag_id"),
     )
     op.create_table(
         "suppgram_telegram_messages",
@@ -174,7 +174,7 @@ def downgrade() -> None:
     op.drop_table("suppgram_conversation_messages")
     op.drop_table("suppgram_conversations")
     op.drop_table("suppgram_workplaces")
-    op.drop_table("suppgram_conversation_tags")
+    op.drop_table("suppgram_tags")
     op.drop_table("suppgram_telegram_chats")
     op.drop_table("suppgram_customers")
     op.drop_table("suppgram_agents")

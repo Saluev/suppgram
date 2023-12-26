@@ -35,7 +35,7 @@ from suppgram.entities import (
     WorkplaceIdentification,
     Workplace as WorkplaceInterface,
     Message as ConversaionMessageInterface,
-    ConversationTag as ConversationTagInterface,
+    Tag as TagInterface,
     Conversation as ConversationInterface,
     CustomerDiff,
     AgentDiff,
@@ -72,9 +72,9 @@ class Agent(Base):
     telegram_last_name: Mapped[str] = mapped_column(String, nullable=True)
     telegram_username: Mapped[str] = mapped_column(String, nullable=True)
     workplaces: Mapped[List["Workplace"]] = relationship(back_populates="agent")
-    created_conversation_tags: Mapped[List["ConversationTag"]] = relationship(
+    created_tags: Mapped[List["Tag"]] = relationship(
         back_populates="created_by"
-    )  # `created_conversation_tags` is not really needed, but without it mypy terminates with an exception...
+    )  # `created_tags` is not really needed, but without it mypy terminates with an exception...
 
 
 class Workplace(Base):
@@ -86,13 +86,13 @@ class Workplace(Base):
     conversations: Mapped[List["Conversation"]] = relationship(back_populates="assigned_workplace")
 
 
-class ConversationTag(Base):
-    __tablename__ = "suppgram_conversation_tags"
+class Tag(Base):
+    __tablename__ = "suppgram_tags"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=False)
-    created_by: Mapped[Agent] = relationship(back_populates="created_conversation_tags")
+    created_by: Mapped[Agent] = relationship(back_populates="created_tags")
     # `back_populates` is not really needed, but without it mypy terminates with an exception...
 
 
@@ -100,11 +100,7 @@ association_table = Table(
     "suppgram_conversation_tag_associations",
     Base.metadata,
     Column("conversation_id", ForeignKey("suppgram_conversations.id"), primary_key=True),
-    Column(
-        "conversation_tag_id",
-        ForeignKey("suppgram_conversation_tags.id"),
-        primary_key=True,
-    ),
+    Column("tag_id", ForeignKey("suppgram_tags.id"), primary_key=True),
 )
 
 
@@ -113,7 +109,7 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id), nullable=False)
     customer: Mapped[Customer] = relationship(back_populates="conversations")
-    tags: Mapped[List[ConversationTag]] = relationship(secondary=association_table)
+    tags: Mapped[List[Tag]] = relationship(secondary=association_table)
     assigned_workplace_id: Mapped[int] = mapped_column(ForeignKey(Workplace.id), nullable=True)
     assigned_workplace: Mapped[Workplace] = relationship(back_populates="conversations")
     state: Mapped[ConversationState] = mapped_column(Enum(ConversationState), nullable=False)
@@ -144,7 +140,7 @@ class Models:
         workplace_model: Any = Workplace,
         conversation_model: Any = Conversation,
         conversation_message_model: Any = ConversationMessage,
-        conversation_tag_model: Any = ConversationTag,
+        tag_model: Any = Tag,
         conversation_tag_association_table: Optional[Table] = association_table,
     ):
         """
@@ -155,7 +151,7 @@ class Models:
             workplace_model: SQLAlchemy model for workplaces
             conversation_model: SQLAlchemy model for conversations
             conversation_message_model: SQLAlchemy model for messages
-            conversation_tag_model: SQLAlchemy model for conversation tags
+            tag_model: SQLAlchemy model for conversation tags
         """
         self._engine = engine
         self.customer_model = customer_model
@@ -163,7 +159,7 @@ class Models:
         self.workplace_model = workplace_model
         self.conversation_model = conversation_model
         self.conversation_message_model = conversation_message_model
-        self.conversation_tag_model = conversation_tag_model
+        self.tag_model = tag_model
         self._conversation_tag_association_table = conversation_tag_association_table
 
     async def initialize(self):
@@ -177,7 +173,7 @@ class Models:
                 (self.workplace_model, Workplace),
                 (self.conversation_model, Conversation),
                 (self.conversation_message_model, ConversationMessage),
-                (self.conversation_tag_model, ConversationTag),
+                (self.tag_model, Tag),
                 (self._conversation_tag_association_table, association_table),
             ]
             if model_or_table is built_in_model_or_table
@@ -277,17 +273,15 @@ class Models:
             kind=message.kind, time_utc=message.time_utc, text=message.text
         )
 
-    def make_tag_model(self, name: str, created_by: AgentInterface) -> ConversationTag:
-        return ConversationTag(
+    def make_tag_model(self, name: str, created_by: AgentInterface) -> Tag:
+        return Tag(
             name=name,  # type: ignore
             created_at_utc=datetime.now(timezone.utc),  # type: ignore
             created_by_id=created_by.id,  # type: ignore
         )
 
-    def convert_from_tag_model(
-        self, tag: ConversationTag, created_by: AgentInterface
-    ) -> ConversationTagInterface:
-        return ConversationTagInterface(
+    def convert_from_tag_model(self, tag: Tag, created_by: AgentInterface) -> TagInterface:
+        return TagInterface(
             id=tag.id,
             name=tag.name,
             created_at_utc=tag.created_at_utc,
@@ -407,9 +401,7 @@ class Models:
     def make_conversation_options(self, with_messages: bool) -> List[LoaderOption]:
         result: List[LoaderOption] = [
             joinedload(self.conversation_model.customer),
-            selectinload(self.conversation_model.tags).joinedload(
-                self.conversation_tag_model.created_by
-            ),
+            selectinload(self.conversation_model.tags).joinedload(self.tag_model.created_by),
             joinedload(self.conversation_model.assigned_workplace).joinedload(
                 self.workplace_model.agent
             ),

@@ -17,7 +17,7 @@ from suppgram.entities import (
     Agent,
     Workplace,
     Customer,
-    ConversationTag,
+    Tag,
     Conversation,
     Message,
     MessageKind,
@@ -75,11 +75,11 @@ class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         )
 
     @pytest_asyncio.fixture(scope="function")
-    async def tag1(self, agent: Agent) -> ConversationTag:
+    async def tag1(self, agent: Agent) -> Tag:
         return await self.storage.create_tag(name="urgent", created_by=agent)
 
     @pytest_asyncio.fixture(scope="function")
-    async def tag2(self, agent: Agent) -> ConversationTag:
+    async def tag2(self, agent: Agent) -> Tag:
         return await self.storage.create_tag(name="can wait", created_by=agent)
 
     @pytest.mark.asyncio
@@ -337,8 +337,8 @@ class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         self,
         conversation: Conversation,
         workplace: Workplace,
-        tag1: ConversationTag,
-        tag2: ConversationTag,
+        tag1: Tag,
+        tag2: Tag,
     ):
         await self.storage.update_conversation(
             conversation.id, ConversationDiff(removed_tags=[tag2])

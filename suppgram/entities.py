@@ -228,7 +228,7 @@ FINAL_STATES = [ConversationState.RESOLVED]
 
 
 @dataclass(frozen=True)
-class ConversationTag:
+class Tag:
     """
     Describes tag that can be used to label a [conversation][suppgram.entities.Conversation].
 
@@ -271,7 +271,7 @@ class Conversation:
     id: Any
     state: ConversationState
     customer: Customer
-    tags: List[ConversationTag]
+    tags: List[Tag]
     assigned_agent: Optional[Agent] = None
     assigned_workplace: Optional[Workplace] = None
     messages: List[Message] = field(default_factory=list)
@@ -295,8 +295,8 @@ class ConversationDiff:
 
     state: Optional[ConversationState] = None
     assigned_workplace_id: Union[Optional[Any], _SetNone] = None
-    added_tags: Optional[List[ConversationTag]] = None
-    removed_tags: Optional[List[ConversationTag]] = None
+    added_tags: Optional[List[Tag]] = None
+    removed_tags: Optional[List[Tag]] = None
     customer_rating: Optional[int] = None
 
     @property
@@ -314,7 +314,7 @@ class ConversationEvent:
 @dataclass(frozen=True)
 class ConversationTagEvent:
     conversation: Conversation
-    tag: ConversationTag
+    tag: Tag
 
 
 @dataclass(frozen=True)
@@ -339,4 +339,4 @@ class NewMessageForAgentEvent:
 
 @dataclass(frozen=True)
 class TagEvent:
-    tag: ConversationTag
+    tag: Tag

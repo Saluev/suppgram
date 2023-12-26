@@ -9,7 +9,7 @@ from suppgram.entities import (
     WorkplaceIdentification,
     ConversationDiff,
     Customer,
-    ConversationTag,
+    Tag,
     Agent,
     Workplace,
     AgentIdentification,
@@ -127,16 +127,16 @@ class MongoDBStorage(Storage):
             )
         return self._collections.convert_to_workplace(identification, agent_doc)
 
-    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+    async def create_tag(self, name: str, created_by: Agent) -> Tag:
         try:
             doc = self._collections.convert_to_tag_document(name, created_by)
-            await self._collections.conversation_tag_collection.insert_one(doc)
+            await self._collections.tag_collection.insert_one(doc)
             return self._collections.convert_to_tag(doc, {created_by.id: created_by})
         except DuplicateKeyError as exc:
             raise TagAlreadyExists(name) from exc
 
-    async def find_all_tags(self) -> List[ConversationTag]:
-        docs = await self._collections.conversation_tag_collection.find({}).to_list(None)
+    async def find_all_tags(self) -> List[Tag]:
+        docs = await self._collections.tag_collection.find({}).to_list(None)
         agent_ids = self._collections.extract_agent_ids(docs)
         filter_ = self._collections.make_agents_filter(agent_ids)
         agents = [

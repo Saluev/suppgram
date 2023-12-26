@@ -15,7 +15,7 @@ from suppgram.entities import (
     Workplace,
     Message,
     CustomerDiff,
-    ConversationTag,
+    Tag,
     ConversationTagEvent,
     Customer,
     TagEvent,
@@ -70,11 +70,11 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+    async def create_tag(self, name: str, created_by: Agent) -> Tag:
         pass
 
     @abc.abstractmethod
-    async def get_all_tags(self) -> List[ConversationTag]:
+    async def get_all_tags(self) -> List[Tag]:
         pass
 
     @abc.abstractmethod
@@ -105,11 +105,11 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def add_tag_to_conversation(self, conversation: Conversation, tag: ConversationTag):
+    async def add_tag_to_conversation(self, conversation: Conversation, tag: Tag):
         pass
 
     @abc.abstractmethod
-    async def remove_tag_from_conversation(self, conversation: Conversation, tag: ConversationTag):
+    async def remove_tag_from_conversation(self, conversation: Conversation, tag: Tag):
         pass
 
     @abc.abstractmethod

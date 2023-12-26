@@ -21,7 +21,7 @@ from suppgram.entities import (
     AgentDiff,
     WorkplaceIdentification,
     Workplace,
-    ConversationTag,
+    Tag,
     CustomerIdentification,
     CustomerDiff,
     Customer,
@@ -68,7 +68,7 @@ class Collections:
         customer_collection_name: str = "suppgram_customers",
         agent_collection_name: str = "suppgram_agents",
         conversation_collection_name: str = "suppgram_conversations",
-        conversation_tag_collection_name: str = "suppgram_conversation_tags",
+        tag_collection_name: str = "suppgram_tags",
         codec_options: CodecOptions = CodecOptions(
             tz_aware=True, tzinfo=timezone.utc, uuid_representation=UuidRepresentation.STANDARD
         ),
@@ -79,7 +79,7 @@ class Collections:
             customer_collection_name: name of MongoDB collection to store customers in
             agent_collection_name: name of MongoDB collection to store agents and workplaces in
             conversation_collection_name: name of MongoDB collection to store conversations and messages in
-            conversation_tag_collection_name: name of MongoDB collection to store conversation tags in
+            tag_collection_name: name of MongoDB collection to store tags in
         """
         self.customer_collection = database.get_collection(customer_collection_name, codec_options)
         self.agent_collection = database.get_collection(agent_collection_name, codec_options)
@@ -88,9 +88,7 @@ class Collections:
             conversation_collection_name, codec_options
         )
         # Messages are stored within conversations.
-        self.conversation_tag_collection = database.get_collection(
-            conversation_tag_collection_name, codec_options
-        )
+        self.tag_collection = database.get_collection(tag_collection_name, codec_options)
 
     def make_customer_filter(self, identification: CustomerIdentification) -> Document:
         if identification.id is not None:
@@ -255,9 +253,9 @@ class Collections:
     def extract_agent_ids(self, tag_docs: List[Document]) -> Set[ObjectId]:
         return {tag_doc["created_by"] for tag_doc in tag_docs}
 
-    def convert_to_tag(self, doc: Document, agents: Mapping[Any, Agent]) -> ConversationTag:
+    def convert_to_tag(self, doc: Document, agents: Mapping[Any, Agent]) -> Tag:
         agent = agents[str(doc["created_by"])]
-        return ConversationTag(
+        return Tag(
             id=doc["_id"],
             name=doc["_id"],
             created_at_utc=doc["created_at_utc"],
@@ -348,7 +346,7 @@ class Collections:
         doc: Document,
         customers: Mapping[Any, Customer],
         workplaces: Mapping[Any, Workplace],
-        tags: Mapping[Any, ConversationTag],
+        tags: Mapping[Any, Tag],
     ) -> Conversation:
         assigned_workplace_id = doc.get("assigned_workplace_id")
         assigned_workplace = (

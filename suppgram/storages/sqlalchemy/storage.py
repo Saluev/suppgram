@@ -23,7 +23,7 @@ from suppgram.entities import (
     Conversation,
     ConversationDiff,
     ConversationState,
-    ConversationTag,
+    Tag,
     Customer,
     CustomerDiff,
     CustomerIdentification,
@@ -172,7 +172,7 @@ class SQLAlchemyStorage(Storage):
                 self._models.convert_from_agent_model(agent), workplace
             )
 
-    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+    async def create_tag(self, name: str, created_by: Agent) -> Tag:
         try:
             async with self._session() as session, session.begin():
                 tag = self._models.make_tag_model(name, created_by)
@@ -182,10 +182,10 @@ class SQLAlchemyStorage(Storage):
         except IntegrityError as exc:
             raise TagAlreadyExists(name) from exc
 
-    async def find_all_tags(self) -> List[ConversationTag]:
+    async def find_all_tags(self) -> List[Tag]:
         async with self._session() as session:
-            select_query = select(self._models.conversation_tag_model).options(
-                joinedload(self._models.conversation_tag_model.created_by)
+            select_query = select(self._models.tag_model).options(
+                joinedload(self._models.tag_model.created_by)
             )
             tags = (await session.execute(select_query)).scalars().all()
             return [
@@ -285,7 +285,7 @@ class SQLAlchemyStorage(Storage):
 
             if diff.removed_tags:
                 filter_ = (Column("conversation_id") == conv.id) & (
-                    Column("conversation_tag_id").in_(tag.id for tag in diff.removed_tags)
+                    Column("tag_id").in_(tag.id for tag in diff.removed_tags)
                 )
                 delete_query = association_table.delete().where(filter_)
                 await session.execute(delete_query)

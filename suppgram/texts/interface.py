@@ -9,7 +9,7 @@ from suppgram.emoji import EMOJI_SEQUENCE
 from suppgram.entities import (
     Conversation,
     Customer,
-    ConversationTag,
+    Tag,
     ConversationState,
     Agent,
     Message,
@@ -77,10 +77,10 @@ class TextProvider:
     telegram_tag_already_exists_message: str
     telegram_tag_successfully_created_message: str
 
-    def compose_add_tag_button_text(self, tag: ConversationTag) -> str:
+    def compose_add_tag_button_text(self, tag: Tag) -> str:
         return f"☐ {tag.name}"
 
-    def compose_remove_tag_button_text(self, tag: ConversationTag) -> str:
+    def compose_remove_tag_button_text(self, tag: Tag) -> str:
         return f"☑ {tag.name}"
 
     telegram_agent_start_message: str
@@ -208,7 +208,7 @@ class TextProvider:
 
     _TAG_REGEX = re.compile(rf"^\s*({EMOJI_SEQUENCE}*)(.*?)({EMOJI_SEQUENCE}*)\s*$")
 
-    def _format_telegram_tag(self, tag: ConversationTag) -> str:
+    def _format_telegram_tag(self, tag: Tag) -> str:
         match = self._TAG_REGEX.match(tag.name)
         if match is not None:
             prefix, tag_name, suffix = match.groups()

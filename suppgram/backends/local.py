@@ -20,7 +20,7 @@ from suppgram.entities import (
     SetNone,
     MessageKind,
     CustomerDiff,
-    ConversationTag,
+    Tag,
     ConversationTagEvent,
     Customer,
     TagEvent,
@@ -94,7 +94,7 @@ class LocalBackend(BackendInterface):
     async def identify_workplace(self, identification: WorkplaceIdentification) -> Workplace:
         return await self._storage.get_or_create_workplace(identification)
 
-    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+    async def create_tag(self, name: str, created_by: Agent) -> Tag:
         if created_by.deactivated:
             raise AgentDeactivated(created_by.identification)
 
@@ -102,7 +102,7 @@ class LocalBackend(BackendInterface):
         await self.on_tag_created.trigger(TagEvent(tag=tag))
         return tag
 
-    async def get_all_tags(self) -> List[ConversationTag]:
+    async def get_all_tags(self) -> List[Tag]:
         return await self._storage.find_all_tags()
 
     async def identify_agent_conversation(
@@ -192,14 +192,14 @@ class LocalBackend(BackendInterface):
     async def get_customer_conversations(self, customer: Customer) -> List[Conversation]:
         return await self._storage.find_customer_conversations(customer, with_messages=True)
 
-    async def add_tag_to_conversation(self, conversation: Conversation, tag: ConversationTag):
+    async def add_tag_to_conversation(self, conversation: Conversation, tag: Tag):
         await self._storage.update_conversation(conversation.id, ConversationDiff(added_tags=[tag]))
         conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_tag_added.trigger(
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
 
-    async def remove_tag_from_conversation(self, conversation: Conversation, tag: ConversationTag):
+    async def remove_tag_from_conversation(self, conversation: Conversation, tag: Tag):
         await self._storage.update_conversation(
             conversation.id, ConversationDiff(removed_tags=[tag])
         )

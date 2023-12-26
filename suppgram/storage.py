@@ -13,7 +13,7 @@ from suppgram.entities import (
     Message,
     ConversationDiff,
     CustomerDiff,
-    ConversationTag,
+    Tag,
 )
 
 
@@ -70,11 +70,11 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+    async def create_tag(self, name: str, created_by: Agent) -> Tag:
         pass
 
     @abc.abstractmethod
-    async def find_all_tags(self) -> List[ConversationTag]:
+    async def find_all_tags(self) -> List[Tag]:
         pass
 
     @abc.abstractmethod

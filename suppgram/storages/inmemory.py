@@ -11,7 +11,7 @@ from suppgram.entities import (
     Customer,
     WorkplaceIdentification,
     ConversationDiff,
-    ConversationTag,
+    Tag,
     Workplace,
     AgentIdentification,
     AgentDiff,
@@ -37,7 +37,7 @@ class InMemoryStorage(Storage):
         self.customers: List[Customer] = []
         self.agents: List[Agent] = []
         self.workplaces: List[Workplace] = []
-        self.tags: List[ConversationTag] = []
+        self.tags: List[Tag] = []
         self.conversations: List[Conversation] = []
 
     async def create_or_update_customer(
@@ -100,16 +100,16 @@ class InMemoryStorage(Storage):
             self.workplaces.append(workplace)
             return workplace
 
-    async def create_tag(self, name: str, created_by: Agent) -> ConversationTag:
+    async def create_tag(self, name: str, created_by: Agent) -> Tag:
         if any(t.name == name for t in self.tags):
             raise TagAlreadyExists(name)
-        tag = ConversationTag(
+        tag = Tag(
             id=name, name=name, created_at_utc=datetime.now(timezone.utc), created_by=created_by
         )
         self.tags.append(tag)
         return tag
 
-    async def find_all_tags(self) -> List[ConversationTag]:
+    async def find_all_tags(self) -> List[Tag]:
         return [*self.tags]
 
     async def get_or_create_conversation(self, customer: Customer) -> Conversation:
