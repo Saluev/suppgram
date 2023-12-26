@@ -282,6 +282,8 @@ class TelegramAgentFrontend(AgentFrontend):
         if not update.callback_query.data:
             # No idea how to handle this update.
             return
+
+        agent = await self._backend.identify_agent(make_agent_identification(update.effective_user))
         callback_data = json.loads(update.callback_query.data)
         action = callback_data.get("a")
         if action is None:
@@ -289,6 +291,10 @@ class TelegramAgentFrontend(AgentFrontend):
         if action == CallbackActionKind.PAGE:
             chat = await self._storage.get_chat(callback_data["c"])
             message = await self._storage.get_message(chat, callback_data["m"])
+            if message.agent_id != agent.id:
+                # Sorry, this message is not for you!
+                # Probably someone's playing with the callback query payloads.
+                return
             customer = await self._backend.create_or_update_customer(
                 message.customer_identification,
             )
@@ -346,6 +352,7 @@ class TelegramAgentFrontend(AgentFrontend):
             chat,
             message.message_id,
             TelegramMessageKind.CUSTOMER_MESSAGE_HISTORY,
+            agent_id=workplace.agent.id,
             customer_id=customer.id,
         )
         if (keyboard := make_pagination_keyboard(tmessage, len(pages), 0)) is not None:
@@ -416,13 +423,14 @@ class TelegramAgentFrontend(AgentFrontend):
         return self._telegram_app_by_bot_id[telegram_bot_id]
 
     async def _nudge_to_start_bot(self, workplace: Workplace):
-        assert workplace.telegram_user_id is not None, "should be called for Telegram workspaces"
+        assert workplace.telegram_user_id is not None, "should be called for Telegram workplaces"
 
         agent_chats = await self._helper.check_belongs_to_agent_chats(workplace.telegram_user_id)
         await flat_gather(self._nudge_to_start_bot_in_chat(workplace, chat) for chat in agent_chats)
 
     async def _nudge_to_start_bot_in_chat(self, workplace: Workplace, chat: TelegramChat):
-        assert workplace.telegram_bot_id is not None, "should be called for Telegram workspaces"
+        assert workplace.telegram_bot_id is not None, "should be called for Telegram workplaces"
+
         if self._manager_bot is None:
             return
         app = self._get_app_by_bot_id(workplace.telegram_bot_id)

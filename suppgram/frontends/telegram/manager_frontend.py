@@ -18,6 +18,7 @@ from telegram.ext import (
     ContextTypes,
     CommandHandler,
     MessageHandler,
+    BaseHandler,
 )
 from telegram.ext.filters import ChatType, TEXT, StatusUpdate
 
@@ -89,29 +90,30 @@ class TelegramManagerFrontend(ManagerFrontend):
         backend.on_conversation_tag_added.add_handler(self._handle_conversation_tags_event)
         backend.on_conversation_tag_removed.add_handler(self._handle_conversation_tags_event)
         backend.on_tag_created.add_handler(self._handle_tag_event)
-        self._telegram_app.add_handlers(
-            [
-                CallbackQueryHandler(self._handle_callback_query),
-                CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
-                CommandHandler(
-                    self._AGENTS_COMMAND,
-                    self._handle_agents_command,
-                    filters=ChatType.GROUP,
-                ),
-                CommandHandler(
-                    self._SEND_NEW_CONVERSATIONS_COMMAND,
-                    self._handle_send_new_conversations_command,
-                    filters=ChatType.GROUP,
-                ),
-                CommandHandler(
-                    self._CREATE_CONVERSATION_TAG_COMMAND,
-                    self._handle_create_conversation_tag_command,
-                    filters=TEXT & (ChatType.GROUP | ChatType.PRIVATE),
-                ),
-                MessageHandler(StatusUpdate.NEW_CHAT_MEMBERS, self._handle_new_chat_members),
-                MessageHandler(StatusUpdate.LEFT_CHAT_MEMBER, self._handle_left_chat_member),
-            ]
-        )
+        self._telegram_app.add_handlers(self._make_handlers())
+
+    def _make_handlers(self) -> List[BaseHandler]:
+        return [
+            CallbackQueryHandler(self._handle_callback_query),
+            CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
+            CommandHandler(
+                self._AGENTS_COMMAND,
+                self._handle_agents_command,
+                filters=ChatType.GROUP,
+            ),
+            CommandHandler(
+                self._SEND_NEW_CONVERSATIONS_COMMAND,
+                self._handle_send_new_conversations_command,
+                filters=ChatType.GROUP,
+            ),
+            CommandHandler(
+                self._CREATE_CONVERSATION_TAG_COMMAND,
+                self._handle_create_conversation_tag_command,
+                filters=TEXT & (ChatType.GROUP | ChatType.PRIVATE),
+            ),
+            MessageHandler(StatusUpdate.NEW_CHAT_MEMBERS, self._handle_new_chat_members),
+            MessageHandler(StatusUpdate.LEFT_CHAT_MEMBER, self._handle_left_chat_member),
+        ]
 
     async def initialize(self):
         await super().initialize()
@@ -280,7 +282,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                     "c": conversation.id,
                 },
                 separators=(",", ":"),
-            ),  # TODO encrypt
+            ),
         )
         present_tag_ids = {tag.id for tag in conversation.tags}
 
@@ -298,7 +300,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                         "t": tag.id,
                     },
                     separators=(",", ":"),
-                ),  # TODO encrypt
+                ),
             )
             for tag in all_tags
         ]
