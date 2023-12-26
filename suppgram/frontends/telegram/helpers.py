@@ -63,7 +63,6 @@ def paginate_texts(
             + suffix_newlines
         )
         if page_length > max_page_chars or page_newlines >= max_page_lines:
-            parts.append(delimiter)
             parts.append(suffix)
             yield "".join(parts)
             parts, parts_length, parts_newlines = [prefix], len(prefix), prefix_newlines
@@ -75,7 +74,6 @@ def paginate_texts(
         parts_length += len(text)
         parts_newlines += text_newlines
     if parts_length > 0:
-        parts.append(delimiter)
         parts.append(suffix)
         yield "".join(parts)
 

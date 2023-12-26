@@ -448,13 +448,13 @@ class TelegramAgentFrontend(AgentFrontend):
             telegram_bot_username=bot_username,
         )
 
-    def _group_messages(self, messages: Iterable[Message]) -> List[str]:
-        # TODO differentiation of previous agents' messages
-        # TODO actual grouping to reduce number of messages
-        result: List[str] = []
-        for message in messages:
-            if message.text:
-                result.append(message.text)
-            elif message.kind == MessageKind.RESOLVED:
-                result.append(self._texts.telegram_agent_conversation_resolved_message)
-        return result
+    def _group_messages(self, messages: Iterable[Message]) -> Iterable[str]:
+        yield from paginate_texts(
+            prefix="",
+            texts=(self._texts.format_history_message(message) for message in messages),
+            suffix="",
+            # When unspecified, `max_page_lines` and `max_page_chars` are assumed to be
+            # roughly equal to Telegram's own limits on message length. We are fine with
+            # that here, because we actually want to send as few messages as possible
+            # to avoid hitting Telegram RPS limit.
+        )

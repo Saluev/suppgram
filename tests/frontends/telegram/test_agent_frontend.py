@@ -64,6 +64,14 @@ async def test_conversation_assignment(
             kind=MessageKind.FROM_CUSTOMER, time_utc=datetime.now(timezone.utc), text="Gamarjoba!"
         ),
     )
+    await backend.process_message(
+        customer_conversation,
+        Message(
+            kind=MessageKind.FROM_CUSTOMER,
+            time_utc=datetime.now(timezone.utc),
+            text="I'm not having any problem, just happy to chat!",
+        ),
+    )
     await backend.assign_agent(agent, agent, customer_conversation.id)
     agent_send_message_mocks[0].assert_any_call(
         chat_id=agent.telegram_user_id,
@@ -71,7 +79,8 @@ async def test_conversation_assignment(
         parse_mode="HTML",
     )
     agent_send_message_mocks[0].assert_called_with(
-        chat_id=agent.telegram_user_id, text="Gamarjoba!"
+        chat_id=agent.telegram_user_id,
+        text="👤 Customer: Gamarjoba!\n👤 Customer: I'm not having any problem, just happy to chat!",
     )
 
 
