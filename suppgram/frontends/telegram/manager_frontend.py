@@ -206,22 +206,22 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
 
     async def _send_or_edit_new_conversation_notifications(self, conversation: Conversation):
-        # For this conversation, there are some notifications in some groups.
+        # For this conversation, there are some notifications in some chats.
         #
-        # In those groups where newer messages with non-NEW conversation
+        # In those chats where newer messages with non-NEW conversation
         # notifications are present, we should delete the old notification and
         # create a new one to avoid losing the notification in the chat history.
         #
-        # In other groups (where the notification is still on top or at least
+        # In other chats (where the notification is still on top or at least
         # among other NEW notifications), we should update the existing notification.
         messages = await self._storage.get_messages(
             TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
             conversation_id=conversation.id,
         )
-        groups = await self._storage.get_chats_by_role(
+        chats = await self._storage.get_chats_by_role(
             TelegramChatRole.NEW_CONVERSATION_NOTIFICATIONS
         )
-        group_ids = {group.telegram_chat_id for group in groups}
+        group_ids = {group.telegram_chat_id for group in chats}
         newer_messages = await self._storage.get_newer_messages_of_kind(messages)
         newer_message_conversation_ids = {message.conversation_id for message in newer_messages}
         conversations = await self._backend.get_conversations(list(newer_message_conversation_ids))
@@ -243,7 +243,7 @@ class TelegramManagerFrontend(ManagerFrontend):
                 messages_to_update.append(message)
                 group_ids.remove(message.chat.telegram_chat_id)
 
-        groups_to_send_to = [group for group in groups if group.telegram_chat_id in group_ids]
+        chats_to_send_to = [group for group in chats if group.telegram_chat_id in group_ids]
 
         all_tags = await self._backend.get_all_tags()
 
@@ -257,7 +257,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             ),
             flat_gather(
                 self._send_new_conversation_notification(group, conversation, all_tags)
-                for group in groups_to_send_to
+                for group in chats_to_send_to
             ),
             flat_gather(
                 self._update_new_conversation_notification(message, conversation, all_tags)

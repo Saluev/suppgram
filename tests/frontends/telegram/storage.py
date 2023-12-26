@@ -56,9 +56,7 @@ class TelegramStorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
 
     @pytest.mark.asyncio
     async def test_add_group_roles(self, group: TelegramChat):
-        await self.telegram_storage.add_chat_roles(
-            group.telegram_chat_id, TelegramChatRole.AGENTS
-        )
+        await self.telegram_storage.add_chat_roles(group.telegram_chat_id, TelegramChatRole.AGENTS)
         group = await self.telegram_storage.get_chat(group.telegram_chat_id)
         assert group.roles == {TelegramChatRole.AGENTS}
 
@@ -72,13 +70,13 @@ class TelegramStorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         }
 
     @pytest.mark.asyncio
-    async def test_get_groups_by_role(self):
+    async def test_get_chats_by_role(self):
         g1 = await self.telegram_storage.create_or_update_chat(self.generate_telegram_id())
         g2 = await self.telegram_storage.create_or_update_chat(self.generate_telegram_id())
         await self.telegram_storage.add_chat_roles(g2.telegram_chat_id, TelegramChatRole.AGENTS)
 
-        groups = await self.telegram_storage.get_chats_by_role(TelegramChatRole.AGENTS)
-        group_ids = {g.telegram_chat_id for g in groups}
+        chats = await self.telegram_storage.get_chats_by_role(TelegramChatRole.AGENTS)
+        group_ids = {g.telegram_chat_id for g in chats}
         assert g1.telegram_chat_id not in group_ids
         assert g2.telegram_chat_id in group_ids
         # Not checking for equality because of side effects of other tests.

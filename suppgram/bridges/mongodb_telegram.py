@@ -170,8 +170,8 @@ class MongoDBTelegramBridge(TelegramStorage):
 
     async def _convert_to_messages(self, docs: List[Document]) -> List[TelegramMessage]:
         chat_ids = [doc["_id"]["c"] for doc in docs]
-        groups = {chat.telegram_chat_id: chat for chat in await self.find_chats_by_ids(chat_ids)}
-        return [self._convert_to_message(doc, groups) for doc in docs]
+        chats = {chat.telegram_chat_id: chat for chat in await self.find_chats_by_ids(chat_ids)}
+        return [self._convert_to_message(doc, chats) for doc in docs]
 
     def _compose_message_id(self, telegram_chat_id: int, telegram_message_id: int) -> Any:
         return {"c": telegram_chat_id, "m": telegram_message_id}

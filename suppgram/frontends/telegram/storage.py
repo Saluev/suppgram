@@ -53,7 +53,7 @@ class TelegramMessage:
 class TelegramStorage(abc.ABC):
     """Persistent storage for data specific to Telegram frontend.
 
-    Currently, two entities are stored: Telegram groups and messages within groups.
+    Currently, two entities are stored: Telegram chats and messages within chats.
     We need these data to track group roles and edit messages sent by bots if needed."""
 
     async def initialize(self):
