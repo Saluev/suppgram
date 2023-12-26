@@ -386,3 +386,16 @@ def telegram_update(
         return update
 
     return compose_telegram_update
+
+
+@pytest.fixture
+def sticker() -> Sticker:
+    return Sticker(
+        file_id="CAACAgQAAxkBAAIG-mWAv3L-CcgEs86whsGGTybEjjD6AAJ2AAMv3_gJdvG_3FZCYjgzBA",
+        file_unique_id="AgADdgADL9_4CQ",
+        width=512,
+        height=512,
+        is_animated=False,
+        is_video=False,
+        type=Sticker.REGULAR,
+    )

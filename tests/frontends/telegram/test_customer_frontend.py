@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
-from telegram import InlineKeyboardMarkup, Sticker
+from telegram import InlineKeyboardMarkup
 
 from suppgram.entities import (
     CustomerIdentification,
@@ -25,19 +25,8 @@ async def test_customer_start(storage, telegram_update, send_message_mock):
 
 
 @pytest.mark.asyncio
-async def test_customer_unsupported_message_kind(storage, telegram_update, send_message_mock):
-    update = await telegram_update(
-        from_customer=True,
-        sticker=Sticker(
-            file_id="CAACAgQAAxkBAAIG-mWAv3L-CcgEs86whsGGTybEjjD6AAJ2AAMv3_gJdvG_3FZCYjgzBA",
-            file_unique_id="AgADdgADL9_4CQ",
-            width=512,
-            height=512,
-            is_animated=False,
-            is_video=False,
-            type=Sticker.REGULAR,
-        ),
-    )
+async def test_customer_unsupported_message_kind(telegram_update, sticker, send_message_mock):
+    update = await telegram_update(from_customer=True, sticker=sticker)
     send_message_mock.assert_called_once_with(
         chat_id=update.effective_chat.id,
         text="😞 Sorry, this kind of content is not supported right now. "

@@ -17,6 +17,7 @@ from telegram.ext import (
     CommandHandler,
     Application,
     CallbackQueryHandler,
+    BaseHandler,
 )
 from telegram.ext.filters import TEXT, ChatType
 
@@ -84,23 +85,7 @@ class TelegramAgentFrontend(AgentFrontend):
         self._telegram_apps: List[Application] = []
         for token in agent_bot_tokens:
             app = app_manager.get_app(token)
-            app.add_handlers(
-                [
-                    CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
-                    CommandHandler(
-                        self._POSTPONE_COMMAND,
-                        self._handle_postpone_command,
-                        filters=ChatType.PRIVATE,
-                    ),
-                    CommandHandler(
-                        self._RESOLVE_COMMAND,
-                        self._handle_resolve_command,
-                        filters=ChatType.PRIVATE,
-                    ),
-                    MessageHandler(TEXT & ChatType.PRIVATE, self._handle_text_message),
-                    CallbackQueryHandler(self._handle_callback_query),
-                ]
-            )
+            app.add_handlers(self._make_handlers())
             self._telegram_apps.append(app)
         self._telegram_app_by_bot_id: Mapping[int, Application] = {}
         self._manager_bot: Optional[Bot] = (
@@ -110,6 +95,24 @@ class TelegramAgentFrontend(AgentFrontend):
         self._backend.on_new_message_for_agent.add_batch_handler(
             self._handle_new_message_for_agent_events
         )
+
+    def _make_handlers(self) -> List[BaseHandler]:
+        return [
+            CommandHandler("start", self._handle_start_command, filters=ChatType.PRIVATE),
+            CommandHandler(
+                self._POSTPONE_COMMAND,
+                self._handle_postpone_command,
+                filters=ChatType.PRIVATE,
+            ),
+            CommandHandler(
+                self._RESOLVE_COMMAND,
+                self._handle_resolve_command,
+                filters=ChatType.PRIVATE,
+            ),
+            MessageHandler(ChatType.PRIVATE & TEXT, self._handle_text_message),
+            MessageHandler(ChatType.PRIVATE & ~TEXT, self._handle_unsupported_message),
+            CallbackQueryHandler(self._handle_callback_query),
+        ]
 
     async def initialize(self):
         await super().initialize()
@@ -236,8 +239,8 @@ class TelegramAgentFrontend(AgentFrontend):
             )
         except ConversationNotFound:
             await context.bot.send_message(
-                update.effective_chat.id,
-                self._texts.telegram_workplace_is_not_assigned_message,
+                chat_id=update.effective_chat.id,
+                text=self._texts.telegram_workplace_is_not_assigned_message,
             )
             return
         await self._backend.process_message(
@@ -247,6 +250,29 @@ class TelegramAgentFrontend(AgentFrontend):
                 time_utc=update.message.date,
                 text=update.message.text,
             ),
+        )
+
+    async def _handle_unsupported_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        assert update.effective_chat, "message update should have `effective_chat`"
+        assert update.effective_user, "message update should have `effective_user`"
+        assert update.message, "message update should have `message`"
+        try:
+            await self._backend.identify_agent_conversation(
+                WorkplaceIdentification(
+                    telegram_user_id=update.effective_user.id,
+                    telegram_bot_id=context.bot.bot.id,
+                )
+            )
+        except ConversationNotFound:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=self._texts.telegram_workplace_is_not_assigned_message,
+            )
+            return
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=self._texts.telegram_agent_unsupported_message_content,
+            reply_to_message_id=update.message.message_id,
         )
 
     async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

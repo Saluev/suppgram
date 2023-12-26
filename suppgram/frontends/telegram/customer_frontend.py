@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import cast
+from typing import cast, List
 
 from telegram import Update, Bot, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -8,6 +8,7 @@ from telegram.ext import (
     ContextTypes,
     MessageHandler,
     CallbackQueryHandler,
+    BaseHandler,
 )
 from telegram.ext.filters import TEXT, ChatType
 
@@ -67,18 +68,19 @@ class TelegramCustomerFrontend(CustomerFrontend):
         self._storage = storage
         self._telegram_app = app_manager.get_app(token)
         self._telegram_bot: Bot = self._telegram_app.bot
-        self._telegram_app.add_handlers(
-            [
-                CommandHandler("start", self._handle_start_command),
-                CallbackQueryHandler(self._handle_callback_query),
-                MessageHandler(ChatType.PRIVATE & TEXT, self._handle_text_message),
-                MessageHandler(ChatType.PRIVATE & ~TEXT, self._handle_unsupported_message),
-            ]
-        )
+        self._telegram_app.add_handlers(self._make_handlers())
         self._backend.on_new_message_for_customer.add_handler(
             self._handle_new_message_for_customer_event
         )
         self._backend.on_conversation_rated.add_handler(self._handle_conversation_rated)
+
+    def _make_handlers(self) -> List[BaseHandler]:
+        return [
+            CommandHandler("start", self._handle_start_command),
+            CallbackQueryHandler(self._handle_callback_query),
+            MessageHandler(ChatType.PRIVATE & TEXT, self._handle_text_message),
+            MessageHandler(ChatType.PRIVATE & ~TEXT, self._handle_unsupported_message),
+        ]
 
     async def initialize(self):
         await super().initialize()
@@ -130,7 +132,6 @@ class TelegramCustomerFrontend(CustomerFrontend):
     async def _handle_unsupported_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.message, "message update should have `message`"
         assert update.effective_chat, "message update should have `effective_chat`"
-        print(update.message)
         await self._telegram_bot.send_message(
             chat_id=update.effective_chat.id,
             text=self._texts.telegram_customer_unsupported_message_content,

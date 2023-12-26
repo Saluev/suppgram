@@ -131,6 +131,27 @@ async def test_nudge_to_start_bot(
 
 
 @pytest.mark.asyncio
+async def test_agent_unsupported_message_kind(
+    backend, telegram_update, sticker, customer_conversation, agent, workplaces, send_message_mock
+):
+    await backend.assign_agent(agent, agent, customer_conversation.id)
+
+    update = await telegram_update(from_workplace=workplaces[0], sticker=sticker)
+    send_message_mock.assert_called_with(
+        chat_id=update.effective_chat.id,
+        text="😞 Sorry, this kind of content is not supported right now. "
+        "Customer will not see this message.",
+        reply_to_message_id=update.message.message_id,
+    )
+
+    update = await telegram_update(from_workplace=workplaces[1], sticker=sticker)
+    send_message_mock.assert_called_with(
+        chat_id=update.effective_chat.id,
+        text="📭 This chat is not assigned to any ongoing conversation with a customer right now.",
+    )
+
+
+@pytest.mark.asyncio
 async def test_agent_text_message_forwarding(
     backend,
     telegram_update,
@@ -145,4 +166,10 @@ async def test_agent_text_message_forwarding(
     await telegram_update(from_workplace=workplaces[0], text="How can I help you?")
     customer_send_message_mock.assert_called_once_with(
         chat_id=customer.telegram_user_id, text="How can I help you?"
+    )
+
+    await telegram_update(from_workplace=workplaces[1], text="How can I help you?")
+    agent_send_message_mocks[1].assert_called_with(
+        chat_id=agent.telegram_user_id,
+        text="📭 This chat is not assigned to any ongoing conversation with a customer right now.",
     )
