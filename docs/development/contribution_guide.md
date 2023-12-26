@@ -39,6 +39,24 @@ Feel free to add these commands to your pre-commit hook.
 
 <br/>
 
+## Working with Alembic
+
+Your current SQLAlchemy URL must be specified in `alembic.ini` (`sqlalchemy.url` setting).
+
+To migrate to current state of things:
+
+```shell
+python -m alembic upgrade head
+```
+
+To create a new migration:
+
+```shell
+python -m alembic revision --autogenerate -m "..."
+```
+
+<br/>
+
 ## Running documentation locally
 
 ```shell
