@@ -17,8 +17,14 @@ Options:
   --sqlalchemy-uri TEXT           SQLAlchemy connection URI. Alternatively,
                                   environment variable SQLALCHEMY_URI may be
                                   used
+  --sqlalchemy-uri-file FILE      Path to file storing SQLAlchemy connection
+                                  URI. Alternatively, environment variable
+                                  SQLALCHEMY_URI may be used
   --mongodb-uri TEXT              MongoDB connection URI. Alternatively,
                                   environment variable MONGODB_URI may be used
+  --mongodb-uri-file FILE         Path to file storing MongoDB connection URI.
+                                  Alternatively, environment variable
+                                  MONGODB_URI may be used
   --mongodb-database TEXT         MongoDB database name. If not specified,
                                   will connect to the default database
                                   specified in the URI
@@ -53,7 +59,7 @@ Options:
                                   essageConverter]
   --help                          Show this message and exit.
 ```
-It is recommended to prefer environment variables over command line arguments
+It is recommended to prefer environment variables or files over command line arguments
 for sensitive data, e.g. for SQLAlchemy URI if it contains username and/or password.
 
 Details on particular integrations (SQLAlchemy, MongoDB, Telegram, PubNub, ...) are

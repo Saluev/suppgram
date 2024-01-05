@@ -356,7 +356,7 @@ class Models:
         if identification.telegram_user_id is not None:
             return (
                 (workplace_model.telegram_bot_id == identification.telegram_bot_id)
-                & (workplace_model.agent_id == self.agent_model.id)
+                & (workplace_model.agent_id == agent_model.id)
                 & (agent_model.telegram_user_id == identification.telegram_user_id)
             )
         raise WorkplaceEmptyIdentification(identification)

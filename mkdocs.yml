@@ -10,6 +10,9 @@ nav:
       - 'All-in-one CLI': usage/all_in_one_cli.md
       - Builder: usage/builder.md
       - 'Customizing texts': usage/customizing_texts.md
+  - Features:
+      - 'PostgreSQL/SQLite integration': features/sql_integration.md
+      - 'MongoDB integration': features/mongodb_integration.md
   - Development:
       - 'Contribution guide': development/contribution_guide.md
       - 'Architecture overview': development/architecture_overview.md

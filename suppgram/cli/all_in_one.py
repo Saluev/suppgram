@@ -26,10 +26,23 @@ from suppgram.logging import ConfidentialStreamHandler
     help="SQLAlchemy connection URI. Alternatively, environment variable SQLALCHEMY_URI may be used",
 )
 @click.option(
+    "--sqlalchemy-uri-file",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to file storing SQLAlchemy connection URI. "
+    "Alternatively, environment variable SQLALCHEMY_URI may be used",
+)
+@click.option(
     "--mongodb-uri",
     envvar="MONGODB_URI",
     default=None,
     help="MongoDB connection URI. Alternatively, environment variable MONGODB_URI may be used",
+)
+@click.option(
+    "--mongodb-uri-file",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to file storing MongoDB connection URI. Alternatively, environment variable MONGODB_URI may be used",
 )
 @click.option(
     "--mongodb-database",
@@ -99,7 +112,9 @@ from suppgram.logging import ConfidentialStreamHandler
 def run_all_in_one(
     loglevel: str,
     sqlalchemy_uri: Optional[str],
+    sqlalchemy_uri_file: Optional[str],
     mongodb_uri: Optional[str],
+    mongodb_uri_file: Optional[str],
     mongodb_database_name: Optional[str],
     texts_class_path: str,
     telegram_customer_bot_token_file: Optional[str],
@@ -140,6 +155,15 @@ def run_all_in_one(
 
     builder = Builder()
 
+    if sqlalchemy_uri_file:
+        if sqlalchemy_uri:
+            raise UsageError(
+                "both --sqlalchemy-uri (or SQLALCHEMY_URI environment variable) "
+                "and --sqlalchemy-uri-file are specified; unclear which URI to use."
+            )
+
+        sqlalchemy_uri = _read_secret_from_file(sqlalchemy_uri_file)
+
     try:
         if sqlalchemy_uri:
             builder = builder.with_sqlalchemy_storage(sqlalchemy_uri)
@@ -148,6 +172,15 @@ def run_all_in_one(
             "can't import SQLAlchemy integration. "
             "Make sure that necessary dependencies are installed:\n\n    pip install suppgram[sqlalchemy]\n"
         ) from exc
+
+    if mongodb_uri_file:
+        if mongodb_uri:
+            raise UsageError(
+                "both --mongodb-uri (or MONGODB_URI environment variable) "
+                "and --mongodb-uri-file are specified; unclear which URI to use."
+            )
+
+        mongodb_uri = _read_secret_from_file(mongodb_uri_file)
 
     try:
         if mongodb_uri is not None:
@@ -209,11 +242,11 @@ def run_all_in_one(
         builder.build()
     except NoStorageSpecified as exc:
         raise UsageError(
-            "No storage specified. Consider specifying --sqlalchemy-uri or --mongodb-uri parameters."
+            "no storage specified. Consider specifying --sqlalchemy-uri or --mongodb-uri parameters."
         ) from exc
     except NoFrontendSpecified as exc:
         raise UsageError(
-            "No frontend specified. In this configuration the application is not going to do anything.\n"
+            "no frontend specified. In this configuration the application is not going to do anything.\n"
             "Consider specifying --telegram-*, --pubnub-* or --customer-shell parameters."
         ) from exc
 
