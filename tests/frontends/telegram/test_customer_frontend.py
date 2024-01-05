@@ -67,7 +67,6 @@ async def test_agent_text_message(
     )
     await backend.on_new_message_for_customer.trigger(
         NewMessageForCustomerEvent(
-            customer=customer_conversation.customer,
             conversation=customer_conversation,
             message=message,
         )
@@ -92,7 +91,6 @@ async def test_customer_conversation_resolution(
     message = Message(kind=MessageKind.RESOLVED, time_utc=datetime.now(timezone.utc))
     await backend.on_new_message_for_customer.trigger(
         NewMessageForCustomerEvent(
-            customer=customer_conversation.customer,
             conversation=customer_conversation,
             message=message,
         )

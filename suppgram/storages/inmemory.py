@@ -1,6 +1,6 @@
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import List, Any, Optional, Dict
+from typing import List, Any, Optional, Dict, AsyncIterator
 from uuid import uuid4
 
 from suppgram.containers import UnavailableList
@@ -19,6 +19,7 @@ from suppgram.entities import (
     CustomerDiff,
     ConversationState,
     SetNone,
+    Event,
 )
 from suppgram.errors import (
     AgentNotFound,
@@ -39,6 +40,7 @@ class InMemoryStorage(Storage):
         self.workplaces: List[Workplace] = []
         self.tags: List[Tag] = []
         self.conversations: List[Conversation] = []
+        self.events: List[Event] = []
 
     async def create_or_update_customer(
         self, identification: CustomerIdentification, diff: Optional[CustomerDiff] = None
@@ -212,6 +214,13 @@ class InMemoryStorage(Storage):
             raise ConversationNotFound()
         conv = replace(conv, messages=[*conv.messages, message])
         self.conversations.append(conv)
+
+    async def save_event(self, event: Event):
+        self.events.append(event)
+
+    async def find_all_events(self) -> AsyncIterator[Event]:
+        for event in self.events:
+            yield event
 
     def _match_customer(self, identification: CustomerIdentification, customer: Customer) -> bool:
         return (

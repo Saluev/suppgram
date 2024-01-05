@@ -1,6 +1,6 @@
 import abc
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Callable, List
 from uuid import uuid4
 
 import pytest
@@ -22,6 +22,9 @@ from suppgram.entities import (
     Message,
     MessageKind,
     SetNone,
+    Event,
+    EventKind,
+    MessageMediaKind,
 )
 from suppgram.errors import (
     AgentNotFound,
@@ -414,3 +417,30 @@ class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
             MessageKind.FROM_AGENT,
         ]
         assert [m.text for m in updated_conv.messages] == ["Hi!", "Hello!"]
+
+    @pytest.mark.asyncio
+    async def test_events(self, conversation: Conversation, workplace: Workplace):
+        assert await self._find_all_events() == []
+
+        tag = await self.storage.create_tag(name="tag", created_by=workplace.agent)
+
+        event = Event(
+            kind=EventKind.CONVERSATION_STARTED,
+            time_utc=datetime.now(timezone.utc).replace(microsecond=0),
+            agent_id=workplace.agent.id,
+            conversation_id=conversation.id,
+            customer_id=conversation.customer.id,
+            message_kind=MessageKind.FROM_CUSTOMER,
+            message_media_kind=MessageMediaKind.TEXT,
+            tag_id=tag.id,
+            workplace_id=workplace.id,
+        )
+        await self.storage.save_event(event)
+
+        assert await self._find_all_events() == [event]
+
+    async def _find_all_events(self) -> List[Event]:
+        result: List[Event] = []
+        async for event in self.storage.find_all_events():
+            result.append(event)
+        return result

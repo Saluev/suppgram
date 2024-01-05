@@ -1,5 +1,5 @@
 import abc
-from typing import List, Any, Optional
+from typing import List, Any, Optional, AsyncIterator
 
 from suppgram.entities import (
     CustomerIdentification,
@@ -14,6 +14,7 @@ from suppgram.entities import (
     ConversationDiff,
     CustomerDiff,
     Tag,
+    Event,
 )
 
 
@@ -111,4 +112,12 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def save_message(self, conversation: Conversation, message: Message):
+        pass
+
+    @abc.abstractmethod
+    async def save_event(self, event: Event):
+        pass
+
+    @abc.abstractmethod
+    def find_all_events(self) -> AsyncIterator[Event]:
         pass

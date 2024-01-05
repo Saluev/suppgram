@@ -3,6 +3,8 @@ from typing import (
     Any,
     TypeVar,
     Optional,
+    AsyncGenerator,
+    AsyncIterator,
 )
 
 from sqlalchemy import (
@@ -30,6 +32,7 @@ from suppgram.entities import (
     Message,
     Workplace,
     WorkplaceIdentification,
+    Event,
 )
 from suppgram.errors import (
     ConversationNotFound,
@@ -353,3 +356,13 @@ class SQLAlchemyStorage(Storage):
                 session.add(self._models.convert_to_message_model(conversation.id, message))
         except IntegrityError:
             raise ConversationNotFound()
+
+    async def save_event(self, event: Event):
+        async with self._session() as session, session.begin():
+            session.add(self._models.convert_to_event_model(event))
+
+    async def find_all_events(self) -> AsyncIterator[Event]:
+        async with self._session() as session:
+            select_query = select(self._models.event_model)
+            async for event in await session.stream_scalars(select_query):
+                yield self._models.convert_from_event_model(event)

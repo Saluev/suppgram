@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Mapping
+from typing import Any, List, Optional, Mapping, AsyncIterator
 
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
@@ -16,6 +16,7 @@ from suppgram.entities import (
     AgentDiff,
     CustomerIdentification,
     CustomerDiff,
+    Event,
 )
 from suppgram.errors import (
     AgentNotFound,
@@ -255,3 +256,12 @@ class MongoDBStorage(Storage):
         result = await self._collections.conversation_collection.update_one(filter_, update)
         if result.matched_count == 0:
             raise ConversationNotFound()
+
+    async def save_event(self, event: Event):
+        doc = self._collections.convert_to_event_document(event)
+        await self._collections.event_collection.insert_one(doc)
+
+    async def find_all_events(self) -> AsyncIterator[Event]:
+        docs = self._collections.event_collection.find({})
+        async for doc in docs:
+            yield self._collections.convert_to_event(doc)

@@ -62,7 +62,8 @@ async def _clean_postgresql_storage():
                 suppgram_workplaces,
                 suppgram_conversations,
                 suppgram_conversation_messages,
-                suppgram_conversation_tags,
+                suppgram_tags,
+                suppgram_events,
                 suppgram_conversation_tag_associations
             CASCADE
             """

@@ -146,7 +146,8 @@ class TelegramCustomerFrontend(CustomerFrontend):
         )
 
     async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
-        if not event.customer.telegram_user_id:
+        customer = event.conversation.customer
+        if not customer.telegram_user_id:
             return
 
         if event.message.kind == MessageKind.RESOLVED:
@@ -155,12 +156,13 @@ class TelegramCustomerFrontend(CustomerFrontend):
 
         if event.message.text:
             await self._telegram_bot.send_message(
-                chat_id=event.customer.telegram_user_id,
+                chat_id=customer.telegram_user_id,
                 text=event.message.text,
             )
 
     async def _handle_conversation_resolution(self, event: NewMessageForCustomerEvent):
-        if event.customer.telegram_user_id is None:
+        customer = event.conversation.customer
+        if customer.telegram_user_id is None:
             return
 
         reply_markup = InlineKeyboardMarkup(
@@ -177,10 +179,10 @@ class TelegramCustomerFrontend(CustomerFrontend):
             ]
         )
         message = await self._telegram_bot.send_message(
-            chat_id=event.customer.telegram_user_id,
+            chat_id=customer.telegram_user_id,
             text=self._texts.telegram_customer_conversation_resolved_message_placeholder,
         )
-        group = await self._storage.create_or_update_chat(event.customer.telegram_user_id)
+        group = await self._storage.create_or_update_chat(customer.telegram_user_id)
         await self._storage.insert_message(
             self._telegram_bot.id,
             group,
@@ -189,7 +191,7 @@ class TelegramCustomerFrontend(CustomerFrontend):
             conversation_id=event.conversation.id,
         )
         await self._telegram_bot.edit_message_text(
-            chat_id=event.customer.telegram_user_id,
+            chat_id=customer.telegram_user_id,
             message_id=message.message_id,
             text=self._texts.telegram_customer_conversation_resolved_message,
             reply_markup=reply_markup,

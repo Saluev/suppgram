@@ -26,22 +26,25 @@ from sqlalchemy.orm.interfaces import LoaderOption
 
 from suppgram.containers import UnavailableList
 from suppgram.entities import (
-    ConversationState,
-    MessageKind,
-    AgentIdentification,
-    CustomerIdentification,
-    Customer as CustomerInterface,
     Agent as AgentInterface,
-    WorkplaceIdentification,
-    Workplace as WorkplaceInterface,
-    Message as ConversaionMessageInterface,
-    Tag as TagInterface,
-    Conversation as ConversationInterface,
-    CustomerDiff,
     AgentDiff,
-    FINAL_STATES,
+    AgentIdentification,
+    Conversation as ConversationInterface,
     ConversationDiff,
+    ConversationState,
+    Customer as CustomerInterface,
+    CustomerDiff,
+    CustomerIdentification,
+    Event as EventInterface,
+    EventKind,
+    FINAL_STATES,
+    Message as ConversaionMessageInterface,
+    MessageKind,
+    MessageMediaKind,
     SetNone,
+    Tag as TagInterface,
+    Workplace as WorkplaceInterface,
+    WorkplaceIdentification,
 )
 from suppgram.errors import AgentEmptyIdentification, WorkplaceEmptyIdentification
 
@@ -127,6 +130,22 @@ class ConversationMessage(Base):
     text: Mapped[str] = mapped_column(String, nullable=True)
 
 
+class Event(Base):
+    __tablename__ = "suppgram_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[EventKind] = mapped_column(Enum(EventKind), nullable=False)
+    time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    agent_id: Mapped[int] = mapped_column(ForeignKey(Agent.id), nullable=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey(Conversation.id), nullable=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey(Customer.id), nullable=True)
+    message_kind: Mapped[MessageKind] = mapped_column(Enum(MessageKind), nullable=True)
+    message_media_kind: Mapped[MessageMediaKind] = mapped_column(
+        Enum(MessageMediaKind), nullable=True
+    )
+    tag_id: Mapped[int] = mapped_column(ForeignKey(Tag.id), nullable=True)
+    workplace_id: Mapped[int] = mapped_column(ForeignKey(Workplace.id), nullable=True)
+
+
 class Models:
     """Abstraction layer over SQLAlchemy models.
 
@@ -142,6 +161,7 @@ class Models:
         conversation_message_model: Any = ConversationMessage,
         tag_model: Any = Tag,
         conversation_tag_association_table: Optional[Table] = association_table,
+        event_model: Any = Event,
     ):
         """
         Parameters:
@@ -152,6 +172,7 @@ class Models:
             conversation_model: SQLAlchemy model for conversations
             conversation_message_model: SQLAlchemy model for messages
             tag_model: SQLAlchemy model for conversation tags
+            event_model: SQLAlchemy model for events
         """
         self._engine = engine
         self.customer_model = customer_model
@@ -160,6 +181,7 @@ class Models:
         self.conversation_model = conversation_model
         self.conversation_message_model = conversation_message_model
         self.tag_model = tag_model
+        self.event_model = event_model
         self._conversation_tag_association_table = conversation_tag_association_table
 
     async def initialize(self):
@@ -174,6 +196,7 @@ class Models:
                 (self.conversation_model, Conversation),
                 (self.conversation_message_model, ConversationMessage),
                 (self.tag_model, Tag),
+                (self.event_model, Event),
                 (self._conversation_tag_association_table, association_table),
             ]
             if model_or_table is built_in_model_or_table
@@ -425,3 +448,29 @@ class Models:
             result["customer_rating"] = diff.customer_rating
 
         return result
+
+    def convert_to_event_model(self, event: EventInterface) -> Event:
+        return self.event_model(
+            kind=event.kind,
+            time_utc=event.time_utc.astimezone(timezone.utc),
+            agent_id=event.agent_id,
+            conversation_id=event.conversation_id,
+            customer_id=event.customer_id,
+            message_kind=event.message_kind,
+            message_media_kind=event.message_media_kind,
+            tag_id=event.tag_id,
+            workplace_id=event.workplace_id,
+        )
+
+    def convert_from_event_model(self, event: Event) -> EventInterface:
+        return EventInterface(
+            kind=event.kind,
+            time_utc=event.time_utc.replace(tzinfo=timezone.utc),
+            agent_id=event.agent_id,
+            conversation_id=event.conversation_id,
+            customer_id=event.customer_id,
+            message_kind=event.message_kind,
+            message_media_kind=event.message_media_kind,
+            tag_id=event.tag_id,
+            workplace_id=event.workplace_id,
+        )

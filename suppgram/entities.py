@@ -205,6 +205,14 @@ class Message:
     kind: MessageKind
     time_utc: datetime
     text: Optional[str] = None
+    # don't forget to add new `MessageMediaKind`
+    # when implementing images, videos, etc.
+
+    @property
+    def media_kind(self) -> "MessageMediaKind":
+        if self.text is not None:
+            return MessageMediaKind.TEXT
+        return MessageMediaKind.NONE
 
 
 class ConversationState(str, Enum):
@@ -306,6 +314,32 @@ class ConversationDiff:
         return WorkplaceIdentification(id=self.assigned_workplace_id)
 
 
+class EventKind(str, Enum):
+    CONVERSATION_STARTED = "conversation_started"
+
+
+class MessageMediaKind(str, Enum):
+    NONE = "none"
+    TEXT = "text"
+    # images, videos, etc.
+
+
+@dataclass(frozen=True)
+class Event:
+    """Describes arbitrary event within Suppgram application, with all relevant entities linked by their IDs."""
+
+    kind: EventKind
+    time_utc: datetime
+
+    agent_id: Optional[Any] = None
+    conversation_id: Optional[Any] = None
+    customer_id: Optional[Any] = None
+    message_kind: Optional[MessageKind] = None
+    message_media_kind: Optional[MessageMediaKind] = None
+    tag_id: Optional[Any] = None
+    workplace_id: Optional[Any] = None
+
+
 @dataclass(frozen=True)
 class ConversationEvent:
     conversation: Conversation
@@ -319,7 +353,6 @@ class ConversationTagEvent:
 
 @dataclass(frozen=True)
 class NewMessageForCustomerEvent:
-    customer: Customer
     conversation: Conversation
     message: Message
 

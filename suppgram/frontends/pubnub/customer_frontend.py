@@ -51,7 +51,7 @@ class PubNubCustomerFrontend(CustomerFrontend):
         self._pubnub.subscribe().channel_groups([self._pubnub_channel_group]).execute()
 
     async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
-        customer = event.customer
+        customer = event.conversation.customer
         if customer.pubnub_user_id is None or customer.pubnub_channel_id is None:
             return
         converted = self._message_converter.convert_to_pubnub(event.message)

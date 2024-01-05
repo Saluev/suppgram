@@ -143,7 +143,6 @@ class LocalBackend(BackendInterface):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
             NewMessageForCustomerEvent(
-                customer=conversation.customer,
                 conversation=conversation,
                 message=message,
             )
@@ -153,7 +152,6 @@ class LocalBackend(BackendInterface):
         await self._storage.save_message(conversation, message)
         await self.on_new_message_for_customer.trigger(
             NewMessageForCustomerEvent(
-                customer=conversation.customer,
                 conversation=conversation,
                 message=message,
             )

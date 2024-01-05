@@ -32,6 +32,9 @@ from suppgram.entities import (
     MessageKind,
     ConversationDiff,
     SetNone,
+    Event,
+    MessageMediaKind,
+    EventKind,
 )
 from suppgram.errors import (
     AgentEmptyIdentification,
@@ -69,6 +72,7 @@ class Collections:
         agent_collection_name: str = "suppgram_agents",
         conversation_collection_name: str = "suppgram_conversations",
         tag_collection_name: str = "suppgram_tags",
+        event_collection_name: str = "suppgram_events",
         codec_options: CodecOptions = CodecOptions(
             tz_aware=True, tzinfo=timezone.utc, uuid_representation=UuidRepresentation.STANDARD
         ),
@@ -89,6 +93,7 @@ class Collections:
         )
         # Messages are stored within conversations.
         self.tag_collection = database.get_collection(tag_collection_name, codec_options)
+        self.event_collection = database.get_collection(event_collection_name, codec_options)
 
     def make_customer_filter(self, identification: CustomerIdentification) -> Document:
         if identification.id is not None:
@@ -383,3 +388,32 @@ class Collections:
                 }
             }
         }
+
+    def convert_to_event_document(self, event: Event) -> Document:
+        doc = {
+            "kind": event.kind,
+            "time_utc": event.time_utc,
+            "agent_id": ObjectId(event.agent_id),
+            "conversation_id": ObjectId(event.conversation_id),
+            "customer_id": ObjectId(event.customer_id),
+            "message_kind": event.message_kind,
+            "message_media_kind": event.message_media_kind,
+            "tag_id": event.tag_id,
+            "workplace_id": event.workplace_id,
+        }
+        return {k: v for k, v in doc.items() if v is not None}
+
+    def convert_to_event(self, doc: Document) -> Event:
+        return Event(
+            kind=EventKind(doc["kind"]),
+            time_utc=doc["time_utc"],
+            agent_id=str(doc["agent_id"]) if "agent_id" in doc else None,
+            conversation_id=str(doc["conversation_id"]) if "conversation_id" in doc else None,
+            customer_id=str(doc["customer_id"]) if "customer_id" in doc else None,
+            message_kind=MessageKind(doc["message_kind"]) if "message_kind" in doc else None,
+            message_media_kind=MessageMediaKind(doc["message_media_kind"])
+            if "message_media_kind" in doc
+            else None,
+            tag_id=doc.get("tag_id"),
+            workplace_id=doc.get("workplace_id"),
+        )
