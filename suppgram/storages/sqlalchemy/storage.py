@@ -3,7 +3,6 @@ from typing import (
     Any,
     TypeVar,
     Optional,
-    AsyncGenerator,
     AsyncIterator,
 )
 
