@@ -8,6 +8,7 @@ interface, but rather create a separate component using the same database.
 ::: suppgram.frontends.telegram.TelegramStorage
     handler: python
     options:
+      show_bases: false
       show_root_heading: true
       show_source: false
       heading_level: 2

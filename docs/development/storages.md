@@ -5,6 +5,7 @@
     options:
       show_root_heading: true
       show_source: false
+      show_bases: false
       show_if_no_docstring: true
       heading_level: 3
 

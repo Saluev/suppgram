@@ -16,13 +16,13 @@ by database URI. Examples:
 ```shell
 # All-in-one CLI + SQLite
 python -m suppgram.cli.all_in_one \
-  --sqlalchemy-uri sqlite+aiosqlite:///path/to/file.db \
-  ...
+    --sqlalchemy-uri sqlite+aiosqlite:///path/to/file.db \
+    ...
 
 # All-in-one CLI + PostgreSQL (insecure)
 python -m suppgram.cli.all_in_one \
-  --sqlalchemy-uri postgresql+asyncpg://user:password@host:5432/database \
-  ...
+    --sqlalchemy-uri postgresql+asyncpg://user:password@host:5432/database \
+    ...
   
 # All-in-one CLI + PostgreSQL (secret in environment variable)
 export SQLALCHEMY_URI=postgresql+asyncpg://user:password@host:5432/database
@@ -31,8 +31,8 @@ python -m suppgram.cli.all_in_one ...
 # All-in-one CLI + PostgreSQL (secret in file)
 echo "postgresql+asyncpg://user:password@host:5432/database" > /secrets/postgres_uri
 python -m suppgram.cli.all_in_one \
-  --sqlalchemy-uri-file /secrets/postgres_uri \
-  ...
+    --sqlalchemy-uri-file /secrets/postgres_uri \
+    ...
 ```
 
 Suppgram will create tables with names starting with `suppgram_`, so you may use 

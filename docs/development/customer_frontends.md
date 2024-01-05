@@ -4,6 +4,7 @@
     handler: python
     options:
       show_root_heading: true
+      show_bases: false
       show_source: false
 
 <hr/>
