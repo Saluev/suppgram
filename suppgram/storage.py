@@ -49,6 +49,10 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def find_all_agents(self) -> AsyncIterator[Agent]:
+        pass
+
+    @abc.abstractmethod
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
     ) -> Agent:
@@ -89,6 +93,14 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def find_all_conversations(self, with_messages: bool = False) -> AsyncIterator[Conversation]:
+        pass
+
+    @abc.abstractmethod
+    async def count_all_conversations(self) -> int:
+        pass
+
+    @abc.abstractmethod
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
@@ -120,4 +132,8 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     def find_all_events(self) -> AsyncIterator[Event]:
+        """Iterate over all stored events in chronological order."""
+
+    @abc.abstractmethod
+    async def count_all_events(self) -> int:
         pass

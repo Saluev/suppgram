@@ -62,6 +62,10 @@ class InMemoryStorage(Storage):
         except StopIteration:
             raise AgentNotFound(identification)
 
+    async def find_all_agents(self) -> AsyncIterator[Agent]:
+        for agent in self.agents:
+            yield agent
+
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
     ) -> Agent:
@@ -139,6 +143,15 @@ class InMemoryStorage(Storage):
             for c in self.conversations
             if c.id in conversation_ids
         ]
+
+    async def find_all_conversations(
+        self, with_messages: bool = False
+    ) -> AsyncIterator[Conversation]:
+        for c in self.conversations:
+            yield c if with_messages else self._strip_messages(c)
+
+    async def count_all_conversations(self) -> int:
+        return len(self.conversations)
 
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
@@ -221,6 +234,9 @@ class InMemoryStorage(Storage):
     async def find_all_events(self) -> AsyncIterator[Event]:
         for event in self.events:
             yield event
+
+    async def count_all_events(self) -> int:
+        return len(self.events)
 
     def _match_customer(self, identification: CustomerIdentification, customer: Customer) -> bool:
         return (

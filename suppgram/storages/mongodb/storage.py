@@ -65,6 +65,11 @@ class MongoDBStorage(Storage):
             raise AgentNotFound(identification)
         return self._collections.convert_to_agent(doc)
 
+    async def find_all_agents(self) -> AsyncIterator[Agent]:
+        docs = self._collections.agent_collection.find({})
+        async for doc in docs:
+            yield self._collections.convert_to_agent(doc)
+
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
     ) -> Agent:
@@ -168,6 +173,24 @@ class MongoDBStorage(Storage):
         ).to_list(None)
         return await self._convert_multiple_conversations(docs)
 
+    async def find_all_conversations(
+        self, with_messages: bool = False
+    ) -> AsyncIterator[Conversation]:
+        projection = self._collections.make_conversation_projection(with_messages=with_messages)
+        docs = self._collections.conversation_collection.find({}, projection=projection)
+        batch: List[Document] = []
+        async for doc in docs:
+            batch.append(doc)
+            if len(batch) >= 100:
+                for conv in await self._convert_multiple_conversations(batch):
+                    yield conv
+                batch.clear()
+        for conv in await self._convert_multiple_conversations(batch):
+            yield conv
+
+    async def count_all_conversations(self) -> int:
+        return await self._collections.conversation_collection.count_documents({})
+
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
@@ -265,3 +288,6 @@ class MongoDBStorage(Storage):
         docs = self._collections.event_collection.find({})
         async for doc in docs:
             yield self._collections.convert_to_event(doc)
+
+    async def count_all_events(self) -> int:
+        return await self._collections.event_collection.count_documents({})

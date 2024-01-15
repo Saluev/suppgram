@@ -53,6 +53,15 @@ class EnglishTextProvider(TextProvider):
         "I will now send notifications about new conversations to this group."
     )
 
+    telegram_report_command_description = "Export analytical report"
+    telegram_report_message_placeholder = "⏳ Computing report... {progress}"
+    telegram_report_message = (
+        "📊 Analytical report\n\n"
+        "Average time to first response: {report.average_start_to_first_response_time_min:.1f} min\n"
+        "Average resolution time: {report.average_start_to_resolution_time_min:.1f} min\n"
+        "Average customer satisfaction: {report.average_customer_rating:.1f}"
+    )
+
     telegram_create_tag_command_description = "Create new tag to label conversations with."
     telegram_create_tag_permission_denied_message = (
         "🚫 You don't have permission to create new tags."

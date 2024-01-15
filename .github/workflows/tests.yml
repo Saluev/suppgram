@@ -36,6 +36,6 @@ jobs:
     - name: Run tests
       # TODO properly wait until postgres is ready https://stackoverflow.com/a/55835081/999858
       run: |
-        docker run -p 5432:5432 -e POSTGRES_USER=suppgram -e POSTGRES_PASSWORD=test -e POSTGRES_DB=suppgram_test -d postgres:latest
-        docker run -p 27017:27017 -d mongo:latest
+        docker run -p 5432:5432 -e POSTGRES_USER=suppgram -e POSTGRES_PASSWORD=test -e POSTGRES_DB=suppgram_test --name suppgram_postgres -d postgres:latest
+        docker run -p 27017:27017 --name suppgram_mongodb -d mongo:latest
         PYTHONPATH=. pytest .

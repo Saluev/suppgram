@@ -302,7 +302,11 @@ class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         assert convs[0].messages == []
 
     @pytest.mark.asyncio
-    async def test_update_non_existing_converation(self):
+    async def test_count_conversations(self):
+        await self.storage.count_all_conversations()
+
+    @pytest.mark.asyncio
+    async def test_update_non_existing_conversation(self):
         with pytest.raises(ConversationNotFound):
             await self.storage.update_conversation(self.generate_id(), ConversationDiff())
 
@@ -438,9 +442,7 @@ class StorageTestSuite(StorageTestSuiteFixtures, abc.ABC):
         await self.storage.save_event(event)
 
         assert await self._find_all_events() == [event]
+        assert await self.storage.count_all_events() == 1
 
     async def _find_all_events(self) -> List[Event]:
-        result: List[Event] = []
-        async for event in self.storage.find_all_events():
-            result.append(event)
-        return result
+        return [event async for event in self.storage.find_all_events()]

@@ -70,6 +70,10 @@ class TextProvider:
     telegram_send_new_conversations_command_description: str
     telegram_send_new_conversations_command_success_message: str
 
+    telegram_report_command_description: str
+    telegram_report_message_placeholder: str
+    telegram_report_message: str
+
     # Tags
     telegram_create_tag_command_description: str
     telegram_create_tag_permission_denied_message: str

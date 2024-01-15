@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from sqlalchemy.orm import (
     joinedload,
 )
+from sqlalchemy.sql.functions import count
 
 from suppgram.entities import (
     Agent,
@@ -98,6 +99,12 @@ class SQLAlchemyStorage(Storage):
             if agent is None:
                 raise AgentNotFound(identification)
             return self._models.convert_from_agent_model(agent)
+
+    async def find_all_agents(self) -> AsyncIterator[Agent]:
+        async with self._session() as session:
+            select_query = select(self._models.agent_model)
+            async for agent in await session.stream_scalars(select_query):
+                yield self._models.convert_from_agent_model(agent)
 
     async def create_or_update_agent(
         self, identification: AgentIdentification, diff: Optional[AgentDiff] = None
@@ -258,6 +265,22 @@ class SQLAlchemyStorage(Storage):
                 for conv in convs
             ]
 
+    async def find_all_conversations(
+        self, with_messages: bool = False
+    ) -> AsyncIterator[Conversation]:
+        async with self._session() as session:
+            options = self._models.make_conversation_options(with_messages=with_messages)
+            select_query = select(self._models.conversation_model).options(*options)
+            async for conv in await session.stream_scalars(select_query):
+                yield self._models.convert_from_conversation_model(
+                    conv, with_messages=with_messages
+                )
+
+    async def count_all_conversations(self) -> int:
+        async with self._session() as session:
+            select_query = select(count(self._models.conversation_model.id))
+            return (await session.execute(select_query)).scalar_one()
+
     async def update_conversation(
         self, id: Any, diff: ConversationDiff, unassigned_only: bool = False
     ):
@@ -362,6 +385,11 @@ class SQLAlchemyStorage(Storage):
 
     async def find_all_events(self) -> AsyncIterator[Event]:
         async with self._session() as session:
-            select_query = select(self._models.event_model)
+            select_query = select(self._models.event_model).order_by(self._models.event_model.id)
             async for event in await session.stream_scalars(select_query):
                 yield self._models.convert_from_event_model(event)
+
+    async def count_all_events(self) -> int:
+        async with self._session() as session:
+            select_query = select(count(self._models.event_model.id))
+            return (await session.execute(select_query)).scalar_one()

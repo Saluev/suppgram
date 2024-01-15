@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Iterable, Awaitable, Optional
+from typing import Iterable, Awaitable, Optional, AsyncIterator, Tuple, TypeVar
 
 
 async def flat_gather(futures: Iterable[Awaitable]):
@@ -31,3 +31,14 @@ def escape_markdown(text: str, entity_type: Optional[str] = None) -> str:
         escape_chars = r"_*[]()~`>#+-=|{}.!"
 
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
+
+
+T = TypeVar("T")
+
+
+async def aenumerate(asequence: AsyncIterator[T], start=0) -> AsyncIterator[Tuple[int, T]]:
+    """Asynchronously enumerate an async iterator from a given start value."""
+    n = start
+    async for elem in asequence:
+        yield n, elem
+        n += 1

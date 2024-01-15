@@ -24,6 +24,8 @@ from suppgram.entities import (
     ConversationTagEvent,
     Customer,
     TagEvent,
+    Event,
+    EventKind,
 )
 from suppgram.errors import PermissionDenied, AgentDeactivated
 from suppgram.helpers import flat_gather
@@ -123,6 +125,14 @@ class LocalBackend(BackendInterface):
         conversation.messages.append(message)
         if len(conversation.messages) == 1:
             await self.on_new_conversation.trigger(ConversationEvent(conversation))
+            await self._storage.save_event(
+                Event(
+                    kind=EventKind.CONVERSATION_STARTED,
+                    time_utc=message.time_utc,
+                    conversation_id=conversation.id,
+                    customer_id=conversation.customer.id,
+                )
+            )
         if conversation.assigned_agent and conversation.assigned_workplace:
             await self.on_new_message_for_agent.trigger(
                 NewMessageForAgentEvent(
@@ -135,6 +145,16 @@ class LocalBackend(BackendInterface):
             await self.on_new_unassigned_message_from_customer.trigger(
                 NewUnassignedMessageFromCustomerEvent(message=message, conversation=conversation)
             )
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.MESSAGE_SENT,
+                time_utc=message.time_utc,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+                message_kind=message.kind,
+                message_media_kind=message.media_kind,
+            )
+        )
 
     async def _process_message_from_agent(self, conversation: Conversation, message: Message):
         if conversation.assigned_agent and conversation.assigned_agent.deactivated:
@@ -145,6 +165,16 @@ class LocalBackend(BackendInterface):
             NewMessageForCustomerEvent(
                 conversation=conversation,
                 message=message,
+            )
+        )
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.MESSAGE_SENT,
+                time_utc=message.time_utc,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+                message_kind=message.kind,
+                message_media_kind=message.media_kind,
             )
         )
 
@@ -179,6 +209,14 @@ class LocalBackend(BackendInterface):
         )
         conversation = await self._storage.get_agent_conversation(workplace.identification)
         await self.on_conversation_assignment.trigger(ConversationEvent(conversation=conversation))
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.AGENT_ASSIGNED,
+                agent_id=assignee.id,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+            )
+        )
 
     async def get_conversations(
         self, conversation_ids: List[Any], with_messages: bool = False
@@ -196,6 +234,14 @@ class LocalBackend(BackendInterface):
         await self.on_conversation_tag_added.trigger(
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.CONVERSATION_TAG_ADDED,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+                tag_id=tag.id,
+            )
+        )
 
     async def remove_tag_from_conversation(self, conversation: Conversation, tag: Tag):
         await self._storage.update_conversation(
@@ -205,6 +251,14 @@ class LocalBackend(BackendInterface):
         await self.on_conversation_tag_removed.trigger(
             ConversationTagEvent(conversation=conversation, tag=tag)
         )
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.CONVERSATION_TAG_REMOVED,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+                tag_id=tag.id,
+            )
+        )
 
     async def rate_conversation(self, conversation: Conversation, rating: int):
         await self._storage.update_conversation(
@@ -212,6 +266,13 @@ class LocalBackend(BackendInterface):
         )
         conversation = await self.get_conversation(conversation.id)
         await self.on_conversation_rated.trigger(ConversationEvent(conversation=conversation))
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.CONVERSATION_RATED,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+            )
+        )
 
     async def postpone_conversation(self, postponer: Agent, conversation: Conversation):
         if postponer != conversation.assigned_agent:
@@ -233,6 +294,14 @@ class LocalBackend(BackendInterface):
             tags=conversation.tags,
         )
         await self.on_new_conversation.trigger(ConversationEvent(conversation=conversation))
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.CONVERSATION_POSTPONED,
+                agent_id=postponer.id,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+            )
+        )
 
     async def resolve_conversation(self, resolver: Agent, conversation: Conversation):
         if resolver != conversation.assigned_agent:
@@ -258,6 +327,14 @@ class LocalBackend(BackendInterface):
             tags=conversation.tags,
         )
         await self.on_conversation_resolution.trigger(ConversationEvent(conversation=conversation))
+        await self._storage.save_event(
+            Event(
+                kind=EventKind.CONVERSATION_POSTPONED,
+                agent_id=resolver.id,
+                conversation_id=conversation.id,
+                customer_id=conversation.customer.id,
+            )
+        )
 
     async def _choose_workplace(self, agent: Agent) -> Workplace:
         existing_workplaces = await self._storage.get_agent_workplaces(agent)

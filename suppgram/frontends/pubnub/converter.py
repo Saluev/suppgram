@@ -18,7 +18,7 @@ def make_pubnub_message_converter(converter_class_path: str) -> "MessageConverte
 
 
 class MessageConverter(abc.ABC):
-    """Converts messages from project-specific JSON to Suppgram dataclass and vice-versa.
+    """Converts messages from project-specific JSON to [Message][suppgram.entities.Message] dataclass and vice-versa.
 
     Methods:
         convert_from_pubnub: convert from project-specific JSON received from PubNub

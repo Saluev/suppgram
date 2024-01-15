@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, Any, List, Union
 from uuid import UUID
@@ -314,8 +314,18 @@ class ConversationDiff:
         return WorkplaceIdentification(id=self.assigned_workplace_id)
 
 
+# Data classes for analytics
+
+
 class EventKind(str, Enum):
+    AGENT_ASSIGNED = "agent_assigned"
+    CONVERSATION_POSTPONED = "conversation_postponed"
+    CONVERSATION_RATED = "conversation_rated"
+    CONVERSATION_RESOLVED = "conversation_resolved"
     CONVERSATION_STARTED = "conversation_started"
+    CONVERSATION_TAG_ADDED = "conversation_tag_added"
+    CONVERSATION_TAG_REMOVED = "conversation_tag_removed"
+    MESSAGE_SENT = "message_sent"
 
 
 class MessageMediaKind(str, Enum):
@@ -329,7 +339,7 @@ class Event:
     """Describes arbitrary event within Suppgram application, with all relevant entities linked by their IDs."""
 
     kind: EventKind
-    time_utc: datetime
+    time_utc: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     agent_id: Optional[Any] = None
     conversation_id: Optional[Any] = None
@@ -338,6 +348,9 @@ class Event:
     message_media_kind: Optional[MessageMediaKind] = None
     tag_id: Optional[Any] = None
     workplace_id: Optional[Any] = None
+
+
+# Data classes for observables
 
 
 @dataclass(frozen=True)

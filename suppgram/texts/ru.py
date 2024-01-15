@@ -52,6 +52,14 @@ class RussianTextProvider(TextProvider):
     telegram_send_new_conversations_command_success_message = (
         "Теперь я буду отправлять уведомления о всех новых обсуждениях в этот чат."
     )
+    telegram_report_command_description = "Выгрузить отчёт"
+    telegram_report_message_placeholder = "⏳ Расчёт статистики... {progress}"
+    telegram_report_message = (
+        "📊 Отчёт\n\n"
+        "Среднее время до первого ответа: {report.average_start_to_first_response_time_min:.1f} мин\n"
+        "Среднее время завершения обсуждения: {report.average_start_to_resolution_time_min:.1f} мин\n"
+        "Средняя оценка: {report.average_customer_rating:.1f}"
+    )
 
     telegram_create_tag_command_description = "Создать новый тег для обсуждений."
     telegram_create_tag_permission_denied_message = "🚫 У вас нет доступа к созданию тегов."

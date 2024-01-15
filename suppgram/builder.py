@@ -3,6 +3,7 @@ from importlib import import_module
 from typing import Optional, List, Any, Iterable, cast, Union
 from uuid import UUID, uuid4
 
+from suppgram.analytics import Reporter
 from suppgram.backend import WorkplaceManager, Backend
 from suppgram.entities import AgentIdentification
 from suppgram.errors import NoStorageSpecified, NoFrontendSpecified
@@ -320,6 +321,7 @@ class Builder:
                 backend=self._build_backend(),
                 helper=self._build_telegram_helper(),
                 storage=self._build_telegram_storage(),
+                reporter=Reporter(self._build_storage()),
                 texts=self._build_texts(),
             )
 

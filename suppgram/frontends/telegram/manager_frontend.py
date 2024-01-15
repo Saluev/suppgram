@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from time import perf_counter
 from typing import Optional, Any, List
 
 from telegram import (
@@ -19,8 +20,9 @@ from telegram.ext import (
     MessageHandler,
     BaseHandler,
 )
-from telegram.ext.filters import ChatType, TEXT, StatusUpdate
+from telegram.ext.filters import ChatType, StatusUpdate
 
+from suppgram.analytics import Reporter
 from suppgram.backend import Backend
 from suppgram.entities import (
     Conversation,
@@ -65,6 +67,7 @@ class TelegramManagerFrontend(ManagerFrontend):
     _SEND_NEW_CONVERSATIONS_COMMAND = "send_new_conversations"
     _AGENTS_COMMAND = "agents"
     _CREATE_CONVERSATION_TAG_COMMAND = "create_tag"
+    _REPORT_COMMAND = "report"
 
     def __init__(
         self,
@@ -72,11 +75,13 @@ class TelegramManagerFrontend(ManagerFrontend):
         app_manager: TelegramAppManager,
         backend: Backend,
         helper: TelegramHelper,
+        reporter: Reporter,
         storage: TelegramStorage,
         texts: TextProvider,
-    ):
+    ) -> None:
         self._backend = backend
         self._helper = helper
+        self._reporter = reporter
         self._storage = storage
         self._texts = texts
         self._telegram_app = app_manager.get_app(token)
@@ -110,18 +115,23 @@ class TelegramManagerFrontend(ManagerFrontend):
             CommandHandler(
                 self._CREATE_CONVERSATION_TAG_COMMAND,
                 self._handle_create_conversation_tag_command,
-                filters=TEXT & (ChatType.GROUP | ChatType.PRIVATE),
+                filters=ChatType.GROUP | ChatType.PRIVATE,
+            ),
+            CommandHandler(
+                self._REPORT_COMMAND,
+                self._handle_report_command,
+                filters=ChatType.GROUP | ChatType.PRIVATE,
             ),
             MessageHandler(StatusUpdate.NEW_CHAT_MEMBERS, self._handle_new_chat_members),
             MessageHandler(StatusUpdate.LEFT_CHAT_MEMBER, self._handle_left_chat_member),
         ]
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         await super().initialize()
         await self._telegram_app.initialize()
         await self._set_commands()
 
-    async def _set_commands(self):
+    async def _set_commands(self) -> None:
         await self._telegram_bot.set_my_commands(
             [
                 BotCommand(
@@ -136,34 +146,36 @@ class TelegramManagerFrontend(ManagerFrontend):
                     self._CREATE_CONVERSATION_TAG_COMMAND,
                     self._texts.telegram_create_tag_command_description,
                 ),
+                BotCommand(self._REPORT_COMMAND, self._texts.telegram_report_command_description),
             ]
         )
 
-    async def start(self):
+    async def start(self) -> None:
+        assert self._telegram_app.updater
         await self._telegram_app.updater.start_polling()
         await self._telegram_app.start()
 
-    async def _handle_new_conversation_event(self, event: ConversationEvent):
+    async def _handle_new_conversation_event(self, event: ConversationEvent) -> None:
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _handle_new_unassigned_message_from_customer_event(
         self, event: NewUnassignedMessageFromCustomerEvent
-    ):
+    ) -> None:
         if len(event.conversation.messages) == 1:
             # Already handled in `_handle_new_conversation_event()`.
             return
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
-    async def _handle_conversation_assignment_event(self, event: ConversationEvent):
+    async def _handle_conversation_assignment_event(self, event: ConversationEvent) -> None:
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
-    async def _handle_conversation_resolution_event(self, event: ConversationEvent):
+    async def _handle_conversation_resolution_event(self, event: ConversationEvent) -> None:
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
-    async def _handle_conversation_tags_event(self, event: ConversationTagEvent):
+    async def _handle_conversation_tags_event(self, event: ConversationTagEvent) -> None:
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
-    async def _handle_tag_event(self, _: TagEvent):
+    async def _handle_tag_event(self, _: TagEvent) -> None:
         # Refresh keyboards for all NEW conversations.
         messages = await self._storage.get_messages(
             kind=TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION
@@ -186,7 +198,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         group: TelegramChat,
         conversation: Conversation,
         all_tags: List[Tag],
-    ):
+    ) -> None:
         message = await self._send_placeholder_message(
             group,
             self._texts.telegram_new_conversation_notification_placeholder,
@@ -211,7 +223,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             conversation_id=conversation_id,
         )
 
-    async def _send_or_edit_new_conversation_notifications(self, conversation: Conversation):
+    async def _send_or_edit_new_conversation_notifications(
+        self, conversation: Conversation
+    ) -> None:
         # For this conversation, there are some notifications in some chats.
         #
         # In those chats where newer messages with non-NEW conversation
@@ -277,7 +291,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         conversation: Conversation,
         all_tags: List[Tag],
         keyboard_only: bool = False,
-    ):
+    ) -> None:
         present_tag_ids = {tag.id for tag in conversation.tags}
 
         assign_buttons = (
@@ -343,7 +357,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             ),
         )
 
-    async def _handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _handle_start_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         assert (
             update.effective_chat
         ), "command update with `ChatType.PRIVATE` filter should have `effective_chat`"
@@ -386,7 +402,56 @@ class TelegramManagerFrontend(ManagerFrontend):
         except PermissionDenied:
             return self._texts.telegram_create_tag_permission_denied_message
 
-    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _handle_report_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        assert update.message, "command update with `TEXT` filter should have `message`"
+        assert update.message.text, "command update with `TEXT` filter should have `message.text`"
+        assert update.effective_chat, "command update should have `effective_chat`"
+        assert update.effective_user, "command update should have `effective_user`"
+
+        chat_id = update.effective_chat.id
+
+        try:
+            await self._backend.identify_agent(make_agent_identification(update.effective_user))
+        except AgentNotFound:
+            await context.bot.send_message(
+                chat_id=chat_id, text=self._texts.telegram_manager_permission_denied_message
+            )
+
+        last_progress = "0%"
+        last_progress_update = perf_counter()
+        message = await context.bot.send_message(
+            chat_id=chat_id,
+            text=self._texts.telegram_report_message_placeholder.format(progress=last_progress),
+        )
+
+        async def progress_callback(progress: float) -> None:
+            nonlocal last_progress
+            nonlocal last_progress_update
+            now = perf_counter()
+            curr_progress = f"{100.0 * progress:.1f}%"
+            if now - last_progress_update > 1.0 and curr_progress != last_progress:
+                await context.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message.message_id,
+                    text=self._texts.telegram_report_message_placeholder.format(
+                        progress=curr_progress
+                    ),
+                )
+                last_progress = curr_progress
+                last_progress_update = now
+
+        report = await self._reporter.report(progress_callback)
+        await context.bot.delete_message(chat_id=chat_id, message_id=message.message_id)
+        await context.bot.send_message(
+            chat_id=chat_id, text=self._texts.telegram_report_message.format(report=report)
+        )
+        # TODO send xlsx report
+
+    async def _handle_callback_query(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         assert update.callback_query, "callback query update should have `callback_query`"
         assert update.effective_chat, "callback query update should have `effective_chat`"
         assert update.effective_user, "callback query update should have `effective_user`"
@@ -418,7 +483,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         else:
             logger.info(f"Manager frontend received unsupported callback action {action!r}")
 
-    async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User):
+    async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User) -> None:
         identification = make_agent_identification(effective_user)
         diff = make_agent_diff(effective_user)
         try:
@@ -429,7 +494,9 @@ class TelegramManagerFrontend(ManagerFrontend):
                 return
             await self._backend.create_or_update_agent(identification, diff)
 
-    async def _handle_agents_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _handle_agents_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
         await self._backend.identify_agent(make_agent_identification(update.effective_user))
@@ -445,7 +512,7 @@ class TelegramManagerFrontend(ManagerFrontend):
 
     async def _handle_send_new_conversations_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ):
+    ) -> None:
         assert update.effective_chat, "command update should have `effective_chat`"
         assert update.effective_user, "command update should have `effective_user`"
         await self._backend.identify_agent(make_agent_identification(update.effective_user))
@@ -458,7 +525,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             self._texts.telegram_send_new_conversations_command_success_message,
         )
 
-    async def _handle_new_chat_members(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _handle_new_chat_members(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         assert (
             update.effective_chat
         ), "update with NEW_CHAT_MEMBERS filter should have `effective_chat`"
@@ -474,7 +543,9 @@ class TelegramManagerFrontend(ManagerFrontend):
             if not user.is_bot
         )
 
-    async def _handle_left_chat_member(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _handle_left_chat_member(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         assert (
             update.effective_chat
         ), "update with LEFT_CHAT_MEMBERS filter should have `effective_chat`"
