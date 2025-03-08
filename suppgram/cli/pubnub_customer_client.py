@@ -10,7 +10,7 @@ from pubnub.models.consumer.common import PNStatus
 from pubnub.models.consumer.pubsub import PNMessageResult, PNPresenceEventResult
 from pubnub.pubnub import PubNub
 
-from suppgram.entities import MessageKind, Message
+from suppgram.entities import MessageKind, Message, MessageMediaKind
 from suppgram.frontends.pubnub.configuration import make_pubnub_configuration
 from suppgram.frontends.pubnub.converter import (
     MessageConverter,
@@ -89,7 +89,7 @@ class _SubscribeCallback(SubscribeCallback):
             MessageKind.FROM_AGENT: "\rAgent: ",
             MessageKind.RESOLVED: "\rConversation was marked as resolved.",
         }.get(converted.kind, f"\r{converted.kind.value}")
-        text = converted.text or ""
+        text = converted.text or {MessageMediaKind.IMAGE: "[🖼️image]"}.get(converted.media_kind, "")
         print(f"{prefix}{text}\nYou: ", end="")
 
     def presence(self, pubnub: PubNub, presence: PNPresenceEventResult) -> None:

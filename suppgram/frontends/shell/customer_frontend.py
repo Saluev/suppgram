@@ -9,7 +9,7 @@ from suppgram.entities import (
     NewMessageForCustomerEvent,
     MessageKind,
     CustomerIdentification,
-    Message,
+    Message, MessageMediaKind,
 )
 from suppgram.frontend import CustomerFrontend
 from suppgram.texts.interface import TextProvider
@@ -54,7 +54,7 @@ class ShellCustomerFrontend(CustomerFrontend):
             )
 
     async def _handle_new_message_for_customer_event(self, event: NewMessageForCustomerEvent):
-        text = event.message.text
+        text = event.message.text or {MessageMediaKind.IMAGE: "[🖼️image]"}.get(event.message.media_kind, "")
         if event.message.kind == MessageKind.RESOLVED:
             text = self._texts.telegram_customer_conversation_resolved_message
         print("\rAgent:", text, "\nYou: ", end="")

@@ -124,12 +124,19 @@ class EnglishTextProvider(TextProvider):
 
     def format_history_message(self, message: Message) -> str:
         if message.kind == MessageKind.FROM_CUSTOMER:
-            return f"👤 Customer: {message.text}"
+            return f"👤 Customer: {self.format_text_or_media(message)}"
         if message.kind == MessageKind.FROM_AGENT:
-            return f"🧑‍💼 Agent: {message.text}"
+            return f"🧑‍💼 Agent: {self.format_text_or_media(message)}"
         if message.kind == MessageKind.POSTPONED:
             return "⏳ Conversation was postponed."
         if message.kind == MessageKind.RESOLVED:
             return "✅ Conversation was resolved."
         logger.warning(f"Unsupported message kind: {message.kind.value!r}")
         return str(message.kind.value)
+
+    def format_text_or_media(self, message: Message) -> str:
+        if message.text:
+            return message.text
+        if message.image:
+            return "[🖼️image]"
+        return f"[{message.media_kind}]"

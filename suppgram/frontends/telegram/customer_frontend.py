@@ -9,7 +9,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     BaseHandler,
 )
-from telegram.ext.filters import TEXT, ChatType
+from telegram.ext.filters import TEXT, ChatType, PHOTO
 
 from suppgram.backend import Backend
 from suppgram.entities import (
@@ -78,8 +78,8 @@ class TelegramCustomerFrontend(CustomerFrontend):
         return [
             CommandHandler("start", self._handle_start_command),
             CallbackQueryHandler(self._handle_callback_query),
-            MessageHandler(ChatType.PRIVATE & TEXT, self._handle_text_message),
-            MessageHandler(ChatType.PRIVATE & ~TEXT, self._handle_unsupported_message),
+            MessageHandler(ChatType.PRIVATE & (TEXT | PHOTO), self._handle_text_message),
+            MessageHandler(ChatType.PRIVATE & ~(TEXT | PHOTO), self._handle_unsupported_message),
         ]
 
     async def initialize(self):
@@ -127,14 +127,37 @@ class TelegramCustomerFrontend(CustomerFrontend):
             make_customer_diff(update.effective_user),
         )
         conversation = await self._backend.identify_customer_conversation(identification)
-        await self._backend.process_message(
-            conversation,
-            Message(
-                kind=MessageKind.FROM_CUSTOMER,
-                time_utc=update.message.date,
-                text=update.message.text,
-            ),
-        )
+        if update.message.photo:
+            photo = max(update.message.photo, key=lambda p: p.width * p.height)
+            file = await context.bot.get_file(photo.file_id)
+            data = await file.download_as_bytearray()
+            await self._backend.process_message(
+                conversation,
+                Message(
+                    kind=MessageKind.FROM_CUSTOMER,
+                    time_utc=update.message.date,
+                    image=bytes(data),
+                ),
+            )
+            if update.message.caption:
+                await self._backend.process_message(
+                    conversation,
+                    Message(
+                        kind=MessageKind.FROM_CUSTOMER,
+                        time_utc=update.message.date,
+                        text=update.message.caption,
+                    ),
+                )
+        if update.message.text:
+            await self._backend.process_message(
+                conversation,
+                Message(
+                    kind=MessageKind.FROM_CUSTOMER,
+                    time_utc=update.message.date,
+                    text=update.message.text,
+                ),
+            )
+        # TODO batch processing of multiple messages
 
     async def _handle_unsupported_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.message, "message update should have `message`"
@@ -158,6 +181,12 @@ class TelegramCustomerFrontend(CustomerFrontend):
             await self._telegram_bot.send_message(
                 chat_id=customer.telegram_user_id,
                 text=event.message.text,
+            )
+
+        if event.message.image:
+            await self._telegram_bot.send_photo(
+                chat_id=customer.telegram_user_id,
+                photo=event.message.image,
             )
 
     async def _handle_conversation_resolution(self, event: NewMessageForCustomerEvent):

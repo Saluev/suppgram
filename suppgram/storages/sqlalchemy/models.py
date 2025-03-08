@@ -11,7 +11,7 @@ from sqlalchemy import (
     Column,
     Enum,
     ColumnElement,
-    Boolean,
+    Boolean, LargeBinary,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import (
@@ -128,7 +128,7 @@ class ConversationMessage(Base):
     kind: Mapped[MessageKind] = mapped_column(Enum(MessageKind), nullable=False)
     time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     text: Mapped[str] = mapped_column(String, nullable=True)
-    image_url: Mapped[str] = mapped_column(String, nullable=True)
+    image: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
 
 
 class Event(Base):
@@ -288,13 +288,14 @@ class Models:
             kind=message.kind,
             time_utc=message.time_utc,
             text=message.text,
+            image=message.image,
         )
 
     def convert_from_message_model(
         self, message: ConversationMessage
     ) -> ConversaionMessageInterface:
         return ConversaionMessageInterface(
-            kind=message.kind, time_utc=message.time_utc, text=message.text
+            kind=message.kind, time_utc=message.time_utc, text=message.text, image=message.image
         )
 
     def make_tag_model(self, name: str, created_by: AgentInterface) -> Tag:

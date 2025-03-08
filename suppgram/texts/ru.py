@@ -117,12 +117,19 @@ class RussianTextProvider(TextProvider):
 
     def format_history_message(self, message: Message) -> str:
         if message.kind == MessageKind.FROM_CUSTOMER:
-            return f"👤 Пользователь: {message.text}"
+            return f"👤 Пользователь: {self.format_text_or_media(message)}"
         if message.kind == MessageKind.FROM_AGENT:
-            return f"🧑‍💼 Агент: {message.text}"
+            return f"🧑‍💼 Агент: {self.format_text_or_media(message)}"
         if message.kind == MessageKind.POSTPONED:
             return "⏳ Обсуждение было отложено."
         if message.kind == MessageKind.RESOLVED:
             return "✅ Обсуждение было завершено."
         logger.warning(f"Unsupported message kind: {message.kind.value!r}")
         return str(message.kind.value)
+
+    def format_text_or_media(self, message: Message) -> str:
+        if message.text:
+            return message.text
+        if message.image:
+            return "[🖼️изображение]"
+        return f"[{message.media_kind}]"

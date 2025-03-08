@@ -1,13 +1,13 @@
 import asyncio
 import logging
-from itertools import groupby
+from itertools import groupby, islice
 from typing import List, Iterable, Optional, Callable, Awaitable, Mapping
 
 from telegram import (
     Update,
     BotCommand,
     Bot,
-    Chat,
+    Chat, InputMediaPhoto,
 )
 from telegram.error import BadRequest, Forbidden
 from telegram.ext import (
@@ -18,7 +18,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     BaseHandler,
 )
-from telegram.ext.filters import TEXT, ChatType
+from telegram.ext.filters import TEXT, ChatType, PHOTO
 
 from suppgram.backend import Backend
 from suppgram.entities import (
@@ -31,7 +31,7 @@ from suppgram.entities import (
     Customer,
     FINAL_STATES,
     Agent,
-    Conversation,
+    Conversation, MessageMediaKind,
 )
 from suppgram.errors import ConversationNotFound, AgentNotFound
 from suppgram.frontend import (
@@ -109,8 +109,8 @@ class TelegramAgentFrontend(AgentFrontend):
                 self._handle_resolve_command,
                 filters=ChatType.PRIVATE,
             ),
-            MessageHandler(ChatType.PRIVATE & TEXT, self._handle_text_message),
-            MessageHandler(ChatType.PRIVATE & ~TEXT, self._handle_unsupported_message),
+            MessageHandler(ChatType.PRIVATE & (TEXT | PHOTO), self._handle_text_message),
+            MessageHandler(ChatType.PRIVATE & ~(TEXT | PHOTO), self._handle_unsupported_message),
             CallbackQueryHandler(self._handle_callback_query),
         ]
 
@@ -243,14 +243,37 @@ class TelegramAgentFrontend(AgentFrontend):
                 text=self._texts.telegram_workplace_is_not_assigned_message,
             )
             return
-        await self._backend.process_message(
-            conversation,
-            Message(
-                kind=MessageKind.FROM_AGENT,
-                time_utc=update.message.date,
-                text=update.message.text,
-            ),
-        )
+        if update.message.photo:
+            photo = max(update.message.photo, key=lambda p: p.width * p.height)
+            file = await context.bot.get_file(photo.file_id)
+            data = await file.download_as_bytearray()
+            await self._backend.process_message(
+                conversation,
+                Message(
+                    kind=MessageKind.FROM_AGENT,
+                    time_utc=update.message.date,
+                    image=bytes(data)
+                ),
+            )
+            if update.message.caption:
+                await self._backend.process_message(
+                    conversation,
+                    Message(
+                        kind=MessageKind.FROM_AGENT,
+                        time_utc=update.message.date,
+                        text=update.message.caption,
+                    ),
+                )
+        if update.message.text:
+            await self._backend.process_message(
+                conversation,
+                Message(
+                    kind=MessageKind.FROM_AGENT,
+                    time_utc=update.message.date,
+                    text=update.message.text,
+                ),
+            )
+        # TODO batch processing of multiple messages
 
     async def _handle_unsupported_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert update.effective_chat, "message update should have `effective_chat`"
@@ -407,10 +430,15 @@ class TelegramAgentFrontend(AgentFrontend):
             return
 
         app = self._get_app_by_bot_id(workplace.telegram_bot_id)
-        texts = self._group_messages(messages)
+        texts_or_images = self._group_messages(messages)
         try:
-            for text in texts:
-                await app.bot.send_message(chat_id=workplace.telegram_user_id, text=text)
+            for text_or_images in texts_or_images:
+                if isinstance(text := text_or_images, str):
+                    await app.bot.send_message(chat_id=workplace.telegram_user_id, text=text)
+                else:
+                    await app.bot.send_media_group(chat_id=workplace.telegram_user_id, media=[
+                        InputMediaPhoto(image) for image in text_or_images
+                    ])
         except (BadRequest, Forbidden) as exc:
             if is_chat_not_found(exc) or is_blocked_by_user(exc):
                 await self._nudge_to_start_bot(workplace)
@@ -448,13 +476,42 @@ class TelegramAgentFrontend(AgentFrontend):
             telegram_bot_username=bot_username,
         )
 
-    def _group_messages(self, messages: Iterable[Message]) -> Iterable[str]:
-        yield from paginate_texts(
-            prefix="",
-            texts=(self._texts.format_history_message(message) for message in messages),
-            suffix="",
-            # When unspecified, `max_page_lines` and `max_page_chars` are assumed to be
-            # roughly equal to Telegram's own limits on message length. We are fine with
-            # that here, because we actually want to send as few messages as possible
-            # to avoid hitting Telegram RPS limit.
-        )
+    def _group_messages(self, messages: Iterable[Message]) -> Iterable[str | list[bytes]]:
+        buffer: list[Message] = []
+        buffer_kind: MessageMediaKind = MessageMediaKind.TEXT
+
+        def _flush_buffer() -> Iterable[str | list[bytes]]:
+            if buffer_kind == MessageMediaKind.TEXT:
+                yield from paginate_texts(
+                    prefix="",
+                    texts=(self._texts.format_history_message(msg) for msg in buffer),
+                    suffix="",
+                    # When unspecified, `max_page_lines` and `max_page_chars` are assumed to be
+                    # roughly equal to Telegram's own limits on message length. We are fine with
+                    # that here, because we actually want to send as few messages as possible
+                    # to avoid hitting Telegram RPS limit.
+                )
+            elif buffer_kind == MessageMediaKind.IMAGE:
+                for msgs in batched(buffer, 10):
+                    # TODO maybe we should distinguish images from agent and customer
+                    yield [msg.image for msg in msgs]
+            buffer.clear()
+
+        for message in messages:
+            if buffer_kind != message.media_kind:
+                yield from _flush_buffer()
+                buffer_kind = message.media_kind
+            buffer.append(message)
+
+        yield from _flush_buffer()
+
+
+def batched(iterable, n, *, strict=False):
+    # batched('ABCDEFG', 3) → ABC DEF G
+    if n < 1:
+        raise ValueError('n must be at least one')
+    iterator = iter(iterable)
+    while batch := tuple(islice(iterator, n)):
+        if strict and len(batch) != n:
+            raise ValueError('batched(): incomplete batch')
+        yield batch

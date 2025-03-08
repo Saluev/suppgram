@@ -370,6 +370,7 @@ class Collections:
                     kind=MessageKind(message_doc["kind"]),
                     time_utc=message_doc["time_utc"],
                     text=message_doc.get("text"),
+                    image=message_doc.get("image"),
                 )
                 for message_doc in doc["messages"]
             ]
@@ -384,7 +385,8 @@ class Collections:
                 "messages": {
                     "kind": message.kind,
                     "time_utc": message.time_utc,
-                    "text": message.text,
+                    **_maybe("text", message.text),
+                    **_maybe("image", message.image),
                 }
             }
         }
@@ -417,3 +419,7 @@ class Collections:
             tag_id=doc.get("tag_id"),
             workplace_id=doc.get("workplace_id"),
         )
+
+
+def _maybe(key: str, value: Any) -> dict[str, Any]:
+    return {key: value} if value else {}

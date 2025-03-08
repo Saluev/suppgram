@@ -200,11 +200,13 @@ class Message:
         kind: message kind.
         time_utc: date and time of message creation.
         text: message text, if this is a text message.
+        image: image data, if this is an image message.
     """
 
     kind: MessageKind
     time_utc: datetime
     text: Optional[str] = None
+    image: Optional[bytes] = None
     # don't forget to add new `MessageMediaKind`
     # when implementing images, videos, etc.
 
@@ -212,6 +214,8 @@ class Message:
     def media_kind(self) -> "MessageMediaKind":
         if self.text is not None:
             return MessageMediaKind.TEXT
+        if self.image is not None:
+            return MessageMediaKind.IMAGE
         return MessageMediaKind.NONE
 
 
@@ -331,6 +335,7 @@ class EventKind(str, Enum):
 class MessageMediaKind(str, Enum):
     NONE = "none"
     TEXT = "text"
+    IMAGE = "image"
     # images, videos, etc.
 
 
