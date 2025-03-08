@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from time import perf_counter
 from typing import Optional, Any, List
 
@@ -105,22 +106,22 @@ class TelegramManagerFrontend(ManagerFrontend):
             CommandHandler(
                 self._AGENTS_COMMAND,
                 self._handle_agents_command,
-                filters=ChatType.GROUP,
+                filters=ChatType.GROUPS,
             ),
             CommandHandler(
                 self._SEND_NEW_CONVERSATIONS_COMMAND,
                 self._handle_send_new_conversations_command,
-                filters=ChatType.GROUP,
+                filters=ChatType.GROUPS,
             ),
             CommandHandler(
                 self._CREATE_CONVERSATION_TAG_COMMAND,
                 self._handle_create_conversation_tag_command,
-                filters=ChatType.GROUP | ChatType.PRIVATE,
+                filters=ChatType.GROUPS | ChatType.PRIVATE,
             ),
             CommandHandler(
                 self._REPORT_COMMAND,
                 self._handle_report_command,
-                filters=ChatType.GROUP | ChatType.PRIVATE,
+                filters=ChatType.GROUPS | ChatType.PRIVATE,
             ),
             MessageHandler(StatusUpdate.NEW_CHAT_MEMBERS, self._handle_new_chat_members),
             MessageHandler(StatusUpdate.LEFT_CHAT_MEMBER, self._handle_left_chat_member),
