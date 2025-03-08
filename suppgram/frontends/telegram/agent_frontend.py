@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from itertools import groupby, islice
-from typing import List, Iterable, Optional, Callable, Awaitable, Mapping
+from typing import List, Iterable, Optional, Callable, Awaitable, Mapping, Union
 
 from telegram import (
     Update,
@@ -476,11 +476,11 @@ class TelegramAgentFrontend(AgentFrontend):
             telegram_bot_username=bot_username,
         )
 
-    def _group_messages(self, messages: Iterable[Message]) -> Iterable[str | list[bytes]]:
+    def _group_messages(self, messages: Iterable[Message]) -> Iterable[Union[str, list[bytes]]]:
         buffer: list[Message] = []
         buffer_kind: MessageMediaKind = MessageMediaKind.TEXT
 
-        def _flush_buffer() -> Iterable[str | list[bytes]]:
+        def _flush_buffer() -> Iterable[Union[str, list[bytes]]]:
             if buffer_kind == MessageMediaKind.TEXT:
                 yield from paginate_texts(
                     prefix="",
