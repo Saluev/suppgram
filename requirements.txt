@@ -7,7 +7,7 @@ click~=8.1.7
 mkdocs~=1.6.1
 mkdocstrings~=0.28.2
 mkdocstrings-python~=1.16.2
-motor~=3.3.2
+motor~=3.7.0
 mypy-extensions==1.0.0
 mypy==1.7.1
 pubnub~=7.3.1
