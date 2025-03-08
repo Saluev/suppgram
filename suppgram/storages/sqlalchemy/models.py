@@ -149,7 +149,7 @@ class Event(Base):
 class Models:
     """Abstraction layer over SQLAlchemy models.
 
-    Default models are declared in `suppgram.storages.mongodb.collections` package."""
+    Default models are declared in `suppgram.storages.sqlalchemy.models` package."""
 
     def __init__(
         self,
