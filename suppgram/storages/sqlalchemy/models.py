@@ -128,6 +128,7 @@ class ConversationMessage(Base):
     kind: Mapped[MessageKind] = mapped_column(Enum(MessageKind), nullable=False)
     time_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     text: Mapped[str] = mapped_column(String, nullable=True)
+    image_url: Mapped[str] = mapped_column(String, nullable=True)
 
 
 class Event(Base):

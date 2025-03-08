@@ -46,13 +46,13 @@ Your current SQLAlchemy URL must be specified in `alembic.ini` (`sqlalchemy.url`
 To migrate to current state of things:
 
 ```shell
-python -m alembic upgrade head
+python -m alembic -c suppgram/alembic.ini upgrade head
 ```
 
 To create a new migration:
 
 ```shell
-python -m alembic revision --autogenerate -m "..."
+python -m alembic -c suppgram/alembic.ini revision --autogenerate -m "..."
 ```
 
 <br/>

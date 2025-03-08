@@ -62,6 +62,12 @@ Documentation = "https://suppgram.readthedocs.org"
 Repository = "https://github.com/Saluev/suppgram.git"
 Issues = "https://github.com/Saluev/suppgram/issues"
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+suppgram = ["alembic.ini"]
+
 [tool.black]
 line-length = 100
 

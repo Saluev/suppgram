@@ -9,6 +9,7 @@ nav:
       - Quickstart: usage/quickstart.md
       - 'All-in-one CLI': usage/all_in_one_cli.md
       - Builder: usage/builder.md
+      - Updating to a newer version: usage/updating.md
   - Features:
       - 'PostgreSQL/SQLite integration': features/sql_integration.md
       - 'MongoDB integration': features/mongodb_integration.md
