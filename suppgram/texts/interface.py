@@ -99,6 +99,7 @@ class TextProvider:
     customer_profile_header: str
     customer_profile_anonymous: str
     customer_profile_contacts: str
+    customer_rating_footer: str
 
     def compose_customer_profile(
         self, customer: Customer, allowed_formats: Collection[Format] = (Format.PLAIN,)
@@ -152,6 +153,11 @@ class TextProvider:
             "",
         ]
         lines.extend(self.format_history_message(message) for message in conversation.messages)
+
+        if conversation.customer_rating is not None:
+            rating = self.format_rating(conversation.customer_rating)
+            lines.extend(("", self.customer_rating_footer.format(rating=rating)))
+
         if agent := conversation.assigned_agent:
             if agent.telegram_user_id:
                 agent_ref = self._format_telegram_mention(
@@ -164,7 +170,9 @@ class TextProvider:
             else:
                 logger.warning(f"Can't mention {agent} — unsupported agent frontend")
                 agent_ref = f"#_{agent.id}"
-            lines.extend(("", self.conversation_notification_assigned_to.format(agent=agent_ref)))
+            if conversation.customer_rating is None:
+                lines.append("")
+            lines.append(self.conversation_notification_assigned_to.format(agent=agent_ref))
         if conversation.tags:
             tags = [self._format_telegram_tag(tag) for tag in conversation.tags]
             lines.extend(("", " ".join(tags)))

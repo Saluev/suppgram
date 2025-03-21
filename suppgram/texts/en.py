@@ -93,6 +93,7 @@ class EnglishTextProvider(TextProvider):
     customer_profile_header = "👤 Customer: {customer}"
     customer_profile_anonymous = "anonymous"
     customer_profile_contacts = "📒 Contacts: {contacts}"
+    customer_rating_footer = "🎖 Rating: {rating}"
 
     def compose_conversation_notification_header(self, conversation: Conversation) -> str:
         emoji = self.CONVERSATION_STATE_TO_EMOJI.get(conversation.state, "")

@@ -93,6 +93,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         )
         backend.on_conversation_assignment.add_handler(self._handle_conversation_assignment_event)
         backend.on_conversation_resolution.add_handler(self._handle_conversation_resolution_event)
+        backend.on_conversation_rated.add_handler(self._handle_conversation_rated_event)
         backend.on_conversation_tag_added.add_handler(self._handle_conversation_tags_event)
         backend.on_conversation_tag_removed.add_handler(self._handle_conversation_tags_event)
         backend.on_tag_created.add_handler(self._handle_tag_event)
@@ -170,6 +171,9 @@ class TelegramManagerFrontend(ManagerFrontend):
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _handle_conversation_resolution_event(self, event: ConversationEvent) -> None:
+        await self._send_or_edit_new_conversation_notifications(event.conversation)
+
+    async def _handle_conversation_rated_event(self, event: ConversationEvent) -> None:
         await self._send_or_edit_new_conversation_notifications(event.conversation)
 
     async def _handle_conversation_tags_event(self, event: ConversationTagEvent) -> None:
