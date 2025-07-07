@@ -71,7 +71,7 @@ class LocalBackend(BackendInterface):
         return await self._storage.get_agent(identification)
 
     async def update_agent(self, identification: AgentIdentification, diff: AgentDiff) -> Agent:
-        if diff.deactivated is not None:
+        if diff.deactivated:
             raise ValueError("can't deactivate agent via diff, use `deactivate_agent()`")
         return await self._storage.update_agent(identification, diff)
 
