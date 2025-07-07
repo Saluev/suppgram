@@ -495,13 +495,16 @@ class TelegramManagerFrontend(ManagerFrontend):
     async def _create_or_update_agent(self, effective_chat: Chat, effective_user: User) -> None:
         identification = make_agent_identification(effective_user)
         diff = make_agent_diff(effective_user)
+        group = await self._storage.get_chat(effective_chat.id)
+        if TelegramChatRole.AGENTS in group.roles:
+            # User clicked button in agent chat - so even if they left the chat
+            # previously (and were deactivated), they are active agents now.
+            diff = replace(diff, deactivated=False)
         try:
             await self._backend.update_agent(identification, diff)
         except AgentNotFound:
-            group = await self._storage.get_chat(effective_chat.id)
             if TelegramChatRole.AGENTS not in group.roles:
                 return
-            diff = replace(diff, deactivated=False)
             await self._backend.create_or_update_agent(identification, diff)
 
     async def _handle_agents_command(
