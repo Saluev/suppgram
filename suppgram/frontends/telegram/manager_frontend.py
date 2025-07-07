@@ -238,6 +238,10 @@ class TelegramManagerFrontend(ManagerFrontend):
         #
         # In other chats (where the notification is still on top or at least
         # among other NEW notifications), we should update the existing notification.
+        #
+        # First, fetch conversation WITH MESSAGES from the database.
+        # (Events by default contain lightweight conversations without messages.)
+        conversation = await self._backend.get_conversation(conversation.id)
         messages = await self._storage.get_messages(
             TelegramMessageKind.NEW_CONVERSATION_NOTIFICATION,
             conversation_id=conversation.id,
