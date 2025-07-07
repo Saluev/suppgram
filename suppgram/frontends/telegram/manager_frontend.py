@@ -31,7 +31,7 @@ from suppgram.entities import (
     ConversationState,
     Tag,
     ConversationTagEvent,
-    TagEvent,
+    TagEvent, AgentDiff,
 )
 from suppgram.errors import AgentNotFound, PermissionDenied, TagAlreadyExists
 from suppgram.frontend import (
@@ -546,7 +546,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         if TelegramChatRole.AGENTS not in group.roles:
             return
         await flat_gather(
-            self._backend.create_or_update_agent(make_agent_identification(user))
+            self._backend.create_or_update_agent(make_agent_identification(user), AgentDiff(deactivated=False))
             for user in update.message.new_chat_members
             if not user.is_bot
         )
