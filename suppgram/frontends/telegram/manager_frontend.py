@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from dataclasses import replace
 from time import perf_counter
 from typing import Optional, Any, List
 
@@ -500,6 +501,7 @@ class TelegramManagerFrontend(ManagerFrontend):
             group = await self._storage.get_chat(effective_chat.id)
             if TelegramChatRole.AGENTS not in group.roles:
                 return
+            diff = replace(diff, deactivated=False)
             await self._backend.create_or_update_agent(identification, diff)
 
     async def _handle_agents_command(
