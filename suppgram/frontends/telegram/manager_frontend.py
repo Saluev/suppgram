@@ -466,6 +466,7 @@ class TelegramManagerFrontend(ManagerFrontend):
         assert update.effective_user, "callback query update should have `effective_user`"
         if not update.callback_query.data:
             # No idea how to handle this update.
+            logger.warning("Received callback query with no data")
             return
         await self._create_or_update_agent(update.effective_chat, update.effective_user)
         callback_data = decode_callback_data(update.callback_query.data)
